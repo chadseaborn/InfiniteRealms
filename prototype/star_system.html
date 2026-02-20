@@ -1712,6 +1712,7 @@ function renderStar(star) {
         depthTest: true   // occluded by the opaque star body so glow doesn't bleed through
     });
     starGlowSprite = new THREE.Sprite(glowMaterial);
+    starGlowSprite.userData = { type: 'star_glow', index: 0 };
     starGlowSprite.renderOrder = -1; // render before other transparent objects
     const glowScale = bodyRadius * 3;
     starGlowSprite.scale.set(glowScale, glowScale, 1);
@@ -1760,6 +1761,7 @@ function renderStar(star) {
             depthTest: true   // occluded by opaque companion body
         });
         binaryCompanionGlow = new THREE.Sprite(compGlowMat);
+        binaryCompanionGlow.userData = { type: 'star_glow', index: 1 };
         binaryCompanionGlow.renderOrder = -1;
         const compGlowScale = compBodyR * 3;
         binaryCompanionGlow.scale.set(compGlowScale, compGlowScale, 1);
@@ -2155,16 +2157,26 @@ function onClick(e) {
 
     raycaster.setFromCamera(mouse, camera);
 
-    // Raycast against all clickable meshes (wormhole first for priority)
-    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes, ...(starSprite ? [starSprite] : []), ...(binaryCompanionSprite ? [binaryCompanionSprite] : [])];
+    // Raycast against all clickable meshes
+    // Order: wormhole, companion glow (bigger target), companion body, planets,
+    // moons, primary glow, primary body. intersectObjects sorts by distance,
+    // but listing companion glow early helps when objects overlap.
+    const allMeshes = [
+        ...(wormholeMesh ? [wormholeMesh] : []),
+        ...(binaryCompanionGlow ? [binaryCompanionGlow] : []),
+        ...(binaryCompanionSprite ? [binaryCompanionSprite] : []),
+        ...planetMeshes, ...moonMeshes,
+        ...(starGlowSprite ? [starGlowSprite] : []),
+        ...(starSprite ? [starSprite] : [])
+    ];
     const intersects = raycaster.intersectObjects(allMeshes);
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData.type === 'wormhole') {
             selectWormhole();
-        } else if (hit.userData.type === 'star') {
-            selectStar();
+        } else if (hit.userData.type === 'star' || hit.userData.type === 'star_glow') {
+            selectStar(hit.userData.index || 0);
         } else if (hit.userData.type === 'planet') {
             selectPlanet(hit.userData.index);
         } else if (hit.userData.type === 'moon') {
@@ -2179,15 +2191,22 @@ function onDblClick(e) {
     mouse.y = -((e.clientY - rect.top) / containerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes, ...(starSprite ? [starSprite] : []), ...(binaryCompanionSprite ? [binaryCompanionSprite] : [])];
+    const allMeshes = [
+        ...(wormholeMesh ? [wormholeMesh] : []),
+        ...(binaryCompanionGlow ? [binaryCompanionGlow] : []),
+        ...(binaryCompanionSprite ? [binaryCompanionSprite] : []),
+        ...planetMeshes, ...moonMeshes,
+        ...(starGlowSprite ? [starGlowSprite] : []),
+        ...(starSprite ? [starSprite] : [])
+    ];
     const intersects = raycaster.intersectObjects(allMeshes);
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData.type === 'wormhole') {
             enterWormhole();
-        } else if (hit.userData.type === 'star') {
-            selectStar(); // no landing on stars
+        } else if (hit.userData.type === 'star' || hit.userData.type === 'star_glow') {
+            selectStar(hit.userData.index || 0); // no landing on stars
         } else if (hit.userData.type === 'planet') {
             selectPlanet(hit.userData.index);
             landOnPlanet(hit.userData.index);

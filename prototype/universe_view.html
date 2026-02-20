@@ -1018,32 +1018,9 @@ function buildUniverseScene() {
             universeGroup.add(coreSprite);
             quasarSprites.push(coreSprite);
 
-            // Relativistic jets — only visible for radio-loud and blazar types
-            const hasVisibleJets = (q.type.id === 'blazar' || q.type.id === 'radio_loud');
-            if (hasVisibleJets) {
-                const jetDir = new THREE.Vector3(
-                    Math.cos(q.jetAngle) * Math.cos(q.jetTilt),
-                    Math.sin(q.jetTilt),
-                    Math.sin(q.jetAngle) * Math.cos(q.jetTilt)
-                ).normalize();
-                const origin = new THREE.Vector3(q.x, q.y, q.z);
-                const jet1End = origin.clone().add(jetDir.clone().multiplyScalar(q.jetLength));
-                const jet2End = origin.clone().add(jetDir.clone().multiplyScalar(-q.jetLength));
-
-                const jetColor = new THREE.Color(q.type.jetColor);
-                const jetOpacity = q.type.id === 'blazar' ? 0.4 : 0.25;
-                const jetMat = new THREE.LineBasicMaterial({
-                    color: jetColor, transparent: true, opacity: jetOpacity,
-                    depthWrite: false, blending: THREE.AdditiveBlending
-                });
-                const jet1Geo = new THREE.BufferGeometry().setFromPoints([origin, jet1End]);
-                const jet2Geo = new THREE.BufferGeometry().setFromPoints([origin, jet2End]);
-                const jet1 = new THREE.Line(jet1Geo, jetMat);
-                const jet2 = new THREE.Line(jet2Geo, jetMat);
-                universeGroup.add(jet1);
-                universeGroup.add(jet2);
-                quasarJetMeshes.push(jet1, jet2);
-            }
+            // Jets are represented visually by the starburst diffraction spikes
+            // in the quasar texture rather than separate line geometry, which
+            // looked cluttered at universe scale.
         }
     }
 }
