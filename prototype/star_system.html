@@ -1805,17 +1805,24 @@ function renderStar(star) {
             pulsarGroup.add(hotspot);
         }
 
-        // Beam cones — tapered beams extending from each pole
+        // Beam cones — tapered beams extending from each pole (small at star, wide at tip)
         for (let pole = -1; pole <= 1; pole += 2) {
             const beamLength = bodyRadius * 12;
             const beamBaseR = bodyRadius * 0.6;
             const beamTipR = bodyRadius * 2.0;
-            const coneGeo = new THREE.CylinderGeometry(beamTipR, beamBaseR, beamLength, 16, 8, true);
-            // Vertex color gradient: bright at base, fading at tip
+            // CylinderGeometry(topRadius, bottomRadius): top=+Y, bottom=-Y
+            // pole=+1: cone above star, tip at top (+Y) → top=wide, bottom=narrow
+            // pole=-1: cone below star, tip at bottom (-Y) → top=narrow, bottom=wide
+            const topR = pole === 1 ? beamTipR : beamBaseR;
+            const botR = pole === 1 ? beamBaseR : beamTipR;
+            const coneGeo = new THREE.CylinderGeometry(topR, botR, beamLength, 16, 8, true);
+            // Vertex color gradient: bright at base (near star), fading at tip (far end)
             const colors = new Float32Array(coneGeo.attributes.position.count * 3);
             for (let vi = 0; vi < coneGeo.attributes.position.count; vi++) {
                 const vy = coneGeo.attributes.position.getY(vi);
-                const t = (vy + beamLength / 2) / beamLength; // 0 at base, 1 at tip
+                const t = (vy + beamLength / 2) / beamLength; // 0=bottom, 1=top
+                // For pole=+1, base is at bottom (t=0), tip at top (t=1) → fade=1-t
+                // For pole=-1, base is at top (t=1), tip at bottom (t=0) → fade=t
                 const fade = pole === 1 ? (1 - t) : t;
                 colors[vi * 3] = 0.85 * fade + 0.15;
                 colors[vi * 3 + 1] = 0.55 * fade + 0.1;

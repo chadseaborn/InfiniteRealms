@@ -909,15 +909,24 @@ function buildGalaxyScene() {
             agnJetGroup.add(mesh);
         }
 
-        // Relativistic jets — glowing cones extending from poles
+        // Relativistic jets — glowing cones extending from poles (small at core, wide at tip)
         for (let pole = -1; pole <= 1; pole += 2) {
             const jetLen = 60 + galaxy.smbh.mass;
-            const jetGeo = new THREE.CylinderGeometry(1.5, 6, jetLen, 12, 6, true);
-            // Vertex colors: white-hot at base fading to blue/violet at tips
+            const baseR = 1.5;  // narrow at the core
+            const tipR = 6;     // wide at the far end
+            // CylinderGeometry(topRadius, bottomRadius): top=+Y, bottom=-Y
+            // pole=+1: jet above core, tip at top → top=wide, bottom=narrow
+            // pole=-1: jet below core, tip at bottom → top=narrow, bottom=wide
+            const topR = pole === 1 ? tipR : baseR;
+            const botR = pole === 1 ? baseR : tipR;
+            const jetGeo = new THREE.CylinderGeometry(topR, botR, jetLen, 12, 6, true);
+            // Vertex colors: white-hot at base (near core) fading to blue/violet at tip
             const jColors = new Float32Array(jetGeo.attributes.position.count * 3);
             for (let vi = 0; vi < jetGeo.attributes.position.count; vi++) {
                 const vy = jetGeo.attributes.position.getY(vi);
-                const t = (vy + jetLen / 2) / jetLen; // 0=base, 1=tip
+                const t = (vy + jetLen / 2) / jetLen; // 0=bottom, 1=top
+                // pole=+1: base at bottom (t=0), tip at top (t=1) → fade = 1-t
+                // pole=-1: base at top (t=1), tip at bottom (t=0) → fade = t
                 const fade = pole === 1 ? (1 - t) : t;
                 jColors[vi * 3]     = 1.0 * fade + 0.3 * (1 - fade);   // R: white→blue
                 jColors[vi * 3 + 1] = 0.7 * fade + 0.2 * (1 - fade);   // G
@@ -935,7 +944,9 @@ function buildGalaxyScene() {
             agnJetGroup.add(jet);
 
             // Bright inner jet beam (narrower, brighter)
-            const beamGeo = new THREE.CylinderGeometry(0.3, 2, jetLen * 0.8, 8, 1, true);
+            const beamTopR = pole === 1 ? 2 : 0.3;
+            const beamBotR = pole === 1 ? 0.3 : 2;
+            const beamGeo = new THREE.CylinderGeometry(beamTopR, beamBotR, jetLen * 0.8, 8, 1, true);
             const beamMat = new THREE.MeshBasicMaterial({
                 color: 0xffddaa, transparent: true, opacity: 0.35,
                 side: THREE.DoubleSide, depthWrite: false,
