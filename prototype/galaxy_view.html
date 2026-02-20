@@ -982,13 +982,14 @@ function buildGalaxyScene() {
                 agnJetGroup.add(mesh);
             }
 
-            // Helical plasma filament — fades out along length
+            // Helical plasma filament — fades out along length, widens outward
             const helixPts = [];
             const turns = 5, steps = 80;
             for (let si = 0; si <= steps; si++) {
                 const ht = si / steps;
                 const angle = ht * Math.PI * 2 * turns;
-                const r = (baseR + (tipR - baseR) * ht) * 0.3;
+                const outward = pole === 1 ? ht : (1 - ht);
+                const r = (baseR + (tipR - baseR) * outward) * 0.3;
                 helixPts.push(new THREE.Vector3(
                     Math.cos(angle) * r,
                     (ht - 0.5) * jetLen,

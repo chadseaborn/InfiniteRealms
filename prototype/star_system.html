@@ -1976,14 +1976,17 @@ function renderStar(star) {
                 pulsarGroup.add(mesh);
             }
 
-            // Helical filament — fades out along length
+            // Helical filament — fades out along length, widens outward
             const helixPoints = [];
             const helixTurns = 6;
             const helixSteps = 100;
             for (let si = 0; si <= helixSteps; si++) {
-                const ht = si / helixSteps;
+                const ht = si / helixSteps; // 0=bottom(-Y), 1=top(+Y)
                 const angle = ht * Math.PI * 2 * helixTurns;
-                const r = (beamBaseR + (beamTipR - beamBaseR) * ht) * 0.4;
+                // pole=+1: tip at top, so radius grows with ht
+                // pole=-1: tip at bottom, so radius grows as ht decreases
+                const outward = pole === 1 ? ht : (1 - ht);
+                const r = (beamBaseR + (beamTipR - beamBaseR) * outward) * 0.4;
                 helixPoints.push(new THREE.Vector3(
                     Math.cos(angle) * r,
                     (ht - 0.5) * beamLength,
@@ -2025,21 +2028,42 @@ function renderStar(star) {
             pulsarGroup.add(helix);
         }
 
-        // Flat beam planes (enhanced — 2 perpendicular planes per beam for volume)
+        // Flat beam planes — fade from bright center to transparent tips
         for (let i = 0; i < 2; i++) {
             for (let p = 0; p < 2; p++) {
-                const beamGeom = new THREE.PlaneGeometry(1, 1);
-                const beamMaterial = new THREE.MeshBasicMaterial({
-                    color: 0xdd99ff,
+                const beamGeom = new THREE.PlaneGeometry(1, 1, 1, 16);
+                // Per-vertex alpha: bright at center (y≈0), fading at edges (y≈±0.5)
+                const bPos = beamGeom.attributes.position;
+                const bAlphas = new Float32Array(bPos.count);
+                for (let vi = 0; vi < bPos.count; vi++) {
+                    const vy = bPos.getY(vi); // -0.5 to +0.5
+                    const distFromCenter = Math.abs(vy) * 2; // 0=center, 1=edge
+                    bAlphas[vi] = Math.pow(1 - distFromCenter, 3); // cubic fade
+                }
+                beamGeom.setAttribute('alphaFade', new THREE.BufferAttribute(bAlphas, 1));
+                const beamMaterial = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        attribute float alphaFade;
+                        varying float vFade;
+                        void main() {
+                            vFade = alphaFade;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying float vFade;
+                        void main() {
+                            gl_FragColor = vec4(0.87, 0.6, 1.0, vFade * 0.3);
+                        }
+                    `,
                     transparent: true,
-                    opacity: 0.3,
                     side: THREE.DoubleSide,
                     depthWrite: false,
                     blending: THREE.AdditiveBlending
                 });
                 const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
                 beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 24, 1);
-                if (p === 1) beamSprite.rotation.y = Math.PI / 2; // perpendicular
+                if (p === 1) beamSprite.rotation.y = Math.PI / 2;
                 pulsarBeamSprites.push(beamSprite);
                 scene.add(beamSprite);
             }
