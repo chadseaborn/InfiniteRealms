@@ -1275,6 +1275,176 @@ function buildGalaxyScene() {
         galaxyGroup.add(dustPoints);
     }
 
+    // ---- Ionized gas nebula clouds — colorful backdrop ----
+    {
+        const nebRng = new SeededRandom(galaxy.seed * 67 + 13);
+
+        // Rich nebula color palettes inspired by real emission/reflection nebulae
+        const nebulaPalettes = [
+            // H-II regions (pink/magenta hydrogen emission)
+            { core: [1.0, 0.3, 0.5],  edge: [0.6, 0.1, 0.3] },
+            { core: [1.0, 0.4, 0.6],  edge: [0.8, 0.15, 0.4] },
+            // Reflection nebulae (blue/teal)
+            { core: [0.3, 0.6, 1.0],  edge: [0.1, 0.3, 0.7] },
+            { core: [0.2, 0.8, 0.9],  edge: [0.05, 0.4, 0.6] },
+            // Planetary nebulae (teal/green)
+            { core: [0.2, 1.0, 0.7],  edge: [0.05, 0.5, 0.35] },
+            // Supernova remnants (orange/gold)
+            { core: [1.0, 0.7, 0.2],  edge: [0.7, 0.3, 0.05] },
+            { core: [1.0, 0.5, 0.15], edge: [0.6, 0.2, 0.05] },
+            // Emission nebulae (violet/purple)
+            { core: [0.7, 0.3, 1.0],  edge: [0.4, 0.1, 0.6] },
+            { core: [0.8, 0.2, 0.9],  edge: [0.5, 0.05, 0.5] },
+            // Mixed emission (rose/salmon)
+            { core: [1.0, 0.5, 0.4],  edge: [0.6, 0.2, 0.2] },
+            // Cyan wisps
+            { core: [0.3, 0.9, 1.0],  edge: [0.1, 0.5, 0.6] },
+        ];
+
+        // Generate procedural cloud texture on a canvas
+        function createNebulaTexture(palette, rng) {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const cx = size / 2, cy = size / 2;
+
+            // Layer multiple soft radial blobs for cloud-like structure
+            const blobCount = 5 + Math.floor(rng.next() * 6);
+            for (let b = 0; b < blobCount; b++) {
+                const bx = cx + (rng.next() - 0.5) * size * 0.5;
+                const by = cy + (rng.next() - 0.5) * size * 0.5;
+                const br = size * (0.15 + rng.next() * 0.35);
+
+                const t = rng.next(); // blend between core and edge color
+                const r = Math.round((palette.core[0] * (1-t) + palette.edge[0] * t) * 255);
+                const g = Math.round((palette.core[1] * (1-t) + palette.edge[1] * t) * 255);
+                const bl = Math.round((palette.core[2] * (1-t) + palette.edge[2] * t) * 255);
+
+                const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+                const peakAlpha = 0.15 + rng.next() * 0.2;
+                grad.addColorStop(0, `rgba(${r},${g},${bl},${peakAlpha})`);
+                grad.addColorStop(0.3, `rgba(${r},${g},${bl},${peakAlpha * 0.6})`);
+                grad.addColorStop(0.6, `rgba(${r},${g},${bl},${peakAlpha * 0.2})`);
+                grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
+
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(bx, by, br, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Add wispy filament streaks
+            ctx.globalCompositeOperation = 'lighter';
+            const filamentCount = 3 + Math.floor(rng.next() * 4);
+            for (let f = 0; f < filamentCount; f++) {
+                const fx1 = rng.next() * size;
+                const fy1 = rng.next() * size;
+                const fx2 = rng.next() * size;
+                const fy2 = rng.next() * size;
+                const fcx = (fx1 + fx2) / 2 + (rng.next() - 0.5) * size * 0.4;
+                const fcy = (fy1 + fy2) / 2 + (rng.next() - 0.5) * size * 0.4;
+
+                const t = rng.next();
+                const r = Math.round((palette.core[0] * (1-t) + palette.edge[0] * t) * 255);
+                const g = Math.round((palette.core[1] * (1-t) + palette.edge[1] * t) * 255);
+                const bl = Math.round((palette.core[2] * (1-t) + palette.edge[2] * t) * 255);
+
+                ctx.strokeStyle = `rgba(${r},${g},${bl},${0.06 + rng.next() * 0.08})`;
+                ctx.lineWidth = 4 + rng.next() * 12;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(fx1, fy1);
+                ctx.quadraticCurveTo(fcx, fcy, fx2, fy2);
+                ctx.stroke();
+            }
+
+            // Soft overall radial fade so edges are transparent
+            const fadeGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
+            fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            fadeGrad.addColorStop(0.6, 'rgba(0,0,0,0)');
+            fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = fadeGrad;
+            ctx.fillRect(0, 0, size, size);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        // How many nebula clouds based on galaxy type
+        let nebulaCount;
+        const gType = galaxy.type.id;
+        if (gType === 'elliptical') {
+            nebulaCount = 8 + Math.floor(nebRng.next() * 6);  // fewer, warmer
+        } else if (gType === 'irregular') {
+            nebulaCount = 25 + Math.floor(nebRng.next() * 15); // lots of star formation
+        } else {
+            nebulaCount = 18 + Math.floor(nebRng.next() * 12); // spiral — along arms
+        }
+
+        const { armAngles: nArmAngles, armRotation: nArmRot, armSpread: nArmSpread,
+                discHeight: nDh, irregularPosition: nIrrPos, coreRadius: nCr } = galaxyData;
+        const nArmCount = galaxy.armCount;
+
+        for (let ni = 0; ni < nebulaCount; ni++) {
+            // Pick a palette — ellipticals favor warmer tones
+            let palette;
+            if (gType === 'elliptical') {
+                const warmPalettes = nebulaPalettes.filter((p, i) => i === 5 || i === 6 || i === 9);
+                palette = warmPalettes[Math.floor(nebRng.next() * warmPalettes.length)];
+            } else {
+                palette = nebulaPalettes[Math.floor(nebRng.next() * nebulaPalettes.length)];
+            }
+
+            // Position nebula cloud within galaxy structure
+            let nx, ny, nz;
+            if (gType === 'irregular' && nIrrPos) {
+                const pos = nIrrPos(nebRng);
+                nx = pos.x * 0.8; ny = pos.y * 0.8; nz = pos.z * 0.8;
+            } else if (nArmCount > 0 && nArmAngles.length > 0 && nebRng.next() < 0.85) {
+                // Along spiral arms
+                const armIdx = nebRng.nextInt(0, nArmCount - 1);
+                const baseAngle = nArmAngles[armIdx];
+                const distFromCore = nebRng.nextFloat(0.1, 0.95);
+                const spiralAngle = baseAngle + distFromCore * nArmRot;
+                const perpSpread = (nebRng.next() - 0.5) * nArmSpread * galaxyRadius * 0.12;
+                const radialDist = distFromCore * galaxyRadius;
+                nx = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
+                nz = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
+                const r = Math.sqrt(nx*nx + nz*nz) / galaxyRadius;
+                ny = (nebRng.next() - 0.5) * nDh(r) * 0.6;
+            } else {
+                // Core / bulge region
+                const angle = nebRng.nextFloat(0, Math.PI * 2);
+                const dist = nebRng.nextFloat(0.05, 0.4) * galaxyRadius;
+                nx = Math.cos(angle) * dist;
+                nz = Math.sin(angle) * dist;
+                ny = (nebRng.next() - 0.5) * galaxyRadius * 0.04;
+            }
+
+            const tex = createNebulaTexture(palette, nebRng);
+            const nebMat = new THREE.SpriteMaterial({
+                map: tex,
+                transparent: true,
+                opacity: 0.35 + nebRng.next() * 0.25,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                rotation: nebRng.next() * Math.PI * 2
+            });
+            const nebSprite = new THREE.Sprite(nebMat);
+            nebSprite.position.set(nx, ny, nz);
+
+            // Size varies — some huge diffuse clouds, some smaller knots
+            const nebSize = galaxyRadius * (0.08 + nebRng.next() * 0.18);
+            nebSprite.scale.set(nebSize, nebSize, 1);
+
+            galaxyGroup.add(nebSprite);
+        }
+    }
+
     // ---- Galaxy wormhole sprites ----
     if (galaxyData.galaxyWormholes && galaxyData.galaxyWormholes.length > 0) {
         const whTex = createWormholeTexture();
