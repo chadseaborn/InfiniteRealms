@@ -907,15 +907,16 @@ function buildGalaxyScene() {
 
         // Volumetric relativistic jets — extended, diffusing outward
         for (let pole = -1; pole <= 1; pole += 2) {
-            const jetLen = (120 + galaxy.smbh.mass * 2) * 1.5; // much longer
-            const baseR = 1.5;
-            const tipR = 18;  // wider spread at the far end
+            // Scale jets to galaxy — prominent relativistic jets extending well beyond the disc
+            const jetLen = galaxyRadius * (0.8 + galaxy.smbh.mass * 0.03); // 0.83x to 2.0x galaxy radius
+            const baseR = 3;
+            const tipR = jetLen * 0.06;  // wider spread at the far end, proportional to length
 
             // Nested shells with per-vertex alpha fade along length
             const layers = [
-                { rScale: 1.0,  baseOp: 0.06, segs: 24, hSegs: 16, cBase: [1.0,0.7,0.3], cTip: [0.2,0.15,0.7] },
-                { rScale: 0.55, baseOp: 0.14, segs: 16, hSegs: 12, cBase: [1.0,0.85,0.5], cTip: [0.3,0.25,0.8] },
-                { rScale: 0.2,  baseOp: 0.35, segs: 12, hSegs: 10, cBase: [1.0,0.95,0.85], cTip: [0.5,0.35,0.9] },
+                { rScale: 1.0,  baseOp: 0.08, segs: 24, hSegs: 20, cBase: [1.0,0.7,0.3], cTip: [0.2,0.15,0.7] },
+                { rScale: 0.55, baseOp: 0.18, segs: 16, hSegs: 16, cBase: [1.0,0.85,0.5], cTip: [0.3,0.25,0.8] },
+                { rScale: 0.2,  baseOp: 0.45, segs: 12, hSegs: 12, cBase: [1.0,0.95,0.85], cTip: [0.5,0.35,0.9] },
             ];
 
             for (const layer of layers) {
@@ -1045,7 +1046,8 @@ function buildGalaxyScene() {
             blending: THREE.AdditiveBlending
         });
         agnGlowSprite = new THREE.Sprite(agnMat);
-        agnGlowSprite.scale.set(30, 30, 1);
+        const glowSize = 40 + galaxy.smbh.mass * 1.5;
+        agnGlowSprite.scale.set(glowSize, glowSize, 1);
         galaxyGroup.add(agnGlowSprite);
     }
 
