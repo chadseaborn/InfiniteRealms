@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite Realms — Hex Globe Prototype</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    display: flex;
+}
+#canvas-container {
+    flex: 1;
+    position: relative;
+}
+canvas { display: block; }
+#info-panel {
+    width: 320px;
+    background: #111122;
+    border-left: 1px solid #333;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100vh;
+}
+#info-panel h1 {
+    font-size: 16px;
+    color: #ffcc00;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+#info-panel h2 {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+#info-panel .stat {
+    font-size: 13px;
+    margin: 3px 0;
+    color: #ccc;
+}
+#info-panel .stat span {
+    color: #fff;
+    font-weight: bold;
+}
+#info-panel .biome-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 12px;
+    color: #666;
+}
+#controls div { margin: 2px 0; }
+#back-btn {
+    display: none;
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    padding: 8px 16px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ffcc00;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    z-index: 10;
+    transition: all 0.15s;
+}
+#back-btn:hover { background: #3a3a5a; border-color: #ffcc00; }
+#stats {
+    position: absolute;
+    top: 60px;
+    left: 20px;
+    font-size: 12px;
+    color: #666;
+}
+#subdivision-control {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+}
+#subdivision-control label {
+    font-size: 12px;
+    color: #aaa;
+}
+#subdivision-control input[type="range"] {
+    width: 100%;
+    margin-top: 5px;
+}
+#subdivision-control .value {
+    font-size: 13px;
+    color: #ffcc00;
+    margin-top: 3px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin: 3px 0;
+    font-size: 12px;
+}
+.legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+#tile-info {
+    margin-top: 15px;
+    padding: 12px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    border: 1px solid #333;
+    display: none;
+}
+#tile-info.active { display: block; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <button id="back-btn" onclick="returnToSystem()">← Return to System</button>
+    <div id="stats"></div>
+    <div id="controls">
+        <div>Drag to rotate | Scroll to zoom</div>
+        <div>Click tile for info</div>
+    </div>
+</div>
+
+<div id="info-panel">
+    <h1>Infinite Realms</h1>
+    <div class="stat">Hex Globe Prototype</div>
+
+    <div id="body-stats">
+        <h2>Body</h2>
+        <div class="stat">Diameter: <span id="stat-diameter">—</span></div>
+        <div class="stat">Surface area: <span id="stat-surface-area">—</span></div>
+        <div class="stat">Volume: <span id="stat-volume">—</span></div>
+        <div class="stat">Mass: <span id="stat-mass">—</span></div>
+        <div class="stat">Density: <span id="stat-density">—</span></div>
+        <div class="stat">Gravity: <span id="stat-gravity">—</span></div>
+    </div>
+
+    <div id="globe-stats">
+        <h2>Globe</h2>
+        <div class="stat">Subdivision: <span id="stat-subdiv">10</span></div>
+        <div class="stat">Total tiles: <span id="stat-tiles">0</span></div>
+        <div class="stat">Hexagons: <span id="stat-hexes">0</span></div>
+        <div class="stat">Pentagons: <span id="stat-pentas">12</span></div>
+    </div>
+
+    <div id="tile-info">
+        <h2>Selected Tile</h2>
+        <div class="stat">Index: <span id="tile-index">—</span></div>
+        <div class="stat">Tile ID: <span id="tile-id" style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Type: <span id="tile-type">—</span></div>
+        <div class="stat">Neighbors: <span id="tile-neighbors">—</span></div>
+        <div class="stat">Biome: <span id="tile-biome">—</span></div>
+        <div class="stat">Feature: <span id="tile-feature">—</span></div>
+        <div class="stat">Elevation: <span id="tile-elevation">—</span> <span id="tile-elev-raw" style="color:#aaa;font-size:11px"></span></div>
+        <div class="stat">Rainfall: <span id="tile-moisture">—</span></div>
+        <div class="stat">Temp: <span id="tile-temp">—</span></div>
+        <div class="stat">Coordinates: <span id="tile-pos">—</span></div>
+        <div class="stat">Tile area: <span id="tile-area">—</span></div>
+    </div>
+
+    <h2>Biome Legend</h2>
+    <div id="biome-legend"></div>
+
+    <div id="subdivision-control">
+        <label>Subdivision Level</label>
+        <input type="range" id="subdiv-slider" min="2" max="100" value="10">
+        <div class="value">n=<span id="subdiv-value">10</span> (~<span id="subdiv-tiles">1002</span> tiles)</div>
+    </div>
+
+    <div id="relief-control" style="margin-top:10px; padding-top:10px; border-top:1px solid #333;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" id="relief-toggle" style="cursor:pointer;"> Terrain Relief (3D elevation)
+        </label>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ============================================================
+// SIMPLEX NOISE (3D) — compact implementation
+// ============================================================
+const SimplexNoise = (function() {
+    const F3 = 1.0 / 3.0;
+    const G3 = 1.0 / 6.0;
+
+    const grad3 = [
+        [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+        [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+        [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+    ];
+
+    function SimplexNoise(seed) {
+        this.perm = new Uint8Array(512);
+        this.permMod12 = new Uint8Array(512);
+        const p = new Uint8Array(256);
+        seed = seed || Math.random() * 65536;
+        for (let i = 0; i < 256; i++) p[i] = i;
+        // Fisher-Yates shuffle with seed
+        let s = seed;
+        for (let i = 255; i > 0; i--) {
+            s = (s * 16807 + 0) % 2147483647;
+            const j = s % (i + 1);
+            [p[i], p[j]] = [p[j], p[i]];
+        }
+        for (let i = 0; i < 512; i++) {
+            this.perm[i] = p[i & 255];
+            this.permMod12[i] = this.perm[i] % 12;
+        }
+    }
+
+    SimplexNoise.prototype.noise3D = function(x, y, z) {
+        const perm = this.perm, permMod12 = this.permMod12;
+        const s = (x + y + z) * F3;
+        const i = Math.floor(x + s), j = Math.floor(y + s), k = Math.floor(z + s);
+        const t = (i + j + k) * G3;
+        const X0 = i - t, Y0 = j - t, Z0 = k - t;
+        const x0 = x - X0, y0 = y - Y0, z0 = z - Z0;
+
+        let i1, j1, k1, i2, j2, k2;
+        if (x0 >= y0) {
+            if (y0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=1;k2=0; }
+            else if (x0 >= z0) { i1=1;j1=0;k1=0;i2=1;j2=0;k2=1; }
+            else { i1=0;j1=0;k1=1;i2=1;j2=0;k2=1; }
+        } else {
+            if (y0 < z0) { i1=0;j1=0;k1=1;i2=0;j2=1;k2=1; }
+            else if (x0 < z0) { i1=0;j1=1;k1=0;i2=0;j2=1;k2=1; }
+            else { i1=0;j1=1;k1=0;i2=1;j2=1;k2=0; }
+        }
+
+        const x1=x0-i1+G3, y1=y0-j1+G3, z1=z0-k1+G3;
+        const x2=x0-i2+2*G3, y2=y0-j2+2*G3, z2=z0-k2+2*G3;
+        const x3=x0-1+3*G3, y3=y0-1+3*G3, z3=z0-1+3*G3;
+
+        const ii=i&255, jj=j&255, kk=k&255;
+
+        let n0=0, n1=0, n2=0, n3=0;
+        let t0 = 0.6 - x0*x0 - y0*y0 - z0*z0;
+        if (t0 > 0) { t0 *= t0; const gi = permMod12[ii+perm[jj+perm[kk]]]; n0 = t0*t0*(grad3[gi][0]*x0+grad3[gi][1]*y0+grad3[gi][2]*z0); }
+        let t1 = 0.6 - x1*x1 - y1*y1 - z1*z1;
+        if (t1 > 0) { t1 *= t1; const gi = permMod12[ii+i1+perm[jj+j1+perm[kk+k1]]]; n1 = t1*t1*(grad3[gi][0]*x1+grad3[gi][1]*y1+grad3[gi][2]*z1); }
+        let t2 = 0.6 - x2*x2 - y2*y2 - z2*z2;
+        if (t2 > 0) { t2 *= t2; const gi = permMod12[ii+i2+perm[jj+j2+perm[kk+k2]]]; n2 = t2*t2*(grad3[gi][0]*x2+grad3[gi][1]*y2+grad3[gi][2]*z2); }
+        let t3 = 0.6 - x3*x3 - y3*y3 - z3*z3;
+        if (t3 > 0) { t3 *= t3; const gi = permMod12[ii+1+perm[jj+1+perm[kk+1]]]; n3 = t3*t3*(grad3[gi][0]*x3+grad3[gi][1]*y3+grad3[gi][2]*z3); }
+
+        return 32.0 * (n0 + n1 + n2 + n3);
+    };
+
+    return SimplexNoise;
+})();
+
+
+// ============================================================
+// GOLDBERG POLYHEDRON — Icosahedral subdivision → dual mesh
+// ============================================================
+function generateGoldbergPolyhedron(subdivisions) {
+    // Step 1: Create base icosahedron vertices
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const baseVertices = [
+        [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
+        [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi],
+        [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1]
+    ].map(v => {
+        const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        return [v[0]/len, v[1]/len, v[2]/len];
+    });
+
+    const baseFaces = [
+        [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+        [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+        [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+        [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+    ];
+
+    // Step 2: Subdivide each face
+    let vertices = [...baseVertices];
+    let vertexMap = new Map();
+
+    function vertexKey(v) {
+        return v.map(c => c.toFixed(10)).join(',');
+    }
+
+    function addVertex(v) {
+        const key = vertexKey(v);
+        if (vertexMap.has(key)) return vertexMap.get(key);
+        const idx = vertices.length;
+        vertices.push(v);
+        vertexMap.set(key, idx);
+        return idx;
+    }
+
+    // Re-register base vertices
+    vertexMap.clear();
+    vertices = [];
+    baseVertices.forEach(v => addVertex(v));
+
+    function midpoint(v1, v2) {
+        const m = [(v1[0]+v2[0])/2, (v1[1]+v2[1])/2, (v1[2]+v2[2])/2];
+        const len = Math.sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+        return [m[0]/len, m[1]/len, m[2]/len];
+    }
+
+    let faces = baseFaces;
+    for (let s = 0; s < subdivisions; s++) {
+        const newFaces = [];
+        const edgeMidpoints = new Map();
+
+        function getEdgeMidpoint(i1, i2) {
+            const key = Math.min(i1,i2) + ',' + Math.max(i1,i2);
+            if (edgeMidpoints.has(key)) return edgeMidpoints.get(key);
+            const mid = midpoint(vertices[i1], vertices[i2]);
+            const idx = addVertex(mid);
+            edgeMidpoints.set(key, idx);
+            return idx;
+        }
+
+        for (const [a, b, c] of faces) {
+            const ab = getEdgeMidpoint(a, b);
+            const bc = getEdgeMidpoint(b, c);
+            const ca = getEdgeMidpoint(c, a);
+            newFaces.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]);
+        }
+        faces = newFaces;
+    }
+
+    // Step 3: Build dual mesh (each original vertex → one tile)
+    // Find all faces touching each vertex
+    const vertexFaces = new Array(vertices.length).fill(null).map(() => []);
+    for (let fi = 0; fi < faces.length; fi++) {
+        for (const vi of faces[fi]) {
+            vertexFaces[vi].push(fi);
+        }
+    }
+
+    // Compute face centroids
+    const faceCentroids = faces.map(([a,b,c]) => {
+        const cx = (vertices[a][0] + vertices[b][0] + vertices[c][0]) / 3;
+        const cy = (vertices[a][1] + vertices[b][1] + vertices[c][1]) / 3;
+        const cz = (vertices[a][2] + vertices[b][2] + vertices[c][2]) / 3;
+        const len = Math.sqrt(cx*cx + cy*cy + cz*cz);
+        return [cx/len, cy/len, cz/len];
+    });
+
+    // For each vertex, order its surrounding faces in angular order
+    const tiles = [];
+    for (let vi = 0; vi < vertices.length; vi++) {
+        const adjFaces = vertexFaces[vi];
+        if (adjFaces.length === 0) continue;
+
+        const center = vertices[vi];
+        // Build a local coordinate frame
+        const n = center;
+        // Pick a reference direction
+        const ref = faceCentroids[adjFaces[0]];
+        const dx = ref[0]-n[0], dy = ref[1]-n[1], dz = ref[2]-n[2];
+        // Project onto tangent plane
+        const dot = dx*n[0] + dy*n[1] + dz*n[2];
+        let tx = dx - dot*n[0], ty = dy - dot*n[1], tz = dz - dot*n[2];
+        const tlen = Math.sqrt(tx*tx + ty*ty + tz*tz) || 1;
+        tx /= tlen; ty /= tlen; tz /= tlen;
+        // Second tangent axis (cross product)
+        let bx = n[1]*tz - n[2]*ty;
+        let by = n[2]*tx - n[0]*tz;
+        let bz = n[0]*ty - n[1]*tx;
+
+        // Compute angles and sort
+        const faceAngles = adjFaces.map(fi => {
+            const c = faceCentroids[fi];
+            const ddx = c[0]-n[0], ddy = c[1]-n[1], ddz = c[2]-n[2];
+            const u = ddx*tx + ddy*ty + ddz*tz;
+            const v = ddx*bx + ddy*by + ddz*bz;
+            return { fi, angle: Math.atan2(v, u) };
+        });
+        faceAngles.sort((a, b) => a.angle - b.angle);
+
+        const orderedCentroids = faceAngles.map(fa => faceCentroids[fa.fi]);
+        const isPentagon = orderedCentroids.length === 5;
+
+        tiles.push({
+            index: vi,
+            center: center,
+            corners: orderedCentroids,
+            isPentagon: isPentagon,
+            neighborCount: orderedCentroids.length
+        });
+    }
+
+    // Build neighbor map
+    // Two tiles are neighbors if they share an edge (two adjacent face centroids)
+    const edgeToTiles = new Map();
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const corners = tiles[ti].corners;
+        for (let c = 0; c < corners.length; c++) {
+            const c1 = corners[c];
+            const c2 = corners[(c + 1) % corners.length];
+            // Edge key: sorted face centroid indices would be ideal but we use position keys
+            const key = [c1, c2].map(p => p.map(v => v.toFixed(8)).join(',')).sort().join('|');
+            if (!edgeToTiles.has(key)) edgeToTiles.set(key, []);
+            edgeToTiles.get(key).push(ti);
+        }
+    }
+
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const neighbors = new Set();
+        const corners = tiles[ti].corners;
+        for (let c = 0; c < corners.length; c++) {
+            const c1 = corners[c];
+            const c2 = corners[(c + 1) % corners.length];
+            const key = [c1, c2].map(p => p.map(v => v.toFixed(8)).join(',')).sort().join('|');
+            const shared = edgeToTiles.get(key);
+            if (shared) {
+                for (const ni of shared) {
+                    if (ni !== ti) neighbors.add(ni);
+                }
+            }
+        }
+        tiles[ti].neighbors = [...neighbors];
+    }
+
+    return { tiles, vertices, faces, faceCentroids };
+}
+
+
+// ============================================================
+// BIOME SYSTEM  (38 biomes + type-aware palettes)
+// ============================================================
+const BIOMES = {
+    // ---- Salt water ----
+    deep_ocean:     { name: "Deep Ocean",       color: "#1a3a5c" },
+    ocean:          { name: "Ocean",            color: "#2a5a8c" },
+    coast:          { name: "Coast",            color: "#c2b280" },
+    frozen_ocean:   { name: "Frozen Ocean",     color: "#8ab4c4" },
+    ice_shelf:      { name: "Ice Shelf",        color: "#b8d8e8" },
+    coral_reef:     { name: "Coral Reef",       color: "#3d9ea0" },
+    // ---- Freshwater ----
+    river:          { name: "River",            color: "#4488bb" },
+    lake:           { name: "Lake",             color: "#3377aa" },
+    hot_spring:     { name: "Hot Spring",       color: "#55aaaa" },
+    frozen_lake:    { name: "Frozen Lake",      color: "#99ccdd" },
+    oasis:          { name: "Oasis",            color: "#66bb66" },
+    // ---- Land – low elevation ----
+    desert:         { name: "Desert",           color: "#d4a843" },
+    plains:         { name: "Plains",           color: "#7caa2d" },
+    savanna:        { name: "Savanna",          color: "#a8b234" },
+    steppe:         { name: "Steppe",           color: "#9aaa5c" },
+    forest:         { name: "Forest",           color: "#2d6a1e" },
+    rainforest:     { name: "Rainforest",       color: "#1a5a0a" },
+    taiga:          { name: "Taiga",            color: "#3a6a3a" },
+    swamp:          { name: "Swamp",            color: "#4a5a2a" },
+    marsh:          { name: "Marsh",            color: "#5a7a3a" },
+    // ---- Land – mid elevation ----
+    hills:          { name: "Hills",            color: "#8a7a5a" },
+    tundra:         { name: "Tundra",           color: "#a8b8b0" },
+    permafrost:     { name: "Permafrost",       color: "#8899a0" },
+    mesa:           { name: "Mesa",             color: "#cc7744" },
+    badlands:       { name: "Badlands",         color: "#b86630" },
+    // ---- Land – high elevation ----
+    mountains:      { name: "Mountains",        color: "#6a6a6a" },
+    snow_peak:      { name: "Snow Peak",        color: "#e8e8f0" },
+    ice_sheet:      { name: "Ice Sheet",        color: "#d0e8f0" },
+    volcanic:       { name: "Volcanic",         color: "#8b2500" },
+    // ---- Volcanic terrain ----
+    lava_field:     { name: "Lava Field",       color: "#cc3300" },
+    obsidian_waste: { name: "Obsidian Waste",   color: "#1a1a2a" },
+    ash_desert:     { name: "Ash Desert",       color: "#555560" },
+    fumarole:       { name: "Fumarole",         color: "#778855" },
+    // ---- Barren terrain ----
+    dust_plain:     { name: "Dust Plain",       color: "#9a8a70" },
+    rock_field:     { name: "Rock Field",       color: "#7a7060" },
+    salt_flat:      { name: "Salt Flat",        color: "#d8d0c0" },
+    // ---- Coastal / transitional ----
+    mangrove:       { name: "Mangrove",         color: "#3a6a3a" },
+    kelp_forest:    { name: "Kelp Forest",      color: "#2a6a5a" },
+    bioluminescent_sea: { name: "Bioluminescent Sea", color: "#1a3a6a" },
+    // ---- Arid / dry ----
+    dune_sea:       { name: "Dune Sea",         color: "#c8a030" },
+    shrubland:      { name: "Shrubland",        color: "#8a9a4a" },
+    // ---- Cold ----
+    glacier:        { name: "Glacier",          color: "#a0d0e8" },
+    geothermal_vent:{ name: "Geothermal Vent",  color: "#5a8a7a" },
+    // ---- Volcanic ----
+    magma_lake:     { name: "Magma Lake",       color: "#e04400" },
+    // ---- Anomalous / alien ----
+    mushroom_forest:{ name: "Mushroom Forest",  color: "#7a4a8a" },
+    crystal_fields: { name: "Crystal Fields",   color: "#88aacc" },
+    spore_plains:   { name: "Spore Plains",     color: "#6a7a5a" },
+    void_scar:      { name: "Void Scar",        color: "#1a0a2a" },
+    // ---- Geological features ----
+    canyon:         { name: "Canyon",           color: "#8b6914" },
+    crater_floor:   { name: "Crater Floor",     color: "#4a4a55" },
+    crater_rim:     { name: "Crater Rim",       color: "#7a7a80" },
+    // ---- Gas giant atmospheric biomes ----
+    hydrogen_cloud: { name: "Hydrogen Cloud",   color: "#c8a060" },
+    ammonia_ice:    { name: "Ammonia Ice",      color: "#d8c898" },
+    methane_haze:   { name: "Methane Haze",     color: "#7a8a6a" },
+    clear_zone:     { name: "Clear Zone",       color: "#b8906a" },
+    storm_band:     { name: "Storm Band",       color: "#9a7050" },
+    deep_convection:{ name: "Deep Convection",  color: "#5a4a6a" },
+    polar_vortex:   { name: "Polar Vortex",     color: "#6a8a7a" },
+    great_storm:    { name: "Great Storm",      color: "#a85a3a" },
+    white_oval:     { name: "White Oval",       color: "#d0c8b8" },
+    brown_barge:    { name: "Brown Barge",      color: "#5a4a3a" },
+};
+
+// ---- Per-type classification functions ----
+
+function classifyHabitable(elev, moist, temp) {
+    // Full earth-like diversity — all biomes possible
+    if (elev < -0.3) return 'deep_ocean';
+    if (elev < -0.05) {
+        if (temp > 0.6 && moist > 0.7 && elev > -0.2) return 'bioluminescent_sea';
+        return 'ocean';
+    }
+    if (elev < 0.05) {
+        if (temp < 0.2) return 'ice_shelf';
+        if (moist > 0.7 && temp > 0.6) return 'coral_reef';
+        if (moist > 0.8 && temp > 0.5) return 'mangrove';
+        return 'coast';
+    }
+    // High elevation
+    if (elev > 0.8) return 'snow_peak';
+    if (elev > 0.7 && moist < 0.15) return 'volcanic';
+    if (elev > 0.7 && moist > 0.6 && temp > 0.5) return 'hot_spring';
+    if (elev > 0.55) return 'mountains';
+    // Mid elevation
+    if (elev > 0.4 && temp < 0.2) return 'permafrost';
+    if (elev > 0.4 && temp < 0.35) {
+        if (moist > 0.7) return 'frozen_lake';
+        if (moist > 0.4 && elev > 0.45) return 'glacier';
+        return 'tundra';
+    }
+    if (elev > 0.35 && moist < 0.15 && temp > 0.5) return 'badlands';
+    if (elev > 0.35 && moist < 0.25 && temp > 0.4) return 'mesa';
+    if (elev > 0.3) return 'hills';
+    // Freshwater
+    if (elev > 0.05 && elev < 0.15 && moist > 0.85) return 'river';
+    if (elev > 0.05 && elev < 0.12 && moist > 0.75 && moist <= 0.85) return 'lake';
+    // Low elevation
+    if (moist > 0.85 && temp > 0.6) return 'rainforest';
+    if (moist > 0.8 && temp < 0.3) return 'marsh';
+    if (moist > 0.75) return 'swamp';
+    if (moist > 0.55) return 'forest';
+    if (temp < 0.3 && moist > 0.3) return 'taiga';
+    if (moist > 0.35 && temp > 0.55) return 'savanna';
+    if (moist > 0.25) return 'plains';
+    if (temp < 0.35) return 'steppe';
+    if (moist > 0.15 && temp > 0.4) return 'shrubland';
+    if (moist > 0.12) return 'oasis';
+    if (temp > 0.6 && moist < 0.08) return 'dune_sea';
+    return 'desert';
+}
+
+function classifyOceanWorld(elev, moist, temp) {
+    // ~85% water with scattered island chains
+    if (elev < -0.3) {
+        if (temp > 0.5 && moist > 0.7) return 'bioluminescent_sea';
+        return 'deep_ocean';
+    }
+    if (elev < -0.05) {
+        if (temp > 0.3 && temp < 0.6 && moist > 0.5) return 'kelp_forest';
+        return 'ocean';
+    }
+    if (elev < 0.05) {
+        if (temp > 0.5 && moist > 0.5) return 'coral_reef';
+        if (temp < 0.2) return 'ice_shelf';
+        if (moist > 0.7 && temp > 0.45) return 'mangrove';
+        return 'coast';
+    }
+    if (elev > 0.55) return 'mountains';
+    if (elev > 0.35) return 'hills';
+    if (moist > 0.7 && temp > 0.5) return 'rainforest';
+    if (moist > 0.5) return 'forest';
+    if (moist > 0.3) return 'plains';
+    return 'coast';
+}
+
+function classifyIceWorld(elev, moist, temp) {
+    // Frozen oceans, ice sheets, glaciers, rare tundra, geothermal pockets
+    if (elev < -0.3) return 'frozen_ocean';
+    if (elev < -0.05) return 'frozen_ocean';
+    if (elev < 0.05) return 'ice_shelf';
+    if (elev > 0.8) return 'snow_peak';
+    if (elev > 0.55) return 'mountains';
+    if (elev > 0.4) {
+        if (moist > 0.7) return 'frozen_lake';
+        if (moist > 0.4 && elev < 0.5) return 'glacier';
+        return 'ice_sheet';
+    }
+    if (temp > 0.55 && moist > 0.6) return 'geothermal_vent';
+    if (temp > 0.4 && moist > 0.5) return 'tundra';
+    if (moist > 0.7) return 'frozen_lake';
+    if (elev > 0.25 && elev < 0.4 && moist > 0.3) return 'glacier';
+    if (elev > 0.2) return 'permafrost';
+    return 'ice_sheet';
+}
+
+function classifyVolcanicWorld(elev, moist, temp) {
+    // Lava fields, obsidian, ash, fumaroles, magma lakes — no vegetation
+    if (elev < -0.3) return 'magma_lake';
+    if (elev < -0.05) return 'lava_field';
+    if (elev < 0.05) return 'obsidian_waste';
+    if (elev > 0.8) return 'volcanic';
+    if (elev > 0.6) {
+        if (moist > 0.5) return 'fumarole';
+        return 'volcanic';
+    }
+    if (elev > 0.4) return 'mountains';
+    if (moist > 0.6) return 'fumarole';
+    if (temp > 0.6 && elev < 0.15) return 'magma_lake';
+    if (temp > 0.5) return 'lava_field';
+    if (moist < 0.25) return 'ash_desert';
+    return 'obsidian_waste';
+}
+
+function classifyBarren(elev, moist, temp) {
+    // Dust, rock, salt, craters — no water, no vegetation
+    if (elev < -0.2) return 'dust_plain';
+    if (elev < 0.05) return 'rock_field';
+    if (elev > 0.8) return 'mountains';
+    if (elev > 0.55) return 'rock_field';
+    if (elev > 0.35 && moist < 0.3) return 'mesa';
+    if (elev > 0.3) return 'rock_field';
+    if (moist < 0.15) return 'salt_flat';
+    if (moist < 0.3) return 'dust_plain';
+    return 'dust_plain';
+}
+
+function classifyHabitableMoon(elev, moist, temp) {
+    // Earth-lite: forests, plains, lakes, coast — fewer extreme biomes
+    if (elev < -0.3) return 'deep_ocean';
+    if (elev < -0.05) return 'ocean';
+    if (elev < 0.05) {
+        if (moist > 0.8 && temp > 0.5) return 'mangrove';
+        return 'coast';
+    }
+    if (elev > 0.8) return 'snow_peak';
+    if (elev > 0.55) return 'mountains';
+    if (elev > 0.3) return 'hills';
+    if (elev > 0.05 && elev < 0.15 && moist > 0.85) return 'river';
+    if (elev > 0.05 && elev < 0.12 && moist > 0.75) return 'lake';
+    if (moist > 0.7 && temp > 0.5) return 'forest';
+    if (moist > 0.55) return 'forest';
+    if (moist > 0.35 && temp > 0.5) return 'savanna';
+    if (moist > 0.25) return 'plains';
+    if (temp < 0.3) return 'tundra';
+    if (moist > 0.15 && temp > 0.4) return 'shrubland';
+    return 'plains';
+}
+
+function classifyGasGiant(elev, moist, temp) {
+    // Elevation encodes band position (high = zone peaks, low = belt troughs)
+    // Temperature = latitude-driven, moisture = convective activity
+    if (temp < 0.15) return 'polar_vortex';
+    if (temp < 0.25 && moist < 0.4) return 'methane_haze';
+    if (moist > 0.8) return 'deep_convection';
+    if (moist > 0.65 && elev < 0.3) return 'storm_band';
+    if (elev > 0.65) return 'ammonia_ice';
+    if (elev > 0.45) return 'hydrogen_cloud';
+    if (elev > 0.25) return 'clear_zone';
+    if (elev > 0.1) return 'storm_band';
+    if (moist > 0.5) return 'deep_convection';
+    return 'hydrogen_cloud';
+}
+
+function classifyAnomalous(elev, moist, temp) {
+    // Alien world — familiar terrain structure but with strange biomes woven in
+    if (elev < -0.3) return 'bioluminescent_sea';
+    if (elev < -0.05) {
+        if (temp > 0.5) return 'bioluminescent_sea';
+        return 'ocean';
+    }
+    if (elev < 0.05) {
+        if (temp < 0.2) return 'crystal_fields';
+        if (moist > 0.6) return 'mangrove';
+        return 'coast';
+    }
+    // High elevation
+    if (elev > 0.8) return 'crystal_fields';
+    if (elev > 0.7 && moist > 0.5) return 'hot_spring';
+    if (elev > 0.55) {
+        if (moist < 0.3) return 'void_scar';
+        return 'mountains';
+    }
+    // Mid elevation
+    if (elev > 0.4 && temp < 0.3) return 'crystal_fields';
+    if (elev > 0.35 && moist < 0.2) return 'void_scar';
+    if (elev > 0.3) return 'spore_plains';
+    // Freshwater
+    if (elev > 0.05 && elev < 0.15 && moist > 0.85) return 'river';
+    if (elev > 0.05 && elev < 0.12 && moist > 0.75) return 'lake';
+    // Low elevation — alien vegetation dominates
+    if (moist > 0.8 && temp > 0.5) return 'mushroom_forest';
+    if (moist > 0.7) return 'mushroom_forest';
+    if (moist > 0.5 && temp > 0.4) return 'spore_plains';
+    if (moist > 0.35) return 'shrubland';
+    if (moist > 0.2) return 'spore_plains';
+    if (temp > 0.5) return 'dune_sea';
+    return 'void_scar';
+}
+
+// ---- Body-type palettes ----
+// tempShift / moistShift adjust raw noise, elevShift raises/lowers land
+const BODY_PALETTES = {
+    habitable:       { tempShift: 0,     moistShift: 0,     elevShift: 0,     classify: classifyHabitable },
+    ocean_world:     { tempShift: 0.05,  moistShift: 0.25,  elevShift: -0.25, classify: classifyOceanWorld },
+    ice_world:       { tempShift: -0.5,  moistShift: 0.1,   elevShift: -0.05, classify: classifyIceWorld },
+    volcanic:        { tempShift: 0.35,  moistShift: -0.45, elevShift: 0.05,  classify: classifyVolcanicWorld },
+    barren_rock:     { tempShift: 0,     moistShift: -0.55, elevShift: 0.35,  classify: classifyBarren },
+    gas_giant:       { tempShift: 0,     moistShift: 0,     elevShift: 0,     classify: classifyGasGiant },
+    anomalous:       { tempShift: 0,     moistShift: 0,     elevShift: 0,     classify: classifyAnomalous },
+    rocky_moon:      { tempShift: -0.1,  moistShift: -0.55, elevShift: 0.35,  classify: classifyBarren },
+    ice_moon:        { tempShift: -0.45, moistShift: 0.1,   elevShift: -0.05, classify: classifyIceWorld },
+    volcanic_moon:   { tempShift: 0.35,  moistShift: -0.45, elevShift: 0.05,  classify: classifyVolcanicWorld },
+    habitable_moon:  { tempShift: 0,     moistShift: -0.05, elevShift: 0,     classify: classifyHabitableMoon },
+    barren_moon:     { tempShift: -0.1,  moistShift: -0.65, elevShift: 0.4,   classify: classifyBarren },
+};
+
+// Resolve palette from URL body type
+let activeBodyType = 'habitable'; // default if standalone
+let activePalette = BODY_PALETTES.habitable;
+let activeSizeN = 10; // body size — affects elevation scaling (set from URL)
+
+// Simple seeded RNG for feature generation
+function featureRNG(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return {
+        next() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; },
+        nextFloat(min, max) { return this.next() * (max - min) + min; },
+        nextInt(min, max) { return Math.floor(this.next() * (max - min + 1)) + min; }
+    };
+}
+
+let TERRAIN_SEED = 42;
+
+function generateTerrain(tiles, seed) {
+    const palette = activePalette;
+    const classify = palette.classify;
+    const isGasGiant = activeBodyType === 'gas_giant';
+
+    const elevNoise = new SimplexNoise(seed);
+    const moistNoise = new SimplexNoise(seed + 1000);
+    const tempNoise = new SimplexNoise(seed + 2000);
+    const canyonNoise = new SimplexNoise(seed + 3000);
+
+    const freq1 = 1.5, freq2 = 3.0, freq3 = 6.0;
+    const canyonFreq = 4.0;
+
+    // ---- Gas giant: banded terrain + storms ----
+    if (isGasGiant) {
+        const bandRng = featureRNG(seed + 7000);
+        const bandCount = bandRng.nextInt(7, 9); // major horizontal bands
+        const bandPhaseShift = bandRng.nextFloat(0, Math.PI * 2);
+
+        // ---- Generate storm sites ----
+        const stormRng = featureRNG(seed + 8000);
+        const stormCount = stormRng.nextInt(8, 16);
+        const storms = [];
+        const stormTypes = [
+            { id: 'great_storm',    weight: 0.05, radiusMin: 0.12, radiusMax: 0.20 },
+            { id: 'white_oval',     weight: 0.30, radiusMin: 0.04, radiusMax: 0.10 },
+            { id: 'brown_barge',    weight: 0.35, radiusMin: 0.04, radiusMax: 0.08 },
+            { id: 'deep_convection',weight: 0.30, radiusMin: 0.05, radiusMax: 0.12 },
+        ];
+        let hasGreatStorm = false;
+
+        for (let i = 0; i < stormCount; i++) {
+            const theta = stormRng.nextFloat(0, Math.PI * 2);
+            // Bias toward mid-latitudes (avoid poles)
+            const latBias = stormRng.nextFloat(-0.7, 0.7);
+            const phi = Math.acos(latBias);
+
+            // Pick storm type by weighted random
+            let stormType;
+            if (i === 0 && !hasGreatStorm) {
+                // Guarantee one great storm
+                stormType = stormTypes[0];
+                hasGreatStorm = true;
+            } else {
+                const totalW = stormTypes.reduce((s, t) => s + t.weight, 0);
+                let roll = stormRng.nextFloat(0, totalW);
+                stormType = stormTypes[stormTypes.length - 1];
+                for (const st of stormTypes) {
+                    roll -= st.weight;
+                    if (roll <= 0) { stormType = st; break; }
+                }
+            }
+
+            storms.push({
+                cx: Math.sin(phi) * Math.cos(theta),
+                cy: Math.cos(phi),
+                cz: Math.sin(phi) * Math.sin(theta),
+                radius: stormRng.nextFloat(stormType.radiusMin, stormType.radiusMax),
+                intensity: stormRng.nextFloat(0.5, 1.0),
+                biome: stormType.id
+            });
+        }
+
+        // ---- Generate banded terrain ----
+        for (const tile of tiles) {
+            const [x, y, z] = tile.center;
+
+            // Latitude-based banding: sin wave creates alternating zones/belts
+            const latitude = Math.asin(Math.max(-1, Math.min(1, y)));
+            const bandVal = Math.sin(latitude * bandCount + bandPhaseShift);
+
+            // Add noise to break up perfect stripes
+            const noiseVal = elevNoise.noise3D(x * 2.5, y * 2.5, z * 2.5) * 0.25
+                           + elevNoise.noise3D(x * 5.0, y * 5.0, z * 5.0) * 0.1;
+
+            // Elevation = band position (0-1 range)
+            let elev = (bandVal + noiseVal + 1) / 2;
+            elev = Math.max(0, Math.min(1, elev));
+
+            // Temperature: latitude-driven but less extreme than rocky planets
+            const absLat = Math.abs(latitude / (Math.PI / 2));
+            let temp = 1.0 - absLat * 0.8;
+            temp += tempNoise.noise3D(x * 1.0, y * 1.0, z * 1.0) * 0.1;
+            temp = Math.max(0, Math.min(1, temp));
+
+            // Moisture: convective activity driven by noise
+            let moist = moistNoise.noise3D(x * 2.0, y * 2.0, z * 2.0) * 0.4
+                      + moistNoise.noise3D(x * 4.0, y * 4.0, z * 4.0) * 0.2;
+            moist = (moist + 1) / 2;
+            moist = Math.max(0, Math.min(1, moist));
+
+            tile.elevation = elev;
+            tile.moisture = moist;
+            tile.temperature = temp;
+            tile.feature = null;
+
+            // Classify biome from band position
+            tile.biome = classify(elev, moist, temp);
+        }
+
+        // ---- Storm overlay pass: storms override biome ----
+        for (const tile of tiles) {
+            const [x, y, z] = tile.center;
+            for (const storm of storms) {
+                const dx = x - storm.cx;
+                const dy = y - storm.cy;
+                const dz = z - storm.cz;
+                const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+                if (dist < storm.radius) {
+                    const t = dist / storm.radius;
+                    // Depress elevation for low-pressure storms
+                    tile.elevation *= (0.5 + 0.5 * t);
+                    tile.biome = storm.biome;
+                    tile.feature = storm.biome;
+                    break; // first storm wins
+                }
+            }
+        }
+
+        // ---- Subtype color tinting ----
+        applyGasGiantTinting(tiles);
+
+        return; // skip normal rocky terrain generation
+    }
+
+    // ---- Generate crater impact sites (non-gas-giant bodies) ----
+    // More craters on barren/rocky bodies, fewer on habitable
+    const craterRng = featureRNG(seed + 5000);
+    const isBarrenType = ['barren_rock','rocky_moon','barren_moon'].includes(activeBodyType);
+    const isVolcanicType = ['volcanic','volcanic_moon'].includes(activeBodyType);
+    const craterMin = isBarrenType ? 5 : 2;
+    const craterMax = isBarrenType ? 15 : (isVolcanicType ? 6 : 8);
+    const craterCount = craterRng.nextInt(craterMin, craterMax);
+    const craters = [];
+    for (let i = 0; i < craterCount; i++) {
+        const theta = craterRng.nextFloat(0, Math.PI * 2);
+        const phi = Math.acos(craterRng.nextFloat(-1, 1));
+        craters.push({
+            cx: Math.sin(phi) * Math.cos(theta),
+            cy: Math.cos(phi),
+            cz: Math.sin(phi) * Math.sin(theta),
+            radius: craterRng.nextFloat(0.08, isBarrenType ? 0.4 : 0.3),
+            depth: craterRng.nextFloat(0.25, 0.55),
+            rimHeight: craterRng.nextFloat(0.1, 0.3)
+        });
+    }
+
+    // ---- First pass: base terrain + palette shifts ----
+    for (const tile of tiles) {
+        const [x, y, z] = tile.center;
+
+        // Multi-octave elevation
+        let elev = elevNoise.noise3D(x*freq1, y*freq1, z*freq1) * 0.6
+                 + elevNoise.noise3D(x*freq2, y*freq2, z*freq2) * 0.3
+                 + elevNoise.noise3D(x*freq3, y*freq3, z*freq3) * 0.1;
+
+        // Moisture
+        let moist = moistNoise.noise3D(x*freq1*0.8, y*freq1*0.8, z*freq1*0.8) * 0.5
+                  + moistNoise.noise3D(x*freq2*0.8, y*freq2*0.8, z*freq2*0.8) * 0.3
+                  + moistNoise.noise3D(x*freq3*0.5, y*freq3*0.5, z*freq3*0.5) * 0.2;
+
+        // Temperature (latitude-based + noise + altitude cooling)
+        const latitude = Math.asin(y) / (Math.PI / 2);
+        let temp = 1.0 - Math.abs(latitude);
+        temp += tempNoise.noise3D(x*freq1*0.5, y*freq1*0.5, z*freq1*0.5) * 0.2;
+        temp -= Math.max(0, elev) * 0.4;
+
+        // Normalize to 0-1
+        moist = (moist + 1) / 2;
+        temp = Math.max(0, Math.min(1, temp));
+
+        // ---- Apply palette shifts ----
+        elev += palette.elevShift;
+        moist = Math.max(0, Math.min(1, moist + palette.moistShift));
+        temp  = Math.max(0, Math.min(1, temp + palette.tempShift));
+
+        tile.elevation = elev;
+        tile.moisture = moist;
+        tile.temperature = temp;
+        tile.feature = null;
+    }
+
+    // ---- Second pass: geological features ----
+    for (const tile of tiles) {
+        const [x, y, z] = tile.center;
+        let elev = tile.elevation;
+
+        // Skip sub-surface tiles for geological feature carving
+        if (elev < 0.0) {
+            tile.biome = classify(elev, tile.moisture, tile.temperature);
+            continue;
+        }
+
+        // --- Canyon detection ---
+        const cVal = canyonNoise.noise3D(x*canyonFreq, y*canyonFreq, z*canyonFreq);
+        const cVal2 = canyonNoise.noise3D(x*canyonFreq*0.6+10, y*canyonFreq*0.6+10, z*canyonFreq*0.6+10);
+
+        const canyonThreshold = 0.06;
+        const isCanyon = (Math.abs(cVal) < canyonThreshold && elev > 0.15)
+                      || (Math.abs(cVal2) < canyonThreshold * 0.7 && elev > 0.3);
+
+        if (isCanyon) {
+            const carveDepth = 0.2 + elev * 0.3;
+            elev -= carveDepth;
+            tile.elevation = elev;
+            tile.feature = 'canyon';
+        }
+
+        // --- Crater detection ---
+        for (const crater of craters) {
+            const dx = x - crater.cx;
+            const dy = y - crater.cy;
+            const dz = z - crater.cz;
+            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+            if (dist < crater.radius) {
+                const t = dist / crater.radius;
+                if (t > 0.82) {
+                    const rimFactor = (t - 0.82) / 0.18;
+                    const rimProfile = Math.sin(rimFactor * Math.PI);
+                    tile.elevation += crater.rimHeight * rimProfile;
+                    tile.feature = 'crater_rim';
+                } else {
+                    const bowlProfile = 1.0 - (t / 0.82) * (t / 0.82);
+                    tile.elevation -= crater.depth * bowlProfile;
+                    tile.feature = 'crater_floor';
+                }
+                break;
+            }
+        }
+
+        // --- Classify biome (geological features override palette) ---
+        if (tile.feature === 'canyon') {
+            // Canyon floor: type-appropriate fill
+            if (tile.elevation < -0.05) {
+                // Water/liquid in canyon depends on type
+                if (isVolcanicType) tile.biome = 'lava_field';
+                else if (['ice_world','ice_moon'].includes(activeBodyType)) tile.biome = 'frozen_lake';
+                else if (isBarrenType) tile.biome = 'dust_plain';
+                else tile.biome = 'river';
+            } else {
+                tile.biome = 'canyon';
+            }
+        } else if (tile.feature === 'crater_floor') {
+            if (tile.elevation < -0.05) {
+                if (isVolcanicType) tile.biome = 'lava_field';
+                else if (['ice_world','ice_moon'].includes(activeBodyType)) tile.biome = 'frozen_lake';
+                else if (isBarrenType) tile.biome = 'dust_plain';
+                else tile.biome = 'ocean';
+            } else {
+                tile.biome = 'crater_floor';
+            }
+        } else if (tile.feature === 'crater_rim') {
+            tile.biome = 'crater_rim';
+        } else {
+            tile.biome = classify(tile.elevation, tile.moisture, tile.temperature);
+        }
+    }
+}
+
+
+// ============================================================
+// GAS GIANT SUBTYPE COLOR TINTING
+// ============================================================
+// Gas giant biome base colors are warm (Jovian). For Neptunian/Uranian subtypes,
+// shift the palette toward blue/teal so each subtype looks distinct.
+const GAS_SUBTYPE_TINTS = {
+    jovian:    { rMul: 1.0,  gMul: 1.0,  bMul: 1.0  },  // warm base as-is
+    saturnian: { rMul: 1.05, gMul: 1.08, bMul: 0.95 },  // slightly more gold
+    neptunian: { rMul: 0.55, gMul: 0.75, bMul: 1.45 },  // strong blue shift
+    uranian:   { rMul: 0.60, gMul: 1.10, bMul: 1.30 },  // teal shift
+};
+
+let activeGasSubtype = null; // set from URL param
+
+function applyGasGiantTinting(tiles) {
+    if (!activeGasSubtype || !GAS_SUBTYPE_TINTS[activeGasSubtype]) return;
+    const tint = GAS_SUBTYPE_TINTS[activeGasSubtype];
+
+    // Build a cache of tinted colors per biome key to avoid re-parsing hex every tile
+    const tintedCache = {};
+    for (const tile of tiles) {
+        const biome = BIOMES[tile.biome];
+        if (!biome) continue;
+        if (!tintedCache[tile.biome]) {
+            const hex = biome.color;
+            let r = parseInt(hex.slice(1, 3), 16);
+            let g = parseInt(hex.slice(3, 5), 16);
+            let b = parseInt(hex.slice(5, 7), 16);
+            r = Math.min(255, Math.max(0, Math.round(r * tint.rMul)));
+            g = Math.min(255, Math.max(0, Math.round(g * tint.gMul)));
+            b = Math.min(255, Math.max(0, Math.round(b * tint.bMul)));
+            tintedCache[tile.biome] = '#' +
+                r.toString(16).padStart(2, '0') +
+                g.toString(16).padStart(2, '0') +
+                b.toString(16).padStart(2, '0');
+        }
+        tile.tintedColor = tintedCache[tile.biome];
+    }
+}
+
+// ============================================================
+// THREE.JS RENDERING
+// ============================================================
+let scene, camera, renderer, globeGroup, raycaster, mouse;
+let currentTiles = [];
+let tileMeshes = [];
+let selectedTileIndex = -1;
+let highlightMesh = null;
+let reliefEnabled = false;  // off by default for faster rendering
+let globeRadius = 1.0; // scaled from sizeN to match star system view proportions
+
+// Globe radius uses the EXACT same formula as star_system.html getPlanetVisualRadius(),
+// scaled by 0.3 to fit the globe scene.  This preserves size ratios perfectly:
+// if planet A looks 3× bigger than planet B in the star system, it will look
+// 3× bigger in the landing view too.
+function computeGlobeRadius(sizeN) {
+    return Math.max(1.5, Math.log2(sizeN + 1) * 0.8) * 0.3;
+}
+
+// ============================================================
+// REAL-WORLD UNIT CONVERSIONS
+// ============================================================
+// Each body type maps 0-1 noise values to physically plausible ranges.
+// Elevation: 0.0 = sea level (or reference surface), negative = below, positive = above.
+// Temperature: 0.0 = coldest, 1.0 = hottest for that body type.
+// Moisture: 0.0 = bone dry, 1.0 = saturated. Expressed as annual rainfall equivalent.
+const UNIT_SCALES = {
+    // --- Terrestrial (sea-level reference) ---
+    habitable:      { elevMin: -8000,  elevMax: 8800,   tempMin: -40,  tempMax: 50,   rainMax: 3000, pressureBase: 101.3 },
+    ocean_world:    { elevMin: -12000, elevMax: 3000,   tempMin: -30,  tempMax: 40,   rainMax: 4500, pressureBase: 105.0 },
+    ice_world:      { elevMin: -4000,  elevMax: 6000,   tempMin: -220, tempMax: -40,  rainMax: 200,  pressureBase: 10.0 },
+    volcanic:       { elevMin: -2000,  elevMax: 5000,   tempMin: 180,  tempMax: 820,  rainMax: 0,    pressureBase: 90.0 },
+    barren_rock:    { elevMin: -3000,  elevMax: 7000,   tempMin: -170, tempMax: 130,  rainMax: 0,    pressureBase: 0.01 },
+    anomalous:      { elevMin: -5000,  elevMax: 7000,   tempMin: -60,  tempMax: 60,   rainMax: 2000, pressureBase: 80.0 },
+    // --- Gas giant (pressure altitude in km, no solid surface) ---
+    gas_giant:      { elevMin: -200,   elevMax: 100,    tempMin: -180, tempMax: 340,  rainMax: 0,    pressureBase: null },
+    // --- Moons ---
+    rocky_moon:     { elevMin: -2000,  elevMax: 5000,   tempMin: -180, tempMax: 120,  rainMax: 0,    pressureBase: 0.001 },
+    ice_moon:       { elevMin: -3000,  elevMax: 4000,   tempMin: -230, tempMax: -80,  rainMax: 50,   pressureBase: 5.0 },
+    volcanic_moon:  { elevMin: -1500,  elevMax: 4000,   tempMin: 150,  tempMax: 700,  rainMax: 0,    pressureBase: 0.1 },
+    habitable_moon: { elevMin: -6000,  elevMax: 6000,   tempMin: -30,  tempMax: 40,   rainMax: 2500, pressureBase: 85.0 },
+    barren_moon:    { elevMin: -1500,  elevMax: 3000,   tempMin: -200, tempMax: 100,  rainMax: 0,    pressureBase: 0.0001 },
+};
+
+function getUnitScale() {
+    return UNIT_SCALES[activeBodyType] || UNIT_SCALES.habitable;
+}
+
+// Gravity multiplier for elevation scaling based on body size.
+// Max mountain height ∝ 1/surface_gravity ∝ 1/radius (for roughly constant density).
+// Reference sizeN per body type represents "Earth-like" gravity at that scale.
+// Smaller bodies → lower gravity → taller peaks.
+const REFERENCE_SIZE_N = {
+    habitable: 50, ocean_world: 40, ice_world: 20, volcanic: 12,
+    barren_rock: 6, anomalous: 25, gas_giant: 60,
+    rocky_moon: 4, ice_moon: 4, volcanic_moon: 3, habitable_moon: 6, barren_moon: 3
+};
+
+// Physical properties per body type.
+// refN: reference sizeN, refRadius: radius in km at refN, density: kg/m³.
+// Radius scales linearly with sizeN: r = refRadius × (sizeN / refN).
+// Density is constant per type — mass, gravity, and volume all derive from r and ρ.
+//   mass  = (4/3)πr³ × ρ       volume = (4/3)πr³
+//   g     = (4/3)πGρr           surfaceArea = 4πr²
+// This keeps mass, volume, density, and gravity physically self-consistent.
+const BODY_PHYSICS = {
+    habitable:      { refN: 50, refRadius: 6371,  density: 5510  },  // Earth (5514)
+    ocean_world:    { refN: 40, refRadius: 7200,  density: 5120  },  // water-rich, slightly lower ρ
+    ice_world:      { refN: 20, refRadius: 2600,  density: 4720  },  // Ganymede-class + rock core
+    volcanic:       { refN: 12, refRadius: 2440,  density: 5430  },  // Mercury (5427)
+    barren_rock:    { refN: 6,  refRadius: 1737,  density: 3340  },  // Moon (3344)
+    anomalous:      { refN: 25, refRadius: 4200,  density: 5010  },  // Mars-to-Earth range
+    gas_giant:      { refN: 60, refRadius: 69911, density: 1270  },  // Jupiter (1326)
+    rocky_moon:     { refN: 4,  refRadius: 800,   density: 2630  },  // Ceres-class
+    ice_moon:       { refN: 4,  refRadius: 1560,  density: 2920  },  // Europa (3013)
+    volcanic_moon:  { refN: 3,  refRadius: 1822,  density: 3470  },  // Io (3528)
+    habitable_moon: { refN: 6,  refRadius: 2575,  density: 1910  },  // Titan (1882)
+    barren_moon:    { refN: 3,  refRadius: 500,   density: 2100  },  // small captured body
+};
+
+// Keep BODY_RADIUS_REF as an alias for backwards-compat with gravityElevScale()
+const BODY_RADIUS_REF = {};
+for (const [k, v] of Object.entries(BODY_PHYSICS)) {
+    BODY_RADIUS_REF[k] = { refN: v.refN, refRadius: v.refRadius };
+}
+
+const G_CONST = 6.674e-11;      // gravitational constant (m³ kg⁻¹ s⁻²)
+const EARTH_G = 9.80665;        // m/s²
+
+// Compute physical radius in km from sizeN
+function bodyRadiusKm() {
+    const p = BODY_PHYSICS[activeBodyType] || BODY_PHYSICS.habitable;
+    return p.refRadius * (activeSizeN / p.refN);
+}
+
+// Surface area in km² (4πr²)
+function bodySurfaceAreaKm2() {
+    const r = bodyRadiusKm();
+    return 4 * Math.PI * r * r;
+}
+
+// Volume in km³ ((4/3)πr³)
+function bodyVolumeKm3() {
+    const r = bodyRadiusKm();
+    return (4 / 3) * Math.PI * r * r * r;
+}
+
+// Density in kg/m³ (constant per body type)
+function bodyDensity() {
+    return (BODY_PHYSICS[activeBodyType] || BODY_PHYSICS.habitable).density;
+}
+
+// Mass in kg:  ρ × V  (volume converted from km³ to m³: ×1e9)
+function bodyMassKg() {
+    return bodyDensity() * bodyVolumeKm3() * 1e9;
+}
+
+// Surface gravity in m/s²:  g = (4/3)πGρr  (r in metres)
+function bodySurfaceGravityMs2() {
+    const rMetres = bodyRadiusKm() * 1000;
+    return (4 / 3) * Math.PI * G_CONST * bodyDensity() * rMetres;
+}
+
+// Surface gravity relative to Earth (1.0g = 9.80665 m/s²)
+function bodySurfaceGravityG() {
+    return bodySurfaceGravityMs2() / EARTH_G;
+}
+
+// Area per tile in km² (surface area / tile count)
+function tileAreaKm2(totalTiles) {
+    return bodySurfaceAreaKm2() / Math.max(1, totalTiles);
+}
+
+// Format mass in kg using scientific notation (masses span ~10²⁰ to ~10²⁸)
+function formatMassKg(kg) {
+    const exp = Math.floor(Math.log10(kg));
+    const mantissa = kg / Math.pow(10, exp);
+    return `${mantissa.toFixed(2)} \u00D7 10${toSuperscript(exp)} kg`;
+}
+
+// Convert integer to Unicode superscript string (for exponents)
+function toSuperscript(n) {
+    const superDigits = '\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079';
+    const str = Math.abs(n).toString();
+    let result = n < 0 ? '\u207B' : '';
+    for (const ch of str) result += superDigits[parseInt(ch)];
+    return result;
+}
+
+// Smart number formatting: uses metric prefixes for large values
+function formatLargeNumber(val, unit) {
+    const abs = Math.abs(val);
+    if (abs >= 1e15) return `${(val / 1e15).toFixed(2)} P${unit}`;    // peta
+    if (abs >= 1e12) return `${(val / 1e12).toFixed(2)} T${unit}`;    // tera
+    if (abs >= 1e9)  return `${(val / 1e9).toFixed(2)} G${unit}`;     // giga
+    if (abs >= 1e6)  return `${(val / 1e6).toFixed(2)} M${unit}`;     // mega (million)
+    if (abs >= 1000) return `${Math.round(val).toLocaleString()} ${unit}`;
+    if (abs >= 1)    return `${val.toFixed(1)} ${unit}`;
+    return `${val.toFixed(3)} ${unit}`;
+}
+
+function gravityElevScale() {
+    if (activeBodyType === 'gas_giant') return 1; // gas giants use pressure altitude, no solid surface
+    const refN = REFERENCE_SIZE_N[activeBodyType] || 20;
+    // ratio: refN / activeSizeN, clamped so large bodies don't shrink below 0.7x
+    // and tiny bodies cap at 4x (prevents absurd 50km peaks on dust-sized rocks)
+    const ratio = refN / Math.max(2, activeSizeN);
+    return Math.max(0.7, Math.min(4.0, ratio));
+}
+
+// Convert 0-1 elevation to meters (or km for gas giants)
+function elevToMeters(elev) {
+    const s = getUnitScale();
+    const gScale = gravityElevScale();
+    // elev noise ranges roughly -0.5 to 1.0 after shifts; map linearly with 0 = sea level
+    if (elev <= 0) {
+        return elev * (-s.elevMin * gScale) / 0.5; // -0.5 → elevMin*scale, 0 → 0
+    }
+    return elev * s.elevMax * gScale; // 0 → 0, 1.0 → elevMax*scale
+}
+
+// Convert 0-1 temperature to °C
+function tempToCelsius(temp) {
+    const s = getUnitScale();
+    return s.tempMin + temp * (s.tempMax - s.tempMin);
+}
+
+// Convert °C to °F
+function cToF(c) {
+    return c * 9 / 5 + 32;
+}
+
+// Convert °C to Kelvin
+function cToK(c) {
+    return c + 273.15;
+}
+
+// Convert 0-1 moisture to annual rainfall in mm
+function moistToRainfall(moist) {
+    const s = getUnitScale();
+    return Math.round(moist * s.rainMax);
+}
+
+// Convert meters to feet
+function mToFt(m) {
+    return m * 3.28084;
+}
+
+// Convert (x, y, z) unit sphere position to latitude/longitude
+function posToLatLon(x, y, z) {
+    const lat = Math.asin(Math.max(-1, Math.min(1, y))) * (180 / Math.PI);
+    const lon = Math.atan2(z, x) * (180 / Math.PI);
+    return { lat, lon };
+}
+
+// Format latitude as N/S string
+function formatLat(lat) {
+    const dir = lat >= 0 ? 'N' : 'S';
+    return `${Math.abs(lat).toFixed(1)}°${dir}`;
+}
+
+// Format longitude as E/W string
+function formatLon(lon) {
+    const dir = lon >= 0 ? 'E' : 'W';
+    return `${Math.abs(lon).toFixed(1)}°${dir}`;
+}
+
+// Format elevation with units (handles gas giant pressure altitude)
+function formatElevation(elev) {
+    const isGas = activeBodyType === 'gas_giant';
+    const m = elevToMeters(elev);
+    if (isGas) {
+        // Gas giant: pressure altitude in km
+        return `${m.toFixed(1)} km`;
+    }
+    const ft = mToFt(m);
+    if (Math.abs(m) >= 1000) {
+        return `${(m/1000).toFixed(2)} km (${Math.round(ft).toLocaleString()} ft)`;
+    }
+    return `${Math.round(m).toLocaleString()} m (${Math.round(ft).toLocaleString()} ft)`;
+}
+
+// Format temperature with all three scales
+function formatTemperature(temp) {
+    const c = tempToCelsius(temp);
+    const k = cToK(c);
+    const f = cToF(c);
+    return `${k.toFixed(1)} K  (${c.toFixed(1)}°C / ${f.toFixed(1)}°F)`;
+}
+
+// Format moisture as rainfall + percentage
+function formatMoisture(moist) {
+    const s = getUnitScale();
+    const pct = (moist * 100).toFixed(0);
+    if (s.rainMax === 0) {
+        // No rainfall for this body type
+        return `${pct}% humidity`;
+    }
+    const rain = moistToRainfall(moist);
+    return `${rain.toLocaleString()} mm/yr (${pct}%)`;
+}
+
+// Descriptive elevation labels (kept for the label line)
+function elevationLabel(elev) {
+    if (activeBodyType === 'gas_giant') {
+        if (elev < 0.15) return 'Deep Atmosphere';
+        if (elev < 0.3)  return 'Low Cloud Deck';
+        if (elev < 0.45) return 'Mid Atmosphere';
+        if (elev < 0.6)  return 'Upper Cloud Deck';
+        if (elev < 0.8)  return 'High Altitude Haze';
+        return 'Cloud Tops';
+    }
+    if (elev < -0.3)  return 'Abyssal Depths';
+    if (elev < -0.05) return 'Ocean Floor';
+    if (elev < 0.05)  return 'Sea Level';
+    if (elev < 0.15)  return 'Lowlands';
+    if (elev < 0.3)   return 'Midlands';
+    if (elev < 0.45)  return 'Uplands';
+    if (elev < 0.55)  return 'Highlands';
+    if (elev < 0.7)   return 'Mountain Range';
+    if (elev < 0.8)   return 'Alpine Peak';
+    return 'Summit';
+}
+let pentagonOutlines = [];
+
+function initThree() {
+    const container = document.getElementById('canvas-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1a);
+
+    camera = new THREE.PerspectiveCamera(50, width / height, 0.01, 100);
+    camera.position.set(0, 0, 3.5); // fixed distance — globe size alone conveys planet scale
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    // Ambient light
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    // Directional light
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 3, 5);
+    scene.add(dirLight);
+
+    globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    // Orbit controls (manual implementation)
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let rotationSpeed = 0.005;
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    renderer.domElement.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevMouse.x;
+        const dy = e.clientY - prevMouse.y;
+        globeGroup.rotation.y += dx * rotationSpeed;
+        globeGroup.rotation.x += dy * rotationSpeed;
+        // Clamp x rotation
+        globeGroup.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, globeGroup.rotation.x));
+        prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    renderer.domElement.addEventListener('mouseup', () => { isDragging = false; });
+    renderer.domElement.addEventListener('mouseleave', () => { isDragging = false; });
+
+    renderer.domElement.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        camera.position.z = Math.max(globeRadius + 0.15, Math.min(8, camera.position.z + e.deltaY * 0.002));
+    }, { passive: false });
+
+    // Click detection
+    renderer.domElement.addEventListener('click', (e) => {
+        const container = document.getElementById('canvas-container');
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(tileMeshes);
+        if (intersects.length > 0) {
+            const mesh = intersects[0].object;
+            selectTile(mesh.userData.tileIndex);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+}
+
+function buildGlobeMesh(tiles) {
+    // Clear previous
+    while (globeGroup.children.length) {
+        const child = globeGroup.children[0];
+        globeGroup.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+    }
+    tileMeshes = [];
+    pentagonOutlines = [];
+
+    const baseR = globeRadius;  // sea level — scaled from sizeN
+
+    // Scale gap to tile count — fine seams on coarse globes, wider on dense ones
+    const gapFactor = Math.min(0.009, 0.002 + 0.007 * Math.min(1, tiles.length / 10000));
+
+    // Pre-build edge → neighbor elevation lookup so walls don't clip neighbors
+    const edgeNeighborElev = new Map();
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const tile = tiles[ti];
+        const corners = tile.corners;
+        for (let c = 0; c < corners.length; c++) {
+            const c1 = corners[c];
+            const c2 = corners[(c + 1) % corners.length];
+            const key = [c1, c2].map(p => p.map(v => v.toFixed(6)).join(',')).sort().join('|');
+            if (!edgeNeighborElev.has(key)) edgeNeighborElev.set(key, []);
+            edgeNeighborElev.get(key).push({ ti, elev: tile.elevation });
+        }
+    }
+
+    // Batched cliff-wall geometry (one draw call for all walls)
+    const wallVerts = [];
+    const wallNormals = [];
+    const wallColors = [];
+
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const tile = tiles[ti];
+        const corners = tile.corners;
+        const center = tile.center;
+        const biome = BIOMES[tile.biome];
+        const color = new THREE.Color(tile.tintedColor || biome.color);
+
+        // Slightly shrink corners toward center for gap effect
+        const shrunkCorners = corners.map(c => {
+            return [
+                c[0] + (center[0] - c[0]) * gapFactor,
+                c[1] + (center[1] - c[1]) * gapFactor,
+                c[2] + (center[2] - c[2]) * gapFactor
+            ];
+        });
+
+        // Elevation: land rises as columns, ocean sits flat at sea level
+        const isLand = tile.elevation > 0;
+        const elevOffset = (reliefEnabled && isLand) ? tile.elevation * 0.06 : 0;
+        const r = baseR + elevOffset;
+
+        // Build triangle fan geometry (top face)
+        const geometry = new THREE.BufferGeometry();
+        const verts = [];
+        const normals = [];
+
+        const cx = center[0] * r, cy = center[1] * r, cz = center[2] * r;
+
+        for (let i = 0; i < shrunkCorners.length; i++) {
+            const c1 = shrunkCorners[i];
+            const c2 = shrunkCorners[(i + 1) % shrunkCorners.length];
+
+            verts.push(cx, cy, cz);
+            verts.push(c1[0]*r, c1[1]*r, c1[2]*r);
+            verts.push(c2[0]*r, c2[1]*r, c2[2]*r);
+
+            // Normal is the center direction (sphere normal)
+            normals.push(center[0], center[1], center[2]);
+            normals.push(c1[0], c1[1], c1[2]);
+            normals.push(c2[0], c2[1], c2[2]);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+
+        const material = new THREE.MeshLambertMaterial({
+            color: color,
+            side: THREE.DoubleSide
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.tileIndex = ti;
+        globeGroup.add(mesh);
+        tileMeshes.push(mesh);
+
+        // ---- Side walls for elevated land tiles (cliff faces) ----
+        // Only draw walls on edges where this tile is taller than its neighbor.
+        // Wall extends from this tile's surface down to the neighbor's surface (not sea level),
+        // preventing dark cliff geometry from clipping through adjacent tiles.
+        if (reliefEnabled && isLand && elevOffset > 0.001) {
+            const wallColor = color.clone().multiplyScalar(0.45);
+
+            for (let i = 0; i < shrunkCorners.length; i++) {
+                // Look up neighbor elevation for this edge
+                const oc1 = corners[i];
+                const oc2 = corners[(i + 1) % corners.length];
+                const edgeKey = [oc1, oc2].map(p => p.map(v => v.toFixed(6)).join(',')).sort().join('|');
+                const edgeTiles = edgeNeighborElev.get(edgeKey);
+                let neighborElev = -1; // default: assume ocean
+                if (edgeTiles) {
+                    for (const et of edgeTiles) {
+                        if (et.ti !== ti) neighborElev = et.elev;
+                    }
+                }
+
+                // Neighbor's surface radius
+                const neighborOffset = neighborElev > 0 ? neighborElev * 0.06 : 0;
+                const neighborR = baseR + neighborOffset;
+
+                // Skip wall if neighbor is at or above our elevation (no visible cliff)
+                if (neighborR >= r - 0.0005) continue;
+
+                const c1 = shrunkCorners[i];
+                const c2 = shrunkCorners[(i + 1) % shrunkCorners.length];
+
+                // Top edge (this tile's elevated radius)
+                const t1x = c1[0]*r, t1y = c1[1]*r, t1z = c1[2]*r;
+                const t2x = c2[0]*r, t2y = c2[1]*r, t2z = c2[2]*r;
+
+                // Bottom edge (neighbor's surface, not sea level)
+                const b1x = c1[0]*neighborR, b1y = c1[1]*neighborR, b1z = c1[2]*neighborR;
+                const b2x = c2[0]*neighborR, b2y = c2[1]*neighborR, b2z = c2[2]*neighborR;
+
+                // Wall outward normal
+                const midX = (c1[0]+c2[0])/2 - center[0];
+                const midY = (c1[1]+c2[1])/2 - center[1];
+                const midZ = (c1[2]+c2[2])/2 - center[2];
+                const nLen = Math.sqrt(midX*midX + midY*midY + midZ*midZ) || 1;
+                const nx = midX/nLen, ny = midY/nLen, nz = midZ/nLen;
+
+                wallVerts.push(t1x,t1y,t1z, b1x,b1y,b1z, t2x,t2y,t2z);
+                wallVerts.push(t2x,t2y,t2z, b1x,b1y,b1z, b2x,b2y,b2z);
+
+                for (let v = 0; v < 6; v++) {
+                    wallNormals.push(nx, ny, nz);
+                    wallColors.push(wallColor.r, wallColor.g, wallColor.b);
+                }
+            }
+        }
+
+        // Pentagon outline
+        if (tile.isPentagon) {
+            const lineGeo = new THREE.BufferGeometry();
+            const lineVerts = [];
+            for (let i = 0; i <= corners.length; i++) {
+                const c = corners[i % corners.length];
+                lineVerts.push(c[0]*r*1.001, c[1]*r*1.001, c[2]*r*1.001);
+            }
+            lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lineVerts, 3));
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xffcc00, linewidth: 2 });
+            const line = new THREE.Line(lineGeo, lineMat);
+            globeGroup.add(line);
+            pentagonOutlines.push(line);
+        }
+    }
+
+    // ---- Batched cliff walls (single draw call) ----
+    if (wallVerts.length > 0) {
+        const wallGeom = new THREE.BufferGeometry();
+        wallGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(wallVerts), 3));
+        wallGeom.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(wallNormals), 3));
+        wallGeom.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(wallColors), 3));
+
+        const wallMat = new THREE.MeshLambertMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide
+        });
+
+        const wallMesh = new THREE.Mesh(wallGeom, wallMat);
+        globeGroup.add(wallMesh);
+    }
+
+    // ---- Inner sphere at sea level (fills any remaining gaps) ----
+    // Color matches body type so gap seams don't look like black spots
+    const innerColors = {
+        gas_giant:      0x3a2a1a,  // dark atmospheric brown
+        habitable:      0x0a1525,  // dark ocean blue
+        ocean_world:    0x0a1530,  // deep ocean
+        ice_world:      0x2a3a4a,  // dark ice
+        volcanic:       0x1a0800,  // dark magma
+        barren_rock:    0x3a3228,  // dark rock
+        anomalous:      0x0a1525,  // default
+        rocky_moon:     0x3a3228,  // dark rock
+        ice_moon:       0x2a3a4a,  // dark ice
+        volcanic_moon:  0x1a0800,  // dark magma
+        habitable_moon: 0x0a1525,  // dark ocean blue
+        barren_moon:    0x302a20,  // dark dust
+    };
+    // Gas giant inner color varies by subtype
+    let innerColor = innerColors[activeBodyType] || 0x0a1525;
+    if (activeBodyType === 'gas_giant' && activeGasSubtype) {
+        const gasInnerColors = {
+            jovian:    0x3a2a1a,  // dark warm brown
+            saturnian: 0x3a3020,  // dark gold-brown
+            neptunian: 0x0a1a3a,  // dark blue
+            uranian:   0x0a2a2a,  // dark teal
+        };
+        innerColor = gasInnerColors[activeGasSubtype] || innerColor;
+    }
+    // Dynamic inner sphere radius: flat triangle fans chord through the sphere,
+    // so on coarse globes (few tiles) the chord midpoint dips well below r=1.
+    // We size the inner sphere to sit just below the worst-case chord dip.
+    const tileAngularRadius = Math.sqrt(4 * Math.PI / tiles.length);
+    const minChordRadius = Math.cos(tileAngularRadius / 2);
+    const innerScale = minChordRadius * 0.998; // small safety margin below worst chord
+    const innerGeom = new THREE.SphereGeometry(baseR * innerScale, 64, 64);
+    const innerMat = new THREE.MeshLambertMaterial({ color: innerColor });
+    const innerSphere = new THREE.Mesh(innerGeom, innerMat);
+    globeGroup.add(innerSphere);
+}
+
+function selectTile(tileIndex) {
+    // Remove old highlight
+    if (highlightMesh) {
+        globeGroup.remove(highlightMesh);
+        highlightMesh.geometry.dispose();
+        highlightMesh.material.dispose();
+        highlightMesh = null;
+    }
+
+    selectedTileIndex = tileIndex;
+    const tile = currentTiles[tileIndex];
+
+    // Create highlight outline
+    const corners = tile.corners;
+    const r = (reliefEnabled && tile.elevation > 0)
+        ? globeRadius + tile.elevation * 0.06
+        : globeRadius;
+    const lineGeo = new THREE.BufferGeometry();
+    const lineVerts = [];
+    for (let i = 0; i <= corners.length; i++) {
+        const c = corners[i % corners.length];
+        lineVerts.push(c[0]*r*1.002, c[1]*r*1.002, c[2]*r*1.002);
+    }
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lineVerts, 3));
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xff4444, linewidth: 3 });
+    highlightMesh = new THREE.Line(lineGeo, lineMat);
+    globeGroup.add(highlightMesh);
+
+    // Update info panel
+    const biome = BIOMES[tile.biome];
+    document.getElementById('tile-info').classList.add('active');
+    document.getElementById('tile-index').textContent = tileIndex;
+    // Generate tile ID from body context
+    const bodyId = urlParams.bodyId || `BODY-${TERRAIN_SEED}`;
+    document.getElementById('tile-id').textContent = `${bodyId}:T-${tileIndex}`;
+    document.getElementById('tile-type').textContent = tile.isPentagon ? 'Pentagon (landmark)' : 'Hexagon';
+    document.getElementById('tile-neighbors').textContent = tile.neighbors.length;
+    const biomeDisplayColor = tile.tintedColor || biome.color;
+    document.getElementById('tile-biome').innerHTML =
+        `<span class="biome-color" style="background:${biomeDisplayColor}"></span>${biome.name}`;
+    const featureLabels = { canyon: 'Canyon', crater_floor: 'Impact Crater', crater_rim: 'Crater Rim',
+        great_storm: 'Great Storm', white_oval: 'White Oval Storm', brown_barge: 'Brown Barge', deep_convection: 'Deep Convection Cell' };
+    document.getElementById('tile-feature').textContent = tile.feature ? featureLabels[tile.feature] || tile.feature : 'None';
+    document.getElementById('tile-elevation').textContent = elevationLabel(tile.elevation);
+    document.getElementById('tile-elev-raw').textContent = formatElevation(tile.elevation);
+    document.getElementById('tile-moisture').textContent = formatMoisture(tile.moisture);
+    document.getElementById('tile-temp').textContent = formatTemperature(tile.temperature);
+    const ll = posToLatLon(tile.center[0], tile.center[1], tile.center[2]);
+    document.getElementById('tile-pos').textContent = `${formatLat(ll.lat)}, ${formatLon(ll.lon)}`;
+    // Tile area — surface area divided equally among tiles
+    const areaKm2 = tileAreaKm2(tiles.length);
+    document.getElementById('tile-area').textContent = formatLargeNumber(areaKm2, 'km\u00B2');
+}
+
+
+// ============================================================
+// BIOME LEGEND  (only shows biomes present on current body)
+// ============================================================
+function buildLegend(tiles) {
+    const container = document.getElementById('biome-legend');
+    container.innerHTML = '';
+    // Collect which biomes actually appear, with tinted color if available
+    const present = new Map(); // biome key → tinted color or null
+    if (tiles) {
+        for (const t of tiles) {
+            if (!present.has(t.biome)) {
+                present.set(t.biome, t.tintedColor || null);
+            }
+        }
+    }
+    for (const [key, biome] of Object.entries(BIOMES)) {
+        if (tiles && !present.has(key)) continue; // skip biomes not on this body
+        const displayColor = (tiles && present.get(key)) || biome.color;
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `<div class="legend-swatch" style="background:${displayColor}"></div>${biome.name}`;
+        container.appendChild(item);
+    }
+}
+
+
+// ============================================================
+// MAIN — Generate and render
+// ============================================================
+// Map body sizeN to subdivision iterations
+// Each iteration quadruples face count: 10 * 4^s + 2 tiles
+// s=1: 42, s=2: 162, s=3: 642, s=4: 2,562, s=5: 10,242, s=6: 40,962, s=7: 163,842
+function sizeNToIterations(n) {
+    if (n <= 3)  return 2;   // 162 tiles — tiny moons
+    if (n <= 7)  return 3;   // 642 tiles — small moons & barren rocks
+    if (n <= 15) return 4;   // 2,562 tiles — medium bodies
+    if (n <= 30) return 5;   // 10,242 tiles — large planets
+    if (n <= 60) return 6;   // 40,962 tiles — major worlds
+    return 7;                // 163,842 tiles — massive habitable worlds
+}
+
+function generateAndRender(subdivLevel) {
+    const t0 = performance.now();
+
+    // Update globe radius from sizeN — matches star system view proportions
+    globeRadius = computeGlobeRadius(subdivLevel);
+    camera.position.z = 3.5; // fixed — size difference comes from the globe itself
+
+    const iterations = sizeNToIterations(subdivLevel);
+    const expectedTiles = 10 * Math.pow(4, iterations) + 2;
+
+    console.log(`Generating: n=${subdivLevel}, iterations=${iterations}, expected tiles≈${expectedTiles}, globeRadius=${globeRadius.toFixed(3)}`);
+
+    const { tiles } = generateGoldbergPolyhedron(iterations);
+
+    const t1 = performance.now();
+    console.log(`Geometry: ${(t1-t0).toFixed(0)}ms, ${tiles.length} tiles`);
+
+    generateTerrain(tiles, TERRAIN_SEED);
+
+    const t2 = performance.now();
+    console.log(`Terrain: ${(t2-t1).toFixed(0)}ms`);
+
+    currentTiles = tiles;
+    buildGlobeMesh(tiles);
+
+    const t3 = performance.now();
+    console.log(`Mesh: ${(t3-t2).toFixed(0)}ms`);
+
+    // Rebuild legend to show only biomes present on this body
+    buildLegend(tiles);
+
+    // Update stats
+    const pentCount = tiles.filter(t => t.isPentagon).length;
+    document.getElementById('stat-subdiv').textContent = `${iterations} (n=${subdivLevel})`;
+    document.getElementById('stat-tiles').textContent = tiles.length;
+    document.getElementById('stat-hexes').textContent = tiles.length - pentCount;
+    document.getElementById('stat-pentas').textContent = pentCount;
+
+    // Body physical stats (all derived from radius + density)
+    const rKm = bodyRadiusKm();
+    const dKm = rKm * 2;
+    const saKm2 = bodySurfaceAreaKm2();
+    const volKm3 = bodyVolumeKm3();
+    const massKg = bodyMassKg();
+    const densKgM3 = bodyDensity();
+    const grav = bodySurfaceGravityG();
+    document.getElementById('stat-diameter').textContent = formatLargeNumber(dKm, 'km');
+    document.getElementById('stat-surface-area').textContent = formatLargeNumber(saKm2, 'km\u00B2');
+    document.getElementById('stat-volume').textContent = formatLargeNumber(volKm3, 'km\u00B3');
+    document.getElementById('stat-mass').textContent = formatMassKg(massKg);
+    document.getElementById('stat-density').textContent = `${Math.round(densKgM3).toLocaleString()} kg/m\u00B3`;
+    document.getElementById('stat-gravity').textContent = `${grav.toFixed(2)}g (${bodySurfaceGravityMs2().toFixed(2)} m/s\u00B2)`;
+    // Show biome count
+    const biomeSet = new Set(tiles.map(t => t.biome));
+    document.getElementById('stat-pentas').parentNode.insertAdjacentHTML('afterend',
+        `<div class="stat-row" id="stat-biome-count"><span>Biomes:</span><span>${biomeSet.size}</span></div>`);
+    const oldBiomeCount = document.querySelectorAll('#stat-biome-count');
+    if (oldBiomeCount.length > 1) oldBiomeCount[0].remove(); // dedupe on re-gen
+
+    // Reset selection
+    selectedTileIndex = -1;
+    document.getElementById('tile-info').classList.remove('active');
+
+    document.getElementById('stats').textContent =
+        `${tiles.length} tiles | ${biomeSet.size} biomes | Generated in ${(t3-t0).toFixed(0)}ms`;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+
+// Slider control
+function setupSlider() {
+    const slider = document.getElementById('subdiv-slider');
+    const valueDisplay = document.getElementById('subdiv-value');
+    const tilesDisplay = document.getElementById('subdiv-tiles');
+
+    function updateSliderDisplay(val) {
+        const iterations = sizeNToIterations(val);
+        const tiles = 10 * Math.pow(4, iterations) + 2;
+        valueDisplay.textContent = val;
+        tilesDisplay.textContent = tiles.toLocaleString();
+    }
+
+    slider.addEventListener('input', (e) => {
+        updateSliderDisplay(parseInt(e.target.value));
+    });
+
+    slider.addEventListener('change', (e) => {
+        generateAndRender(parseInt(e.target.value));
+    });
+
+    updateSliderDisplay(parseInt(slider.value));
+}
+
+function setupReliefToggle() {
+    const toggle = document.getElementById('relief-toggle');
+    toggle.addEventListener('change', () => {
+        reliefEnabled = toggle.checked;
+        // Rebuild the mesh with/without elevation offset
+        if (currentTiles.length > 0) {
+            buildGlobeMesh(currentTiles);
+        }
+    });
+}
+
+// Read URL parameters (from star system view)
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        seed: params.get('seed') ? parseInt(params.get('seed')) : null,
+        n: params.get('n') ? parseInt(params.get('n')) : null,
+        name: params.get('name') || null,
+        type: params.get('type') || null,
+        life: params.get('life') || null,
+        system: params.get('system') || null,
+        returnSeed: params.get('returnSeed') || null,
+        returnStarTypeId: params.get('returnStarTypeId') || null,
+        gasSubtype: params.get('gasSubtype') || null,
+        returnGalaxySeed: params.get('returnGalaxySeed') || null,
+        galaxy: params.get('galaxy') || null,
+        galaxyId: params.get('galaxyId') || null,
+        systemId: params.get('systemId') || null,
+        bodyId: params.get('bodyId') || null,
+        universe: params.get('universe') || null,
+        universeId: params.get('universeId') || null,
+        returnUniverseSeed: params.get('returnUniverseSeed') || null,
+        galaxyCatalogId: params.get('galaxyCatalogId') || null,
+        density: params.get('density') || null
+    };
+}
+
+// Init
+initThree();
+buildLegend(); // placeholder until first render populates it
+setupSlider();
+setupReliefToggle();
+
+function returnToSystem() {
+    const params = getUrlParams();
+    if (params.returnSeed) {
+        const returnParams = new URLSearchParams({ seed: params.returnSeed });
+        // Preserve star type so the system regenerates identically
+        if (params.returnStarTypeId) returnParams.set('starTypeId', params.returnStarTypeId);
+        // Preserve galaxy navigation context for the return chain
+        if (params.returnGalaxySeed) returnParams.set('returnGalaxySeed', params.returnGalaxySeed);
+        if (params.galaxy) returnParams.set('galaxy', params.galaxy);
+        if (params.galaxyId) returnParams.set('galaxyId', params.galaxyId);
+        if (params.systemId) returnParams.set('systemId', params.systemId);
+        // Preserve universe context for the return chain
+        if (params.returnUniverseSeed) returnParams.set('returnUniverseSeed', params.returnUniverseSeed);
+        if (params.universe) returnParams.set('universe', params.universe);
+        if (params.universeId) returnParams.set('universeId', params.universeId);
+        if (params.galaxyCatalogId) returnParams.set('galaxyCatalogId', params.galaxyCatalogId);
+        if (params.density) returnParams.set('density', params.density);
+        window.location.href = `star_system.html?${returnParams.toString()}`;
+    } else {
+        window.history.back();
+    }
+}
+
+const urlParams = getUrlParams();
+if (urlParams.name) {
+    // Show back button when launched from system view
+    document.getElementById('back-btn').style.display = 'block';
+    // Launched from star system view — show planet info
+    const header = document.querySelector('#info-panel h1');
+    header.textContent = urlParams.name;
+    if (urlParams.bodyId) {
+        const idInfo = document.createElement('div');
+        idInfo.className = 'stat';
+        idInfo.innerHTML = `ID: <span style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">${urlParams.bodyId}</span>`;
+        header.after(idInfo);
+    }
+    const subInfo = document.createElement('div');
+    subInfo.className = 'stat';
+    subInfo.innerHTML = `System: <span>${urlParams.system || '—'}</span>`;
+    header.after(subInfo);
+    if (urlParams.galaxy) {
+        const galaxyInfo = document.createElement('div');
+        galaxyInfo.className = 'stat';
+        galaxyInfo.innerHTML = `Galaxy: <span style="color:#ffcc00">${urlParams.galaxy}</span>`;
+        subInfo.after(galaxyInfo);
+    }
+    if (urlParams.type) {
+        const typeInfo = document.createElement('div');
+        typeInfo.className = 'stat';
+        const subtypeStr = urlParams.gasSubtype ? ` (${urlParams.gasSubtype})` : '';
+        typeInfo.innerHTML = `Type: <span>${urlParams.type}${subtypeStr}</span>`;
+        // Insert after galaxy or system info
+        const insertAfter = document.querySelector('#info-panel .stat:last-of-type') || subInfo;
+        insertAfter.after(typeInfo);
+    }
+    if (urlParams.life && urlParams.life !== 'none') {
+        const lifeInfo = document.createElement('div');
+        lifeInfo.className = 'stat';
+        lifeInfo.innerHTML = `Life: <span>${urlParams.life}</span>`;
+        document.querySelector('#info-panel h1').parentNode.insertBefore(lifeInfo, document.getElementById('globe-stats'));
+    }
+}
+
+// ---- Resolve body type from URL for palette-driven terrain ----
+if (urlParams.type && BODY_PALETTES[urlParams.type]) {
+    activeBodyType = urlParams.type;
+    activePalette = BODY_PALETTES[urlParams.type];
+    console.log(`Body type: ${activeBodyType} → palette loaded`);
+} else if (urlParams.type) {
+    // Unknown type — log it but fall through to habitable
+    console.warn(`Unknown body type "${urlParams.type}" — using habitable palette`);
+}
+
+// ---- Gas giant subtype (for atmospheric color tinting) ----
+if (urlParams.gasSubtype && GAS_SUBTYPE_TINTS[urlParams.gasSubtype]) {
+    activeGasSubtype = urlParams.gasSubtype;
+    console.log(`Gas giant subtype: ${activeGasSubtype}`);
+}
+
+// Use URL seed if provided, otherwise default
+if (urlParams.seed !== null) {
+    TERRAIN_SEED = urlParams.seed;
+}
+
+const startN = urlParams.n ? Math.min(100, Math.max(2, urlParams.n)) : 10;
+activeSizeN = startN;
+const slider = document.getElementById('subdiv-slider');
+slider.value = startN;
+document.getElementById('subdiv-value').textContent = startN;
+
+generateAndRender(startN);
+animate();
+</script>
+</body>
+</html>
