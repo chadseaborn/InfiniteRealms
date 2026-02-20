@@ -1395,27 +1395,140 @@ function createStarTexture(starType) {
     return new THREE.CanvasTexture(canvas);
 }
 
-// Create ring meshes for a body and add to scene + ringMeshes array
+// Create dusty particle-based ring meshes for a body
 function createRingMeshes(rings, bodyVisualR, parentType, planetIndex, moonIndex) {
     const tiltRad = rings.tilt * Math.PI / 180;
+
+    // We group all bands into a single group per ring system
+    const ringGroup = new THREE.Group();
+    // Apply tilt to the whole group
+    ringGroup.rotation.x = -Math.PI / 2 + tiltRad * Math.cos(rings.tiltPhase);
+    ringGroup.rotation.z = tiltRad * Math.sin(rings.tiltPhase);
+
     for (const band of rings.bands) {
         const innerR = bodyVisualR * band.inner;
         const outerR = bodyVisualR * band.outer;
-        const ringGeom = new THREE.RingGeometry(innerR, outerR, 64);
-        const ringMat = new THREE.MeshBasicMaterial({
+        const bandWidth = outerR - innerR;
+        const midR = (innerR + outerR) / 2;
+
+        // --- Faint base disc for soft fill ---
+        const baseGeom = new THREE.RingGeometry(innerR, outerR, 80);
+        const baseMat = new THREE.MeshBasicMaterial({
             color: band.color,
             transparent: true,
-            opacity: band.opacity,
+            opacity: band.opacity * 0.25,
             side: THREE.DoubleSide,
             depthWrite: false
         });
-        const ringMesh = new THREE.Mesh(ringGeom, ringMat);
-        // Tilt ring plane: start flat in XY, rotate to XZ (−90°), then apply axial tilt
-        ringMesh.rotation.x = -Math.PI / 2 + tiltRad * Math.cos(rings.tiltPhase);
-        ringMesh.rotation.z = tiltRad * Math.sin(rings.tiltPhase);
-        scene.add(ringMesh);
-        ringMeshes.push({ mesh: ringMesh, parentType, planetIndex, moonIndex });
+        const baseDisc = new THREE.Mesh(baseGeom, baseMat);
+        ringGroup.add(baseDisc);
+
+        // --- Dust particle cloud ---
+        // More particles for larger rings, capped for performance
+        const particleCount = Math.min(3000, Math.max(400, Math.round(midR * 80)));
+        const positions = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+        const pColors = new Float32Array(particleCount * 3);
+
+        // Parse band color
+        const col = new THREE.Color(band.color);
+        const verticalSpread = bandWidth * 0.08; // slight thickness
+
+        for (let i = 0; i < particleCount; i++) {
+            // Distribute particles in the ring annulus
+            const angle = Math.random() * Math.PI * 2;
+            // Use sqrt for uniform area distribution
+            const rr = innerR + Math.sqrt(Math.random()) * bandWidth;
+            const yOff = (Math.random() - 0.5) * verticalSpread * (1 + 0.5 * Math.random());
+
+            positions[i * 3]     = Math.cos(angle) * rr;
+            positions[i * 3 + 1] = yOff;
+            positions[i * 3 + 2] = Math.sin(angle) * rr;
+
+            // Vary size: some larger chunks, mostly fine dust
+            const sizeRoll = Math.random();
+            if (sizeRoll > 0.97) {
+                sizes[i] = bodyVisualR * 0.12 * (0.8 + Math.random() * 0.4); // rare big chunks
+            } else if (sizeRoll > 0.85) {
+                sizes[i] = bodyVisualR * 0.06 * (0.6 + Math.random() * 0.6); // medium debris
+            } else {
+                sizes[i] = bodyVisualR * 0.025 * (0.4 + Math.random() * 0.8); // fine dust
+            }
+
+            // Color variation — subtle shifts from base color
+            const variation = 0.85 + Math.random() * 0.3;
+            pColors[i * 3]     = Math.min(1, col.r * variation);
+            pColors[i * 3 + 1] = Math.min(1, col.g * variation);
+            pColors[i * 3 + 2] = Math.min(1, col.b * variation);
+        }
+
+        const pGeom = new THREE.BufferGeometry();
+        pGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        pGeom.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        pGeom.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+
+        // Create a small soft circle texture for the dust particles
+        const dotCanvas = document.createElement('canvas');
+        dotCanvas.width = 32; dotCanvas.height = 32;
+        const dCtx = dotCanvas.getContext('2d');
+        const grad = dCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, 'rgba(255,255,255,1.0)');
+        grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+        grad.addColorStop(0.7, 'rgba(255,255,255,0.15)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        dCtx.fillStyle = grad;
+        dCtx.fillRect(0, 0, 32, 32);
+        const dotTex = new THREE.CanvasTexture(dotCanvas);
+
+        const pMat = new THREE.PointsMaterial({
+            vertexColors: true,
+            size: bodyVisualR * 0.05,
+            sizeAttenuation: true,
+            map: dotTex,
+            transparent: true,
+            opacity: band.opacity * 0.9,
+            depthWrite: false,
+            blending: THREE.NormalBlending
+        });
+
+        const particles = new THREE.Points(pGeom, pMat);
+        ringGroup.add(particles);
+
+        // --- Sparse brighter chunks (fewer, slightly emissive look) ---
+        const chunkCount = Math.min(120, Math.max(20, Math.round(midR * 3)));
+        const chunkPos = new Float32Array(chunkCount * 3);
+        const chunkSizes = new Float32Array(chunkCount);
+        const chunkColors = new Float32Array(chunkCount * 3);
+        for (let i = 0; i < chunkCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const rr = innerR + Math.sqrt(Math.random()) * bandWidth;
+            chunkPos[i * 3]     = Math.cos(angle) * rr;
+            chunkPos[i * 3 + 1] = (Math.random() - 0.5) * verticalSpread * 0.5;
+            chunkPos[i * 3 + 2] = Math.sin(angle) * rr;
+            chunkSizes[i] = bodyVisualR * 0.15 * (0.5 + Math.random() * 0.8);
+            const bright = 1.0 + Math.random() * 0.3;
+            chunkColors[i * 3]     = Math.min(1, col.r * bright);
+            chunkColors[i * 3 + 1] = Math.min(1, col.g * bright);
+            chunkColors[i * 3 + 2] = Math.min(1, col.b * bright);
+        }
+        const chunkGeom = new THREE.BufferGeometry();
+        chunkGeom.setAttribute('position', new THREE.BufferAttribute(chunkPos, 3));
+        chunkGeom.setAttribute('color', new THREE.BufferAttribute(chunkColors, 3));
+        const chunkMat = new THREE.PointsMaterial({
+            vertexColors: true,
+            size: bodyVisualR * 0.1,
+            sizeAttenuation: true,
+            map: dotTex,
+            transparent: true,
+            opacity: Math.min(0.85, band.opacity * 1.2),
+            depthWrite: false
+        });
+        const chunks = new THREE.Points(chunkGeom, chunkMat);
+        ringGroup.add(chunks);
     }
+
+    scene.add(ringGroup);
+    ringMeshes.push({ mesh: ringGroup, parentType, planetIndex, moonIndex });
 }
 
 function renderSystem() {
