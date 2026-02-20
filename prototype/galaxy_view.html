@@ -608,10 +608,11 @@ function generateGalaxy(seed) {
         let x, y, z, armIndex = -1;
 
         if (galaxyType.id === 'elliptical') {
-            // Smooth 3D ellipsoid — exponential density toward center
+            // Smooth 3D ellipsoid — exponential density with gradual halo
             const u = rng.nextFloat(0, Math.PI * 2);
             const v = Math.acos(2 * rng.next() - 1);
-            const rDist = Math.pow(rng.next(), 0.33) * galaxyRadius * 0.7;
+            const rRaw = -Math.log(1 - rng.next() * 0.98) * 0.3;
+            const rDist = Math.min(rRaw, 1.3) * galaxyRadius * 0.7;
             x = rDist * Math.sin(v) * Math.cos(u);
             z = rDist * Math.sin(v) * Math.sin(u) * ellipticity;
             y = rDist * Math.cos(v) * ellipticity;
@@ -623,9 +624,10 @@ function generateGalaxy(seed) {
             // Spiral / barred spiral — arm placement
             armIndex = rng.nextInt(0, armCount - 1);
             const baseAngle = armAngles[armIndex];
-            const distFromCore = rng.nextFloat(0.05, 1.0);
+            const distFromCore = rng.nextFloat(0.05, 1.1);
             const spiralAngle = baseAngle + distFromCore * armRotation;
-            const perpSpread = rng.gaussian() * armSpread * galaxyRadius * 0.06;
+            const spreadScale = 0.06 + distFromCore * 0.02;
+            const perpSpread = rng.gaussian() * armSpread * galaxyRadius * spreadScale;
             const radialDist = distFromCore * galaxyRadius + rng.gaussian() * galaxyRadius * 0.02;
             x = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
             z = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
@@ -835,14 +837,8 @@ function buildGalaxyScene() {
     clearGalaxyScene();
     const { systems, galaxyRadius, galaxy } = galaxyData;
 
-    // Disc plane guide ring
-    const discPts = [];
-    for (let i = 0; i <= 64; i++) {
-        const a = (i / 64) * Math.PI * 2;
-        discPts.push(new THREE.Vector3(Math.cos(a) * galaxyRadius, 0, Math.sin(a) * galaxyRadius));
-    }
-    const discMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.03 });
-    galaxyGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(discPts), discMat));
+    // Disc plane guide ring — hidden (was creating hard boundary perception)
+    // Kept as comment for debugging: const discMat = new THREE.LineBasicMaterial(...);
 
     // Core glow — large transparent sprite
     const coreCanvas = document.createElement('canvas');
@@ -1135,25 +1131,37 @@ function buildGalaxyScene() {
             let ax, ay, az;
 
             if (gTypeId === 'elliptical') {
-                // Smooth 3D ellipsoid — dense center, gradual falloff
+                // Smooth 3D ellipsoid — exponential density, gradual outer halo
                 const u = ambRng.nextFloat(0, Math.PI * 2);
                 const v = Math.acos(2 * ambRng.next() - 1);
-                const rDist = Math.pow(ambRng.next(), 0.33) * galaxyRadius * 0.7;
+                // Use exponential distribution for natural falloff beyond the core
+                const rRaw = -Math.log(1 - ambRng.next() * 0.98) * 0.3; // exponential, ~0 to ~1.2
+                const rDist = Math.min(rRaw, 1.5) * galaxyRadius * 0.7;
                 ax = rDist * Math.sin(v) * Math.cos(u);
                 az = rDist * Math.sin(v) * Math.sin(u) * galaxy.ellipticity;
                 ay = rDist * Math.cos(v) * galaxy.ellipticity;
             } else if (gTypeId === 'irregular') {
-                // Clumpy asymmetric distribution
-                const pos = irrPos(ambRng);
-                ax = pos.x; ay = pos.y; az = pos.z;
-            } else if (aArmCount > 0 && ambRng.next() < 0.96) {
-                // Spiral arm star — very tightly follows structure
+                // Clumpy asymmetric + scattered halo stars
+                if (ambRng.next() < 0.88) {
+                    const pos = irrPos(ambRng);
+                    ax = pos.x; ay = pos.y; az = pos.z;
+                } else {
+                    // Sparse halo stars extending well beyond clumps
+                    const angle = ambRng.nextFloat(0, Math.PI * 2);
+                    const dist = Math.abs(ambRng.gaussian()) * galaxyRadius * 0.7;
+                    ax = Math.cos(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.15;
+                    az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.15;
+                    ay = ambRng.gaussian() * galaxyRadius * 0.12;
+                }
+            } else if (aArmCount > 0 && ambRng.next() < 0.93) {
+                // Spiral arm star — extends beyond galaxyRadius with scatter
                 const armIdx = ambRng.nextInt(0, aArmCount - 1);
                 const baseAngle = aAngles[armIdx];
-                const distFromCore = ambRng.nextFloat(0.03, 1.0);
+                const distFromCore = ambRng.nextFloat(0.03, 1.2); // extends 20% beyond
                 const spiralAngle = baseAngle + distFromCore * aRot;
-                const perpSpread = ambRng.gaussian() * aSpread * galaxyRadius * 0.04;
-                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.01;
+                const spreadScale = 0.04 + distFromCore * 0.03; // wider at edges
+                const perpSpread = ambRng.gaussian() * aSpread * galaxyRadius * spreadScale;
+                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.02;
                 ax = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
                 az = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
                 const r = Math.sqrt(ax*ax + az*az) / galaxyRadius;
@@ -1250,7 +1258,7 @@ function buildGalaxyScene() {
         for (let i = 0; i < dustCount; i++) {
             const armIdx = dustRng.nextInt(0, dArmCount - 1);
             const baseAngle = galArmAngles[armIdx];
-            const distFromCore = dustRng.nextFloat(0.02, 1.0);
+            const distFromCore = dustRng.nextFloat(0.02, 1.15); // extends slightly beyond edge
             const spiralAngle = baseAngle + distFromCore * galArmRotation;
 
             // Very tight — dust defines the arm centerline
