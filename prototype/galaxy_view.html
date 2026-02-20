@@ -620,24 +620,24 @@ function generateGalaxy(seed) {
             // Clumpy, asymmetric
             const pos = irregularPosition(rng);
             x = pos.x; y = pos.y; z = pos.z;
-        } else if (armCount > 0 && rng.next() < 0.90) {
-            // Spiral / barred spiral — arm placement
+        } else if (armCount > 0 && rng.next() < 0.80) {
+            // Spiral / barred spiral — arm placement (wider spread for fatter arms)
             armIndex = rng.nextInt(0, armCount - 1);
             const baseAngle = armAngles[armIndex];
-            const distFromCore = rng.nextFloat(0.05, 1.1);
+            const distFromCore = rng.nextFloat(0.05, 1.2);
             const spiralAngle = baseAngle + distFromCore * armRotation;
-            const spreadScale = 0.06 + distFromCore * 0.02;
+            const spreadScale = 0.10 + distFromCore * 0.06;
             const perpSpread = rng.gaussian() * armSpread * galaxyRadius * spreadScale;
-            const radialDist = distFromCore * galaxyRadius + rng.gaussian() * galaxyRadius * 0.02;
+            const radialDist = distFromCore * galaxyRadius + rng.gaussian() * galaxyRadius * 0.04;
             x = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
             z = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
             y = undefined; // will be set below
         } else {
-            // Core bulge (spiral fallback)
+            // Inter-arm disc fill (spiral fallback) — scattered throughout
             const angle = rng.nextFloat(0, Math.PI * 2);
-            const dist = Math.abs(rng.gaussian()) * coreRadius;
-            x = Math.cos(angle) * dist;
-            z = Math.sin(angle) * dist;
+            const dist = Math.pow(rng.next(), 0.5) * galaxyRadius * 0.85;
+            x = Math.cos(angle) * dist + rng.gaussian() * galaxyRadius * 0.04;
+            z = Math.sin(angle) * dist + rng.gaussian() * galaxyRadius * 0.04;
             armIndex = -1;
             y = undefined;
         }
@@ -1153,15 +1153,15 @@ function buildGalaxyScene() {
                     az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.15;
                     ay = ambRng.gaussian() * galaxyRadius * 0.12;
                 }
-            } else if (aArmCount > 0 && ambRng.next() < 0.80) {
-                // Spiral arm star — wider spread so arms blend together
+            } else if (aArmCount > 0 && ambRng.next() < 0.72) {
+                // Spiral arm star — fat, blended arms
                 const armIdx = ambRng.nextInt(0, aArmCount - 1);
                 const baseAngle = aAngles[armIdx];
                 const distFromCore = ambRng.nextFloat(0.03, 1.2);
                 const spiralAngle = baseAngle + distFromCore * aRot;
-                const spreadScale = 0.07 + distFromCore * 0.05; // much wider spread
+                const spreadScale = 0.12 + distFromCore * 0.08; // very wide spread for fat arms
                 const perpSpread = ambRng.gaussian() * aSpread * galaxyRadius * spreadScale;
-                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.03;
+                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.04;
                 ax = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
                 az = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
                 const r = Math.sqrt(ax*ax + az*az) / galaxyRadius;
@@ -1169,9 +1169,9 @@ function buildGalaxyScene() {
             } else {
                 // Inter-arm / disc fill stars — scattered throughout the disc
                 const angle = ambRng.nextFloat(0, Math.PI * 2);
-                const dist = Math.pow(ambRng.next(), 0.5) * galaxyRadius * 0.9; // sqrt for uniform area
-                ax = Math.cos(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.04;
-                az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.04;
+                const dist = Math.pow(ambRng.next(), 0.5) * galaxyRadius * 0.95;
+                ax = Math.cos(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.06;
+                az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.06;
                 const r = Math.sqrt(ax*ax + az*az) / galaxyRadius;
                 ay = ambRng.gaussian() * dh(r) * 0.25;
             }
