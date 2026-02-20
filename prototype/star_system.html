@@ -1976,7 +1976,7 @@ function renderStar(star) {
                 pulsarGroup.add(mesh);
             }
 
-            // Helical filament — longer spiral
+            // Helical filament — fades out along length
             const helixPoints = [];
             const helixTurns = 6;
             const helixSteps = 100;
@@ -1992,9 +1992,33 @@ function renderStar(star) {
             }
             const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
             const helixGeo = new THREE.TubeGeometry(helixCurve, 80, bodyRadius * 0.06, 6, false);
-            const helixMat = new THREE.MeshBasicMaterial({
-                color: 0xccaaff, transparent: true, opacity: 0.2,
-                depthWrite: false, blending: THREE.AdditiveBlending
+            // Per-vertex alpha fade matching cone shells
+            const hPos = helixGeo.attributes.position;
+            const hAlphas = new Float32Array(hPos.count);
+            for (let vi = 0; vi < hPos.count; vi++) {
+                const vy = hPos.getY(vi);
+                const t = (vy + beamLength / 2) / beamLength;
+                const fade = pole === 1 ? (1 - t) : t;
+                hAlphas[vi] = fade * fade * fade;
+            }
+            helixGeo.setAttribute('alphaFade', new THREE.BufferAttribute(hAlphas, 1));
+            const helixMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float alphaFade;
+                    varying float vFade;
+                    void main() {
+                        vFade = alphaFade;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vFade;
+                    void main() {
+                        gl_FragColor = vec4(0.8, 0.67, 1.0, vFade * 0.2);
+                    }
+                `,
+                transparent: true, depthWrite: false,
+                blending: THREE.AdditiveBlending
             });
             const helix = new THREE.Mesh(helixGeo, helixMat);
             helix.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);

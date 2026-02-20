@@ -982,7 +982,7 @@ function buildGalaxyScene() {
                 agnJetGroup.add(mesh);
             }
 
-            // Helical plasma filament — longer, thinner at tip
+            // Helical plasma filament — fades out along length
             const helixPts = [];
             const turns = 5, steps = 80;
             for (let si = 0; si <= steps; si++) {
@@ -997,9 +997,33 @@ function buildGalaxyScene() {
             }
             const helixCurve = new THREE.CatmullRomCurve3(helixPts);
             const helixGeo = new THREE.TubeGeometry(helixCurve, 64, 0.25, 5, false);
-            const helixMat = new THREE.MeshBasicMaterial({
-                color: 0xaaccff, transparent: true, opacity: 0.25,
-                depthWrite: false, blending: THREE.AdditiveBlending
+            // Per-vertex alpha fade matching the cone shells
+            const hPos = helixGeo.attributes.position;
+            const hAlphas = new Float32Array(hPos.count);
+            for (let vi = 0; vi < hPos.count; vi++) {
+                const vy = hPos.getY(vi);
+                const t = (vy + jetLen / 2) / jetLen;
+                const fade = pole === 1 ? (1 - t) : t;
+                hAlphas[vi] = fade * fade * fade; // cubic falloff
+            }
+            helixGeo.setAttribute('alphaFade', new THREE.BufferAttribute(hAlphas, 1));
+            const helixMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float alphaFade;
+                    varying float vFade;
+                    void main() {
+                        vFade = alphaFade;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vFade;
+                    void main() {
+                        gl_FragColor = vec4(0.67, 0.8, 1.0, vFade * 0.25);
+                    }
+                `,
+                transparent: true, depthWrite: false,
+                blending: THREE.AdditiveBlending
             });
             const helix = new THREE.Mesh(helixGeo, helixMat);
             helix.position.y = pole * (jetLen / 2 + 5);
