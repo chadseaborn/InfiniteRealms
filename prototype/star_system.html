@@ -713,6 +713,7 @@ let orbitLines = [];
 let starSprite = null;
 let binaryCompanionSprite = null;
 let pulsarBeamSprites = [];
+let pulsarGroup = null;        // group for all pulsar extras (magnetosphere, hotspots)
 let habZoneRing = null;
 let engulfZoneCircle = null;
 let dustDiscMesh = null;
@@ -1063,6 +1064,7 @@ const STAR_SURFACE_DESC = {
     pulsar: [
         'Rapidly rotating neutron star surface with powerful magnetic poles emitting coherent beams of radio and X-ray radiation. The rotation period is measured in milliseconds.',
         'Spinning at tremendous speed, the magnetic poles sweep lighthouse beams across space. The magnetosphere crackles with relativistic particle acceleration.',
+        'Incandescent polar caps blaze with channeled X-ray emission while the equatorial magnetosphere hums with synchrotron radiation. Relativistic plasma jets extend for light-years from each pole.',
     ],
     black_hole: [
         'No surface exists beyond the event horizon. An accretion disk of superheated plasma spirals inward, glowing with intense X-ray emission. A faint photon ring marks the last stable orbit.',
@@ -1226,9 +1228,27 @@ function paintStarSurface(state, time) {
                 }
             }
 
-            // Neutron star / pulsar: rapid intensity pulse
+            // Neutron star: rapid intensity pulse
             if (starType.id === 'neutron_star') {
                 brightness = 0.6 + 0.4 * Math.sin(time * 0.008 + theta * 3);
+            }
+
+            // Pulsar: intense polar hotspots + rapid surface sweep
+            if (starType.id === 'pulsar') {
+                // Base: dim bluish surface
+                brightness = 0.3;
+                // Polar hotspots — bright caps near poles
+                const polarDist = Math.min(theta, Math.PI - theta); // distance from nearest pole
+                if (polarDist < 0.5) {
+                    const hotGlow = 1.0 - polarDist / 0.5;
+                    brightness += hotGlow * 1.2;
+                }
+                // Sweeping beam light across equator (lighthouse flash)
+                const sweepPhase = phi - time * 0.008;
+                const sweepGlow = Math.pow(Math.max(0, Math.cos(sweepPhase)), 8);
+                brightness += sweepGlow * 0.4 * Math.sin(theta); // strongest at equator
+                // Magnetic field line texture (faint latitude bands)
+                brightness += Math.sin(theta * 8) * 0.05;
             }
 
             // White dwarf: gentle shimmer
@@ -1414,6 +1434,7 @@ function renderSystem() {
     if (binaryCompanionGlow) scene.remove(binaryCompanionGlow);
     if (starPointLight) scene.remove(starPointLight);
     pulsarBeamSprites.forEach(b => scene.remove(b));
+    if (pulsarGroup) { scene.remove(pulsarGroup); pulsarGroup = null; }
     if (habZoneRing) scene.remove(habZoneRing);
     if (engulfZoneCircle) scene.remove(engulfZoneCircle);
     if (dustDiscMesh) scene.remove(dustDiscMesh);
@@ -1745,21 +1766,105 @@ function renderStar(star) {
         scene.add(binaryCompanionGlow);
     }
 
-    // ---- Pulsar beams (flat planes, intentionally 2D) ----
+    // ---- Enhanced Pulsar: beams, polar hotspots, magnetosphere ----
     if (star.type.id === 'pulsar') {
-        for (let i = 0; i < 2; i++) {
-            const beamGeom = new THREE.PlaneGeometry(1, 1);
-            const beamMaterial = new THREE.MeshBasicMaterial({
-                color: 0xdd99ff,
+        pulsarGroup = new THREE.Group();
+        scene.add(pulsarGroup);
+
+        // Polar hotspot glow caps (two bright spots at poles)
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const hotspotGeo = new THREE.SphereGeometry(bodyRadius * 0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.4);
+            const hotspotMat = new THREE.MeshBasicMaterial({
+                color: 0xeeccff,
                 transparent: true,
-                opacity: 0.6,
-                side: THREE.DoubleSide
+                opacity: 0.7,
+                side: THREE.DoubleSide,
+                depthWrite: false
             });
-            const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
-            beamSprite.scale.set(bodyRadius * 0.8, bodyRadius * 8, 1);
-            pulsarBeamSprites.push(beamSprite);
-            scene.add(beamSprite);
+            const hotspot = new THREE.Mesh(hotspotGeo, hotspotMat);
+            hotspot.position.y = bodyRadius * 0.85 * pole;
+            if (pole === -1) hotspot.rotation.x = Math.PI;
+            pulsarGroup.add(hotspot);
         }
+
+        // Beam cones — tapered beams extending from each pole
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const beamLength = bodyRadius * 12;
+            const beamBaseR = bodyRadius * 0.6;
+            const beamTipR = bodyRadius * 2.0;
+            const coneGeo = new THREE.CylinderGeometry(beamTipR, beamBaseR, beamLength, 16, 8, true);
+            // Vertex color gradient: bright at base, fading at tip
+            const colors = new Float32Array(coneGeo.attributes.position.count * 3);
+            for (let vi = 0; vi < coneGeo.attributes.position.count; vi++) {
+                const vy = coneGeo.attributes.position.getY(vi);
+                const t = (vy + beamLength / 2) / beamLength; // 0 at base, 1 at tip
+                const fade = pole === 1 ? (1 - t) : t;
+                colors[vi * 3] = 0.85 * fade + 0.15;
+                colors[vi * 3 + 1] = 0.55 * fade + 0.1;
+                colors[vi * 3 + 2] = 1.0 * fade + 0.0;
+            }
+            coneGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const coneMat = new THREE.MeshBasicMaterial({
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.35,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
+            pulsarGroup.add(cone);
+        }
+
+        // Flat beam planes (enhanced — 2 perpendicular planes per beam for volume)
+        for (let i = 0; i < 2; i++) {
+            for (let p = 0; p < 2; p++) {
+                const beamGeom = new THREE.PlaneGeometry(1, 1);
+                const beamMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xdd99ff,
+                    transparent: true,
+                    opacity: 0.3,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
+                beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 14, 1);
+                if (p === 1) beamSprite.rotation.y = Math.PI / 2; // perpendicular
+                pulsarBeamSprites.push(beamSprite);
+                scene.add(beamSprite);
+            }
+        }
+
+        // Magnetosphere ring (toroidal field visualization)
+        const torusGeo = new THREE.TorusGeometry(bodyRadius * 4, bodyRadius * 0.15, 8, 48);
+        const torusMat = new THREE.MeshBasicMaterial({
+            color: 0x8866dd,
+            transparent: true,
+            opacity: 0.15,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            wireframe: true
+        });
+        const magnetosphere = new THREE.Mesh(torusGeo, torusMat);
+        magnetosphere.rotation.x = Math.PI / 2;
+        pulsarGroup.add(magnetosphere);
+
+        // Second tilted magnetosphere ring for depth
+        const torus2Geo = new THREE.TorusGeometry(bodyRadius * 5.5, bodyRadius * 0.1, 6, 48);
+        const torus2Mat = new THREE.MeshBasicMaterial({
+            color: 0x6644bb,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            wireframe: true
+        });
+        const magnetosphere2 = new THREE.Mesh(torus2Geo, torus2Mat);
+        magnetosphere2.rotation.x = Math.PI / 2 + 0.3;
+        magnetosphere2.rotation.z = 0.4;
+        pulsarGroup.add(magnetosphere2);
     }
 }
 
@@ -1906,11 +2011,28 @@ function animate(time) {
             if (binaryCompanionGlow) binaryCompanionGlow.position.set(cx, 0, cz);
         }
 
-        // Pulsar beam rotation
+        // Pulsar beam rotation — fast spin + pulsing opacity
         if (star.type.id === 'pulsar' && pulsarBeamSprites.length > 0) {
-            const beamAngle = time * 0.003;
+            const beamAngle = time * 0.008;  // faster rotation
+            // beamSprites: [beam0-plane0, beam0-plane1, beam1-plane0, beam1-plane1]
             for (let i = 0; i < pulsarBeamSprites.length; i++) {
-                pulsarBeamSprites[i].rotation.z = beamAngle + (i * Math.PI);
+                const beamIdx = Math.floor(i / 2); // which pole
+                pulsarBeamSprites[i].rotation.z = beamAngle + (beamIdx * Math.PI);
+            }
+            // Pulse opacity with rotation phase
+            const pulse = 0.2 + 0.15 * Math.sin(time * 0.01);
+            for (const bs of pulsarBeamSprites) bs.material.opacity = pulse;
+
+            // Rotate pulsar group (hotspots + cones + magnetosphere)
+            if (pulsarGroup) {
+                pulsarGroup.rotation.y = beamAngle;
+                // Gentle magnetosphere wobble
+                const kids = pulsarGroup.children;
+                for (let k = 0; k < kids.length; k++) {
+                    if (kids[k].geometry && kids[k].geometry.type === 'TorusGeometry') {
+                        kids[k].rotation.z = 0.4 + Math.sin(time * 0.002 + k) * 0.1;
+                    }
+                }
             }
         }
 

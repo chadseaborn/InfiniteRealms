@@ -131,6 +131,7 @@ canvas { display: block; }
 .tag-cluster { background: #1a1a3a; color: #aa88dd; }
 .tag-field { background: #1a2a1a; color: #88aa66; }
 .tag-active { background: #3a1a1a; color: #ff8866; }
+.tag-quasar { background: #3a2a10; color: #ffcc44; font-weight: bold; }
 #zoom-controls {
     position: absolute;
     top: 20px;
@@ -212,6 +213,7 @@ canvas { display: block; }
         <div class="stat">Clusters: <span id="uni-cluster-count">—</span></div>
         <div class="stat">Filaments: <span id="uni-filament-count">—</span></div>
         <div class="stat">Total Systems: <span id="uni-system-count">—</span></div>
+        <div class="stat">Quasars: <span id="uni-quasar-count">—</span></div>
     </div>
     <div id="search-box">
         <input type="text" id="search-input" placeholder="Search galaxies..." oninput="filterGalaxies()">
@@ -285,6 +287,14 @@ const GALAXY_VISUAL_TYPES = [
 ];
 const GALAXY_NAMES_PREFIX = ['Andromeda','Celestia','Draconis','Elysia','Fornax','Galactica','Helios','Icarus','Jotunheim','Kronos','Lyra','Mithras','Nebula','Orion','Pandora','Quasar','Regulus','Solara','Tethys','Umbra','Valhalla','Wyrm','Xanadu','Yggdrasil','Zenith'];
 const GALAXY_NAMES_SUFFIX = ['Expanse','Cluster','Nexus','Void','Reach','Dominion','Sector','Spiral','Drift','Wake'];
+const QUASAR_PREFIX = ['QSO','3C','PKS','SDSS','IRAS','Mrk','NGC','PG','HE','HS','LBQS','APM'];
+const QUASAR_SUFFIX = ['Alpha','Beta','Gamma','Delta','Prime','Major','Nova','Flux','Blazar','Lux','Core','Apex'];
+const QUASAR_TYPES = [
+    { id: 'radio_loud',  name: 'Radio-Loud Quasar',  color: '#ffdd44', jetColor: '#ff8800', frequency: 0.3 },
+    { id: 'radio_quiet', name: 'Radio-Quiet Quasar',  color: '#eedd88', jetColor: '#ccaa44', frequency: 0.4 },
+    { id: 'blazar',      name: 'Blazar',               color: '#ff9944', jetColor: '#ff4400', frequency: 0.15 },
+    { id: 'seyfert',     name: 'Seyfert Nucleus',      color: '#ddbb66', jetColor: '#aa8844', frequency: 0.15 },
+];
 const CLUSTER_PREFIX = ['Abell','Coma','Perseus','Virgo','Centaurus','Hydra','Ophiuchus','Hercules','Norma','Fornax','Phoenix','Sculptor','Antlia','Boötes','Sagitta','Pavo','Dorado','Horologium'];
 const CLUSTER_SUFFIX = ['Cluster','Supercluster','Group','Aggregate','Formation','Complex','Assembly','Convergence'];
 const UNI_PREFIX = ['Eternal','Infinite','Primordial','Celestial','Cosmic','Astral','Grand','Boundless','Vast','Ancient','Luminous','Sovereign','Twilight','Radiant','Abyssal'];
@@ -363,6 +373,56 @@ function createWormholeTexture() {
     ctx.fill();
 
     return new THREE.CanvasTexture(canvas);
+}
+
+function createQuasarTexture(color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const cx = 64, cy = 64;
+    ctx.clearRect(0, 0, 128, 128);
+
+    // Accretion disk glow (elliptical ring)
+    for (let ring = 0; ring < 6; ring++) {
+        const r = 12 + ring * 8;
+        const alpha = Math.max(0, 0.5 - ring * 0.07);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, r, r * 0.4, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = color.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+        ctx.lineWidth = 4 - ring * 0.3;
+        ctx.stroke();
+    }
+
+    // Ultra-bright core
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
+    coreGrad.addColorStop(0, 'rgba(255,255,240,1.0)');
+    coreGrad.addColorStop(0.3, color.replace(')', ',0.9)').replace('rgb', 'rgba'));
+    coreGrad.addColorStop(0.7, color.replace(')', ',0.3)').replace('rgb', 'rgba'));
+    coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer halo
+    const outerGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 64);
+    outerGrad.addColorStop(0, color.replace(')', ',0.25)').replace('rgb', 'rgba'));
+    outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = outerGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 64, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+// Helper to convert hex color to rgb() string for quasar texture
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    return `rgb(${r},${g},${b})`;
 }
 
 // ============================================================
@@ -543,7 +603,42 @@ function generateUniverse(seed) {
         });
     }
 
-    return { name: universeName, id: universeId, seed, clusters, galaxies, edges, universeRadius, universeWormholes };
+    // ---- Quasars (associated with AGN galaxies) ----
+    const qRng = new SeededRandom(seed * 53 + 31);
+    const quasars = [];
+    const agnGalaxies = galaxies.filter(g => g.props && g.props.smbhActive);
+    for (let qi = 0; qi < agnGalaxies.length; qi++) {
+        // ~40% of AGN galaxies host a visible quasar
+        if (qRng.next() > 0.4) continue;
+        const hostGal = agnGalaxies[qi];
+        const qType = qRng.weightedPick(QUASAR_TYPES);
+        const designation = qRng.pick(QUASAR_PREFIX) + ' ' + qRng.pick(QUASAR_SUFFIX);
+        const luminosity = qRng.nextFloat(10, 1000); // in 10^12 solar luminosities
+        const redshift = qRng.nextFloat(0.05, 4.0);
+        const jetLength = qType.id === 'blazar' ? qRng.nextFloat(30, 60) : qRng.nextFloat(10, 35);
+        // Quasar position slightly offset from galaxy center
+        const qOff = 3;
+        quasars.push({
+            x: hostGal.x + qRng.nextFloat(-qOff, qOff),
+            y: hostGal.y + qRng.nextFloat(-qOff * 0.3, qOff * 0.3),
+            z: hostGal.z + qRng.nextFloat(-qOff, qOff),
+            hostGalaxyIndex: hostGal.index,
+            hostGalaxyName: hostGal.name,
+            type: qType,
+            name: designation,
+            luminosity,
+            redshift,
+            jetLength,
+            jetAngle: qRng.nextFloat(0, Math.PI * 2),
+            jetTilt: qRng.nextFloat(-0.5, 0.5),
+            id: `QSR-${String(quasars.length).padStart(2, '0')}`,
+            index: quasars.length
+        });
+        hostGal.hasQuasar = true;
+        hostGal.quasarIndex = quasars.length - 1;
+    }
+
+    return { name: universeName, id: universeId, seed, clusters, galaxies, edges, universeRadius, universeWormholes, quasars };
 }
 
 // ============================================================
@@ -645,6 +740,8 @@ let galaxySprites = [];
 let clusterHaloMeshes = [];
 let uniWormholeSprites = []; // universe wormhole endpoint sprites
 let uniWormholeLines = [];   // connecting lines between endpoints
+let quasarSprites = [];       // quasar core sprites
+let quasarJetMeshes = [];     // quasar jet line meshes
 let selectionRing = null;
 let hoverRing = null;
 let selectedGalaxyIndex = -1;
@@ -753,6 +850,8 @@ function clearUniverseScene() {
     clusterHaloMeshes = [];
     uniWormholeSprites = [];
     uniWormholeLines = [];
+    quasarSprites = [];
+    quasarJetMeshes = [];
     selectionRing.visible = false;
     hoverRing.visible = false;
 }
@@ -878,6 +977,68 @@ function buildUniverseScene() {
             uniWormholeLines.push(line);
         }
     }
+
+    // ---- Quasars ----
+    if (universeData.quasars && universeData.quasars.length > 0) {
+        for (let qi = 0; qi < universeData.quasars.length; qi++) {
+            const q = universeData.quasars[qi];
+            const rgbColor = hexToRgb(q.type.color);
+            const qTex = createQuasarTexture(rgbColor);
+
+            // Core sprite — ultra-bright, pulsing
+            const coreMat = new THREE.SpriteMaterial({
+                map: qTex, transparent: true,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            const coreSprite = new THREE.Sprite(coreMat);
+            coreSprite.position.set(q.x, q.y, q.z);
+            const coreSize = 14 + Math.min(q.luminosity / 100, 12);
+            coreSprite.scale.set(coreSize, coreSize, 1);
+            coreSprite.userData = { type: 'quasar', quasarIndex: qi };
+            universeGroup.add(coreSprite);
+            quasarSprites.push(coreSprite);
+
+            // Relativistic jets — two lines extending from the quasar
+            const jetDir = new THREE.Vector3(
+                Math.cos(q.jetAngle) * Math.cos(q.jetTilt),
+                Math.sin(q.jetTilt),
+                Math.sin(q.jetAngle) * Math.cos(q.jetTilt)
+            ).normalize();
+            const origin = new THREE.Vector3(q.x, q.y, q.z);
+            const jet1End = origin.clone().add(jetDir.clone().multiplyScalar(q.jetLength));
+            const jet2End = origin.clone().add(jetDir.clone().multiplyScalar(-q.jetLength));
+
+            const jetColor = new THREE.Color(q.type.jetColor);
+            const jetMat = new THREE.LineBasicMaterial({
+                color: jetColor, transparent: true, opacity: 0.5,
+                depthWrite: false
+            });
+            const jet1Geo = new THREE.BufferGeometry().setFromPoints([origin, jet1End]);
+            const jet2Geo = new THREE.BufferGeometry().setFromPoints([origin, jet2End]);
+            const jet1 = new THREE.Line(jet1Geo, jetMat);
+            const jet2 = new THREE.Line(jet2Geo, jetMat);
+            universeGroup.add(jet1);
+            universeGroup.add(jet2);
+            quasarJetMeshes.push(jet1, jet2);
+
+            // Jet glow — wider faint lines alongside
+            const jetGlowMat = new THREE.LineBasicMaterial({
+                color: jetColor, transparent: true, opacity: 0.15,
+                depthWrite: false
+            });
+            // Slightly offset glow lines for width illusion
+            for (let offset = 0; offset < 2; offset++) {
+                const perpDir = new THREE.Vector3(-jetDir.z, 0, jetDir.x).normalize().multiplyScalar(1.5 * (offset === 0 ? 1 : -1));
+                const gPt1 = origin.clone().add(perpDir);
+                const gPt2 = jet1End.clone().add(perpDir);
+                const gPt3 = jet2End.clone().add(perpDir);
+                const gGeo1 = new THREE.BufferGeometry().setFromPoints([gPt1, gPt2]);
+                const gGeo2 = new THREE.BufferGeometry().setFromPoints([gPt1, gPt3]);
+                universeGroup.add(new THREE.Line(gGeo1, jetGlowMat));
+                universeGroup.add(new THREE.Line(gGeo2, jetGlowMat));
+            }
+        }
+    }
 }
 
 // ============================================================
@@ -920,6 +1081,20 @@ function onMouseMove(e) {
                 const sp = whHits[0].object;
                 hoverRing.position.copy(sp.position);
                 hoverRing.scale.setScalar(22);
+                hoverRing.lookAt(camera.position);
+                hoverRing.visible = true;
+                renderer.domElement.style.cursor = 'pointer';
+                return;
+            }
+        }
+
+        // Check quasars
+        if (quasarSprites.length > 0) {
+            const qHits = raycaster.intersectObjects(quasarSprites);
+            if (qHits.length > 0) {
+                const sp = qHits[0].object;
+                hoverRing.position.copy(sp.position);
+                hoverRing.scale.setScalar(20);
                 hoverRing.lookAt(camera.position);
                 hoverRing.visible = true;
                 renderer.domElement.style.cursor = 'pointer';
@@ -970,6 +1145,15 @@ function onClick(e) {
         const whHits = raycaster.intersectObjects(uniWormholeSprites);
         if (whHits.length > 0) {
             selectUniverseWormhole(whHits[0].object.userData.whIndex, whHits[0].object.userData.endpoint);
+            return;
+        }
+    }
+
+    // Check quasars (before galaxies — they overlap with host)
+    if (quasarSprites.length > 0) {
+        const qHits = raycaster.intersectObjects(quasarSprites);
+        if (qHits.length > 0) {
+            selectQuasar(qHits[0].object.userData.quasarIndex);
             return;
         }
     }
@@ -1113,6 +1297,41 @@ function selectUniverseWormhole(whIndex, endpoint) {
         `<button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterGalaxy(${destGalIdx})">Enter Destination Galaxy</button>`;
 }
 
+function selectQuasar(qIndex) {
+    const q = universeData.quasars[qIndex];
+    selectedGalaxyIndex = -1;
+    selectedClusterIndex = -1;
+    document.querySelectorAll('.galaxy-list-item').forEach(el => el.classList.remove('selected'));
+
+    // Position selection ring
+    selectionRing.position.set(q.x, q.y, q.z);
+    selectionRing.scale.setScalar(20);
+    selectionRing.lookAt(camera.position);
+    selectionRing.visible = true;
+
+    // Smooth pan camera toward quasar
+    const qDist = Math.sqrt(q.x * q.x + q.y * q.y + q.z * q.z) || 1;
+    camPhiTarget = Math.acos(Math.max(-1, Math.min(1, q.y / qDist)));
+    camThetaTarget = Math.atan2(q.z, q.x);
+    camDistTarget = Math.max(qDist * 2.5, 250);
+    isCamAnimating = true;
+    autoRotate = false;
+    clearTimeout(autoRotateTimer);
+
+    const detail = document.getElementById('galaxy-detail');
+    detail.classList.add('active');
+    document.getElementById('detail-header').textContent = 'Quasar';
+    document.getElementById('gd-name').innerHTML = `<span style="color:${q.type.color}">${q.name}</span>`;
+    document.getElementById('gd-id').textContent = `${universeData.id}:${q.id}`;
+    document.getElementById('gd-type').innerHTML = `<span style="color:${q.type.color}">${q.type.name}</span>`;
+    document.getElementById('gd-systems').textContent = `Luminosity: ${q.luminosity.toFixed(0)} × 10¹² L☉`;
+    document.getElementById('gd-arms').textContent = `Redshift: z = ${q.redshift.toFixed(2)}`;
+    document.getElementById('gd-cluster').innerHTML = `Host: <span style="color:${universeData.galaxies[q.hostGalaxyIndex].type.color}">${q.hostGalaxyName}</span>`;
+    document.getElementById('gd-smbh').innerHTML = `<span style="color:#ff8844">Supermassive Black Hole</span> — Actively Accreting`;
+    document.getElementById('gd-enter-container').innerHTML =
+        `<button class="btn primary" style="border-color:${q.type.color}; color:${q.type.color};" onclick="enterGalaxy(${q.hostGalaxyIndex})">Enter Host Galaxy</button>`;
+}
+
 function enterGalaxy(index) {
     const gal = universeData.galaxies[index];
     const params = new URLSearchParams({
@@ -1184,6 +1403,7 @@ function createGalaxyListItem(gal) {
     if (gal.cluster) tags += `<span class="tag tag-cluster">${gal.cluster.name.split(' ')[0]}</span>`;
     else tags += '<span class="tag tag-field">Field</span>';
     if (gal.props && gal.props.smbhActive) tags += '<span class="tag tag-active">AGN</span>';
+    if (gal.hasQuasar) tags += '<span class="tag tag-quasar">Quasar</span>';
     info.innerHTML = `<div class="name">${gal.name}</div>
         <div class="type">${gal.type.name} · ${gal.props ? gal.props.systemCount : '?'} systems${tags}</div>`;
 
@@ -1211,6 +1431,8 @@ function updateUniverseInfo() {
     document.getElementById('uni-filament-count').textContent = edges.length;
     document.getElementById('uni-system-count').textContent =
         galaxies.reduce((s, g) => s + (g.props ? g.props.systemCount : 0), 0).toLocaleString();
+    document.getElementById('uni-quasar-count').textContent =
+        universeData.quasars ? universeData.quasars.length : 0;
 }
 
 // ============================================================
@@ -1258,6 +1480,19 @@ function animate() {
         for (let i = 0; i < uniWormholeSprites.length; i++) {
             const pulse = 18 + 3 * Math.sin(t * 0.003 + i * 1.5);
             uniWormholeSprites[i].scale.set(pulse, pulse, 1);
+        }
+    }
+
+    // Pulse quasar sprites — brightness flicker
+    if (quasarSprites.length > 0) {
+        const t = performance.now();
+        for (let i = 0; i < quasarSprites.length; i++) {
+            const baseSize = quasarSprites[i].scale.x;
+            const flicker = 1.0 + 0.15 * Math.sin(t * 0.005 + i * 2.7) + 0.08 * Math.sin(t * 0.013 + i * 4.1);
+            const s = baseSize * flicker / (1.0 + 0.15 + 0.08); // normalize so base stays roughly stable
+            quasarSprites[i].scale.set(s, s, 1);
+            // Also pulse opacity
+            quasarSprites[i].material.opacity = 0.8 + 0.2 * Math.sin(t * 0.004 + i * 3.3);
         }
     }
 
