@@ -909,17 +909,17 @@ function buildGalaxyScene() {
             agnJetGroup.add(mesh);
         }
 
-        // Volumetric relativistic jets — nested layers + helical structure for 3D depth
+        // Volumetric relativistic jets — extended, diffusing outward
         for (let pole = -1; pole <= 1; pole += 2) {
-            const jetLen = 60 + galaxy.smbh.mass;
+            const jetLen = (120 + galaxy.smbh.mass * 2) * 1.5; // much longer
             const baseR = 1.5;
-            const tipR = 6;
+            const tipR = 18;  // wider spread at the far end
 
-            // Multiple nested cone shells: outer diffuse → mid glow → bright core
+            // Nested shells with per-vertex alpha fade along length
             const layers = [
-                { rScale: 1.0,  opacity: 0.10, segs: 20, hSegs: 10, cBase: [1.0,0.7,0.3], cTip: [0.3,0.2,1.0] },
-                { rScale: 0.6,  opacity: 0.20, segs: 14, hSegs: 8,  cBase: [1.0,0.85,0.5], cTip: [0.4,0.3,0.9] },
-                { rScale: 0.25, opacity: 0.40, segs: 10, hSegs: 6,  cBase: [1.0,0.95,0.8], cTip: [0.6,0.4,1.0] },
+                { rScale: 1.0,  baseOp: 0.06, segs: 24, hSegs: 16, cBase: [1.0,0.7,0.3], cTip: [0.2,0.15,0.7] },
+                { rScale: 0.55, baseOp: 0.14, segs: 16, hSegs: 12, cBase: [1.0,0.85,0.5], cTip: [0.3,0.25,0.8] },
+                { rScale: 0.2,  baseOp: 0.35, segs: 12, hSegs: 10, cBase: [1.0,0.95,0.85], cTip: [0.5,0.35,0.9] },
             ];
 
             for (const layer of layers) {
@@ -929,31 +929,52 @@ function buildGalaxyScene() {
                 const botR = pole === 1 ? lBaseR : lTipR;
                 const geo = new THREE.CylinderGeometry(topR, botR, jetLen, layer.segs, layer.hSegs, true);
 
-                // Organic turbulence wobble
+                // Organic turbulence wobble — more pronounced further out
                 const pos = geo.attributes.position;
                 for (let vi = 0; vi < pos.count; vi++) {
                     const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
                     const angle = Math.atan2(pz, px);
                     const ht = (py + jetLen / 2) / jetLen;
-                    const wobble = 1.0 + 0.15 * Math.sin(angle * 4 + ht * 10) * ht;
+                    const wobble = 1.0 + 0.2 * Math.sin(angle * 3 + ht * 8) * ht * ht;
                     pos.setX(vi, px * wobble);
                     pos.setZ(vi, pz * wobble);
                 }
                 pos.needsUpdate = true;
 
-                const jColors = new Float32Array(pos.count * 3);
+                // Vertex colors: bright at base, fading color AND alpha toward tip
+                const jColors = new Float32Array(pos.count * 4); // RGBA
                 for (let vi = 0; vi < pos.count; vi++) {
                     const vy = pos.getY(vi);
                     const t = (vy + jetLen / 2) / jetLen;
-                    const fade = pole === 1 ? (1 - t) : t;
-                    jColors[vi * 3]     = layer.cBase[0] * fade + layer.cTip[0] * (1 - fade);
-                    jColors[vi * 3 + 1] = layer.cBase[1] * fade + layer.cTip[1] * (1 - fade);
-                    jColors[vi * 3 + 2] = layer.cBase[2] * fade + layer.cTip[2] * (1 - fade);
+                    const fade = pole === 1 ? (1 - t) : t; // 1 at base, 0 at tip
+                    // Color gradient
+                    jColors[vi * 4]     = layer.cBase[0] * fade + layer.cTip[0] * (1 - fade);
+                    jColors[vi * 4 + 1] = layer.cBase[1] * fade + layer.cTip[1] * (1 - fade);
+                    jColors[vi * 4 + 2] = layer.cBase[2] * fade + layer.cTip[2] * (1 - fade);
+                    // Alpha: strong at base, fading to near-zero at tip (cubic falloff)
+                    jColors[vi * 4 + 3] = fade * fade * fade;
                 }
-                geo.setAttribute('color', new THREE.BufferAttribute(jColors, 3));
-                const mat = new THREE.MeshBasicMaterial({
-                    vertexColors: true, transparent: true, opacity: layer.opacity,
-                    side: THREE.DoubleSide, depthWrite: false,
+                geo.setAttribute('color', new THREE.BufferAttribute(jColors, 4));
+
+                // Custom shader to use per-vertex alpha from 4-component color
+                const mat = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        attribute vec4 color;
+                        varying vec4 vColor;
+                        void main() {
+                            vColor = color;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec4 vColor;
+                        void main() {
+                            gl_FragColor = vec4(vColor.rgb, vColor.a * ${layer.baseOp.toFixed(2)});
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
                     blending: THREE.AdditiveBlending
                 });
                 const mesh = new THREE.Mesh(geo, mat);
@@ -961,13 +982,13 @@ function buildGalaxyScene() {
                 agnJetGroup.add(mesh);
             }
 
-            // Helical plasma filament inside the jet
+            // Helical plasma filament — longer, thinner at tip
             const helixPts = [];
-            const turns = 3, steps = 60;
+            const turns = 5, steps = 80;
             for (let si = 0; si <= steps; si++) {
                 const ht = si / steps;
                 const angle = ht * Math.PI * 2 * turns;
-                const r = (baseR + (tipR - baseR) * ht) * 0.4;
+                const r = (baseR + (tipR - baseR) * ht) * 0.3;
                 helixPts.push(new THREE.Vector3(
                     Math.cos(angle) * r,
                     (ht - 0.5) * jetLen,
@@ -975,9 +996,9 @@ function buildGalaxyScene() {
                 ));
             }
             const helixCurve = new THREE.CatmullRomCurve3(helixPts);
-            const helixGeo = new THREE.TubeGeometry(helixCurve, 48, 0.3, 5, false);
+            const helixGeo = new THREE.TubeGeometry(helixCurve, 64, 0.25, 5, false);
             const helixMat = new THREE.MeshBasicMaterial({
-                color: 0xaaccff, transparent: true, opacity: 0.3,
+                color: 0xaaccff, transparent: true, opacity: 0.25,
                 depthWrite: false, blending: THREE.AdditiveBlending
             });
             const helix = new THREE.Mesh(helixGeo, helixMat);

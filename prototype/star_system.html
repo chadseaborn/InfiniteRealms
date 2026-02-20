@@ -1906,54 +1906,67 @@ function renderStar(star) {
             pulsarGroup.add(hotspot);
         }
 
-        // Volumetric beam cones — multiple nested layers for 3D depth
+        // Volumetric beam cones — extended, diffusing outward
         for (let pole = -1; pole <= 1; pole += 2) {
-            const beamLength = bodyRadius * 12;
+            const beamLength = bodyRadius * 22;  // much longer reach
             const beamBaseR = bodyRadius * 0.6;
-            const beamTipR = bodyRadius * 2.0;
+            const beamTipR = bodyRadius * 4.5;   // wider spread at far end
 
-            // Layer 0: outermost diffuse shell, Layer 1: mid glow, Layer 2: bright core
+            // Nested shells with per-vertex alpha (cubic fade along length)
             const layers = [
-                { radiusScale: 1.0,  opacity: 0.12, segments: 24, heightSegs: 12, color: [0.6, 0.3, 1.0, 0.15, 0.05, 0.3] },
-                { radiusScale: 0.65, opacity: 0.22, segments: 16, heightSegs: 10, color: [0.85, 0.55, 1.0, 0.15, 0.1, 0.2] },
-                { radiusScale: 0.3,  opacity: 0.45, segments: 12, heightSegs: 8,  color: [1.0, 0.8, 1.0, 0.4, 0.2, 0.5] },
+                { rScale: 1.0,  baseOp: 0.06, segs: 24, hSegs: 16, cBase: [0.6,0.3,1.0], cTip: [0.15,0.05,0.3] },
+                { rScale: 0.55, baseOp: 0.14, segs: 16, hSegs: 12, cBase: [0.85,0.55,1.0], cTip: [0.15,0.1,0.2] },
+                { rScale: 0.2,  baseOp: 0.40, segs: 12, hSegs: 10, cBase: [1.0,0.8,1.0], cTip: [0.4,0.2,0.5] },
             ];
 
             for (const layer of layers) {
-                const lBaseR = beamBaseR * layer.radiusScale;
-                const lTipR = beamTipR * layer.radiusScale;
+                const lBaseR = beamBaseR * layer.rScale;
+                const lTipR = beamTipR * layer.rScale;
                 const topR = pole === 1 ? lTipR : lBaseR;
                 const botR = pole === 1 ? lBaseR : lTipR;
-                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, layer.segments, layer.heightSegs, true);
+                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, layer.segs, layer.hSegs, true);
 
-                // Wobble the radii slightly for organic turbulence
+                // Organic turbulence — more pronounced further out
                 const pos = geo.attributes.position;
                 for (let vi = 0; vi < pos.count; vi++) {
                     const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
                     const angle = Math.atan2(pz, px);
                     const ht = (py + beamLength / 2) / beamLength;
-                    const wobble = 1.0 + 0.12 * Math.sin(angle * 5 + ht * 8) * ht;
+                    const wobble = 1.0 + 0.15 * Math.sin(angle * 5 + ht * 8) * ht * ht;
                     pos.setX(vi, px * wobble);
                     pos.setZ(vi, pz * wobble);
                 }
                 pos.needsUpdate = true;
 
-                // Vertex colors with gradient + alpha fade at tip
-                const colors = new Float32Array(pos.count * 3);
+                // 4-component vertex color: RGB + per-vertex alpha
+                const colors = new Float32Array(pos.count * 4);
                 for (let vi = 0; vi < pos.count; vi++) {
                     const vy = pos.getY(vi);
                     const t = (vy + beamLength / 2) / beamLength;
-                    const fade = pole === 1 ? (1 - t) : t;
-                    const c = layer.color;
-                    colors[vi * 3]     = c[0] * fade + c[3] * (1 - fade);
-                    colors[vi * 3 + 1] = c[1] * fade + c[4] * (1 - fade);
-                    colors[vi * 3 + 2] = c[2] * fade + c[5] * (1 - fade);
+                    const fade = pole === 1 ? (1 - t) : t; // 1=base, 0=tip
+                    colors[vi * 4]     = layer.cBase[0] * fade + layer.cTip[0] * (1 - fade);
+                    colors[vi * 4 + 1] = layer.cBase[1] * fade + layer.cTip[1] * (1 - fade);
+                    colors[vi * 4 + 2] = layer.cBase[2] * fade + layer.cTip[2] * (1 - fade);
+                    colors[vi * 4 + 3] = fade * fade * fade; // cubic falloff
                 }
-                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-                const mat = new THREE.MeshBasicMaterial({
-                    vertexColors: true,
+                geo.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+
+                const mat = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        attribute vec4 color;
+                        varying vec4 vColor;
+                        void main() {
+                            vColor = color;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec4 vColor;
+                        void main() {
+                            gl_FragColor = vec4(vColor.rgb, vColor.a * ${layer.baseOp.toFixed(2)});
+                        }
+                    `,
                     transparent: true,
-                    opacity: layer.opacity,
                     side: THREE.DoubleSide,
                     depthWrite: false,
                     blending: THREE.AdditiveBlending
@@ -1963,27 +1976,25 @@ function renderStar(star) {
                 pulsarGroup.add(mesh);
             }
 
-            // Helical filament — spiral structure inside the jet for depth cues
+            // Helical filament — longer spiral
             const helixPoints = [];
-            const helixTurns = 4;
-            const helixSteps = 80;
+            const helixTurns = 6;
+            const helixSteps = 100;
             for (let si = 0; si <= helixSteps; si++) {
-                const ht = si / helixSteps; // 0→1 along beam
+                const ht = si / helixSteps;
                 const angle = ht * Math.PI * 2 * helixTurns;
-                const r = (beamBaseR + (beamTipR - beamBaseR) * ht) * 0.5;
-                const hx = Math.cos(angle) * r;
-                const hz = Math.sin(angle) * r;
-                const hy = (ht - 0.5) * beamLength;
-                helixPoints.push(new THREE.Vector3(hx, hy, hz));
+                const r = (beamBaseR + (beamTipR - beamBaseR) * ht) * 0.4;
+                helixPoints.push(new THREE.Vector3(
+                    Math.cos(angle) * r,
+                    (ht - 0.5) * beamLength,
+                    Math.sin(angle) * r
+                ));
             }
             const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
-            const helixGeo = new THREE.TubeGeometry(helixCurve, 60, bodyRadius * 0.08, 6, false);
+            const helixGeo = new THREE.TubeGeometry(helixCurve, 80, bodyRadius * 0.06, 6, false);
             const helixMat = new THREE.MeshBasicMaterial({
-                color: 0xccaaff,
-                transparent: true,
-                opacity: 0.25,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending
+                color: 0xccaaff, transparent: true, opacity: 0.2,
+                depthWrite: false, blending: THREE.AdditiveBlending
             });
             const helix = new THREE.Mesh(helixGeo, helixMat);
             helix.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
@@ -2003,7 +2014,7 @@ function renderStar(star) {
                     blending: THREE.AdditiveBlending
                 });
                 const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
-                beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 14, 1);
+                beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 24, 1);
                 if (p === 1) beamSprite.rotation.y = Math.PI / 2; // perpendicular
                 pulsarBeamSprites.push(beamSprite);
                 scene.add(beamSprite);
