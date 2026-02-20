@@ -1,0 +1,3055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite Realms — Star System View</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    display: flex;
+}
+#canvas-container {
+    flex: 1;
+    position: relative;
+}
+canvas { display: block; cursor: crosshair; }
+#info-panel {
+    width: 340px;
+    background: #111122;
+    border-left: 1px solid #333;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100vh;
+}
+#info-panel h1 {
+    font-size: 16px;
+    color: #ffcc00;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+#info-panel h2 {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.stat {
+    font-size: 13px;
+    margin: 3px 0;
+    color: #ccc;
+}
+.stat span {
+    color: #fff;
+    font-weight: bold;
+}
+.planet-list-item {
+    padding: 8px 10px;
+    margin: 4px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.planet-list-item:hover {
+    background: #1a1a2e;
+    border-color: #444;
+}
+.planet-list-item.selected {
+    background: #1a1a3e;
+    border-color: #ffcc00;
+}
+.planet-dot {
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.planet-info-text {
+    flex: 1;
+    font-size: 12px;
+}
+.planet-info-text .name {
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+}
+.planet-info-text .type {
+    color: #888;
+}
+#planet-detail {
+    margin-top: 15px;
+    padding: 12px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    border: 1px solid #333;
+    display: none;
+}
+#planet-detail.active { display: block; }
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 12px;
+    color: #666;
+}
+.btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    margin-top: 10px;
+    transition: all 0.15s;
+}
+.btn:hover { background: #3a3a5a; border-color: #ffcc00; color: #fff; }
+.btn.primary { border-color: #ffcc00; color: #ffcc00; }
+#seed-control {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+}
+#seed-control input {
+    width: 100%;
+    padding: 6px 10px;
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    margin-top: 5px;
+}
+.tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-left: 4px;
+}
+.tag-life-none { background: #333; color: #888; }
+.tag-life-primitive { background: #2a3a1a; color: #8b8; }
+.tag-life-civilized { background: #1a2a3a; color: #8bf; }
+.tag-life-extinct { background: #3a2a1a; color: #b98; }
+.tag-life-advanced { background: #2a1a3a; color: #b8f; }
+.tag-landable { background: #1a3a2a; color: #8db; }
+.tag-diveable { background: #1a2a3a; color: #8bd; }
+.tag-not-landable { background: #3a1a1a; color: #b88; }
+#zoom-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 5px;
+}
+.zoom-btn {
+    padding: 6px 10px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    transition: all 0.15s;
+}
+.zoom-btn:hover { background: #3a3a5a; border-color: #ffcc00; color: #fff; }
+#hud {
+    position: absolute;
+    top: 60px;
+    left: 20px;
+    color: #aaa;
+    font-size: 12px;
+    z-index: 5;
+}
+#star-name-hud {
+    color: #ffcc00;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+#label-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 2;
+}
+.body-label {
+    position: absolute;
+    color: #ccc;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 4px #000, 0 0 8px #000;
+    white-space: nowrap;
+    pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <div id="hud">
+        <div id="star-name-hud">—</div>
+        <div style="font-size:11px; color:#666;">Drag to orbit | Right-drag to pan | Scroll to zoom | Click to select & track | Dbl-click to land</div>
+    </div>
+    <button id="back-btn" onclick="returnToGalaxy()" style="display:none; position:absolute; top:20px; left:20px; padding:8px 16px; background:#2a2a4a; border:1px solid #555; border-radius:4px; color:#ffcc00; cursor:pointer; font-family:'Courier New',monospace; font-size:13px; z-index:10; transition:all 0.15s;">← Return to Galaxy</button>
+    <div id="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()">+</button>
+        <button class="zoom-btn" onclick="zoomReset()">Reset</button>
+        <button class="zoom-btn" onclick="zoomOut()">−</button>
+    </div>
+    <div id="label-container"></div>
+</div>
+
+<div id="info-panel">
+    <h1>Star System View</h1>
+
+    <div id="star-info">
+        <h2>Star</h2>
+        <div class="stat">Name: <span id="star-name">—</span></div>
+        <div class="stat">ID: <span id="star-id" style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Type: <span id="star-type">—</span></div>
+        <div class="stat">Luminosity: <span id="star-luminosity">—</span></div>
+        <div class="stat">Planets: <span id="star-planet-count">—</span></div>
+        <div class="stat">Habitable zone: <span id="star-hab-zone">—</span></div>
+    </div>
+
+    <h2>Planets & Moons</h2>
+    <div id="planet-list"></div>
+
+    <div id="planet-detail">
+        <h2>Selected Body</h2>
+        <div class="stat">Name: <span id="pd-name">—</span></div>
+        <div class="stat">ID: <span id="pd-id" style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Type: <span id="pd-type">—</span></div>
+        <div class="stat">Orbit: <span id="pd-orbit">—</span></div>
+        <div class="stat">Size (n): <span id="pd-size">—</span></div>
+        <div class="stat">Tiles: <span id="pd-tiles">—</span></div>
+        <div class="stat">Atmosphere: <span id="pd-atmo">—</span></div>
+        <div class="stat">Life: <span id="pd-life">—</span></div>
+        <div class="stat">Biomes: <span id="pd-biomes">—</span></div>
+        <div class="stat">Moons: <span id="pd-moons">—</span></div>
+        <div class="stat">Rings: <span id="pd-rings">—</span></div>
+        <div id="pd-land-btn-container"></div>
+    </div>
+
+    <div id="seed-control">
+        <label class="stat">System Seed</label>
+        <input type="text" id="seed-input" value="42">
+        <button class="btn" onclick="regenerateSystem()">Generate</button>
+        <button class="btn" onclick="randomSeed()">Random</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ============================================================
+// SEEDED RANDOM
+// ============================================================
+class SeededRandom {
+    constructor(seed) {
+        this.seed = seed % 2147483647;
+        if (this.seed <= 0) this.seed += 2147483646;
+    }
+    next() {
+        this.seed = (this.seed * 16807) % 2147483647;
+        return (this.seed - 1) / 2147483646;
+    }
+    nextInt(min, max) {
+        return Math.floor(this.next() * (max - min + 1)) + min;
+    }
+    nextFloat(min, max) {
+        return this.next() * (max - min) + min;
+    }
+    pick(arr) {
+        return arr[Math.floor(this.next() * arr.length)];
+    }
+    weightedPick(items) {
+        // items = [{value, frequency}, ...]
+        const total = items.reduce((s, i) => s + i.frequency, 0);
+        let r = this.next() * total;
+        for (const item of items) {
+            r -= item.frequency;
+            if (r <= 0) return item;
+        }
+        return items[items.length - 1];
+    }
+}
+
+// ============================================================
+// STAR SYSTEM GENERATION
+// ============================================================
+// Frequencies tuned to approximate real stellar population (with gameplay boost for rare types)
+// Real universe: ~75% red dwarf, ~12% orange, ~7% yellow, exotics <1%. We compress the
+// distribution so players still encounter exotic systems at enjoyable rates.
+const STAR_TYPES = [
+    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.40, luminosity: 'Low',      color: '#ff6644', radius: 20, planetCount: [1,6],  habZone: [1,2] },
+    { id: 'orange_dwarf', name: 'Orange Dwarf',  frequency: 0.15, luminosity: 'Low-Med',  color: '#ffaa44', radius: 24, planetCount: [2,8],  habZone: [1,3] },
+    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.12, luminosity: 'Medium',   color: '#ffdd44', radius: 30, planetCount: [3,14], habZone: [2,5] },
+    { id: 'binary',       name: 'Binary System', frequency: 0.12, luminosity: 'Variable', color: '#ffaa44', radius: 25, planetCount: [1,8],  habZone: [3,5] },
+    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.05, luminosity: 'Low',      color: '#eeeeff', radius: 10, planetCount: [0,5],  habZone: [1,1] },
+    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.05, luminosity: 'Very Low', color: '#884422', radius: 15, planetCount: [0,4],  habZone: [] },
+    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.03, luminosity: 'High',     color: '#6688ff', radius: 45, planetCount: [2,10], habZone: [4,7] },
+    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.03, luminosity: 'High',     color: '#ff5533', radius: 50, planetCount: [1,8],  habZone: [5,8], engulfZone: 2 },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.02, luminosity: 'Extreme',  color: '#cc88ff', radius: 8,  planetCount: [0,3],  habZone: [] },
+    { id: 'protostar',    name: 'Protostar',     frequency: 0.01, luminosity: 'Variable', color: '#ffaa66', radius: 35, planetCount: [0,3],  habZone: [], diskColor: '#886633' },
+    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.01, luminosity: 'Extreme',  color: '#dd99ff', radius: 8,  planetCount: [0,2],  habZone: [] },
+    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.007,luminosity: 'None',     color: '#441155', radius: 18, planetCount: [0,4],  habZone: [], accretionColor: '#ff6622' },
+];
+
+// Possible companion stars for binary systems
+const BINARY_COMPANIONS = [
+    { id: 'red_dwarf',    name: 'Red Dwarf',    frequency: 0.35, color: '#ff6644', radius: 0.5 },
+    { id: 'orange_dwarf', name: 'Orange Dwarf', frequency: 0.20, color: '#ffaa44', radius: 0.6 },
+    { id: 'yellow_sun',   name: 'Yellow Sun',   frequency: 0.20, color: '#ffdd44', radius: 0.7 },
+    { id: 'white_dwarf',  name: 'White Dwarf',  frequency: 0.15, color: '#eeeeff', radius: 0.3 },
+    { id: 'red_giant',    name: 'Red Giant',    frequency: 0.04, color: '#ff5533', radius: 1.2 },
+    { id: 'neutron_star', name: 'Neutron Star', frequency: 0.04, color: '#cc88ff', radius: 0.25 },
+    { id: 'black_hole',   name: 'Black Hole',   frequency: 0.02, color: '#220033', radius: 0.4 },
+];
+
+const PLANET_TYPES = [
+    // Colors chosen to approximate the "from orbit" look of each body's actual biome palette
+    { id: 'barren_rock', name: 'Barren Rock',  frequency: 0.25, orbitalBias: 'inner',   color: '#8a7a65', sizeN: [3,8],   landable: true,  atmosphere: 'None',       biomes: ['rock','crater','dust','salt flat','mesa'] },
+    { id: 'habitable',   name: 'Habitable',    frequency: 0.15, orbitalBias: 'hab_zone', color: '#3a7a6a', sizeN: [20,100], landable: true,  atmosphere: 'Breathable', biomes: ['forest','desert','ocean','tundra','rainforest','mangrove','glacier','shrubland','dune sea'] },
+    { id: 'ocean_world', name: 'Ocean World',  frequency: 0.10, orbitalBias: 'hab_zone', color: '#1e4470', sizeN: [15,60],  landable: true,  atmosphere: 'Breathable', biomes: ['deep ocean','ocean','coral reef','kelp forest','bioluminescent sea','mangrove','coast'] },
+    { id: 'ice_world',   name: 'Ice World',    frequency: 0.15, orbitalBias: 'outer',   color: '#a0c4d4', sizeN: [8,30],   landable: true,  atmosphere: 'Thin',       biomes: ['frozen ocean','ice sheet','glacier','tundra','geothermal vent','snow peak'] },
+    { id: 'gas_giant',   name: 'Gas Giant',    frequency: 0.20, orbitalBias: 'outer',   color: '#cc8844', sizeN: [30,80],  landable: false, diveable: true, atmosphere: 'Crushing',   biomes: ['cloud bands','storms','atmospheric'], moonRange: [1,8], stationRange: [0,3] },
+    { id: 'volcanic',    name: 'Volcanic',     frequency: 0.10, orbitalBias: 'inner',   color: '#5a2a1a', sizeN: [5,20],   landable: true,  atmosphere: 'Toxic',      biomes: ['lava field','magma lake','obsidian waste','volcanic','ash desert','fumarole'] },
+    { id: 'anomalous',   name: 'Anomalous',    frequency: 0.05, orbitalBias: 'any',     color: '#aa44cc', sizeN: [3,50],   landable: true,  atmosphere: 'Unknown',    biomes: ['mushroom forest','crystal fields','spore plains','void scar','bioluminescent sea'] },
+];
+
+const GAS_GIANT_SUBTYPES = [
+    { id: 'jovian',    name: 'Jovian',    frequency: 0.35, color: '#c8884a' },  // warm orange-tan (Jupiter-like)
+    { id: 'saturnian', name: 'Saturnian', frequency: 0.25, color: '#d4b06a' },  // pale gold (Saturn-like)
+    { id: 'neptunian', name: 'Neptunian', frequency: 0.20, color: '#3a7aaa' },  // deep blue (Neptune-like)
+    { id: 'uranian',   name: 'Uranian',   frequency: 0.20, color: '#5aaa9a' },  // teal-cyan (Uranus-like)
+];
+
+const LIFE_CLASSES = [
+    { id: 'none',      name: 'No Life',         color: '#666' },
+    { id: 'primitive',  name: 'Primitive Life',   color: '#6a6' },
+    { id: 'civilized',  name: 'Civilized',        color: '#68f' },
+    { id: 'extinct',    name: 'Extinct Civ.',     color: '#b86' },
+    { id: 'advanced',   name: 'Advanced Civ.',    color: '#a6f' },
+];
+
+const LIFE_FREQ = {
+    barren_rock: [0.85, 0.10, 0.03, 0.02, 0.00],
+    habitable:   [0.05, 0.30, 0.40, 0.15, 0.10],
+    ocean_world: [0.20, 0.40, 0.20, 0.15, 0.05],
+    ice_world:   [0.60, 0.20, 0.10, 0.10, 0.00],
+    gas_giant:   [1.00, 0.00, 0.00, 0.00, 0.00],
+    volcanic:    [0.70, 0.15, 0.05, 0.10, 0.00],
+    anomalous:   [0.50, 0.20, 0.15, 0.10, 0.05],
+};
+
+const MOON_TYPES = [
+    // Colors match orbital appearance to biome palette surface colors
+    { id: 'rocky_moon',  name: 'Rocky Moon',  frequency: 0.35, color: '#8a7a65', sizeN: [2,5],  biomes: ['rock','crater','dust','salt flat'], atmosphere: 'None' },
+    { id: 'ice_moon',    name: 'Ice Moon',    frequency: 0.25, color: '#95b5c8', sizeN: [2,6],  biomes: ['frozen ocean','ice sheet','glacier','geothermal vent'], atmosphere: 'Thin' },
+    { id: 'volcanic_moon', name: 'Volcanic Moon', frequency: 0.15, color: '#5a2a1a', sizeN: [2,4], biomes: ['lava field','magma lake','volcanic','obsidian waste'], atmosphere: 'Toxic' },
+    { id: 'habitable_moon', name: 'Habitable Moon', frequency: 0.10, color: '#4a8a60', sizeN: [3,8], biomes: ['forest','plains','lake','coast','savanna'], atmosphere: 'Breathable' },
+    { id: 'barren_moon', name: 'Barren Moon', frequency: 0.15, color: '#7a6e58', sizeN: [2,3],  biomes: ['rock','dust'], atmosphere: 'None' },
+];
+
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII'];
+
+const GREEK = ['Alpha','Beta','Gamma','Delta','Epsilon','Zeta','Eta','Theta','Iota','Kappa','Lambda','Mu','Nu','Xi'];
+
+// ============================================================
+// WORMHOLE HELPERS
+// ============================================================
+const WORMHOLE_NAME_PREFIXES = ['Nexus','Void','Rift','Gate','Passage','Breach','Fold','Tear','Drift','Maw'];
+const WORMHOLE_NAME_SUFFIXES = ['Alpha','Omega','Prime','Zero','Deep','Far','Beyond','Null','Apex','Lux'];
+
+function generateWormholeDestName(seed) {
+    const rng = new SeededRandom(seed);
+    return rng.pick(WORMHOLE_NAME_PREFIXES) + ' ' + rng.pick(WORMHOLE_NAME_SUFFIXES);
+}
+
+function createWormholeTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const cx = 128, cy = 128;
+
+    // Background: transparent
+    ctx.clearRect(0, 0, 256, 256);
+
+    // Concentric rings with cyan-magenta gradient
+    for (let ring = 0; ring < 12; ring++) {
+        const r = 10 + ring * 10;
+        const alpha = Math.max(0, 0.6 - ring * 0.05);
+        const hue = 170 + ring * 12; // cyan → magenta sweep
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${alpha})`;
+        ctx.lineWidth = 4 - ring * 0.2;
+        ctx.stroke();
+    }
+
+    // Bright center core
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+    coreGrad.addColorStop(0, 'rgba(200,255,255,0.9)');
+    coreGrad.addColorStop(0.5, 'rgba(100,255,220,0.4)');
+    coreGrad.addColorStop(1, 'rgba(50,200,180,0)');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer glow
+    const outerGrad = ctx.createRadialGradient(cx, cy, 60, cx, cy, 128);
+    outerGrad.addColorStop(0, 'rgba(100,200,255,0.15)');
+    outerGrad.addColorStop(0.5, 'rgba(180,100,255,0.08)');
+    outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = outerGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 128, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(canvas);
+}
+const STAR_NAMES_PREFIX = ['Aldara','Borea','Cytha','Draven','Elys','Fenn','Galith','Hyra','Ixen','Jorath','Kael','Lyren','Mytha','Nyx','Orin','Pyra','Quell','Riven','Solen','Tyra','Ulren','Vyss','Wyren','Xael','Yren','Zeph'];
+const STAR_NAMES_SUFFIX = ['Prime','Major','Minor','Reach','Deep','Veil','Gate','Rift','Core','Edge'];
+
+// ============================================================
+// PLANETARY RING GENERATION
+// ============================================================
+// Ring chance by body type — gas giants are very likely, others rare
+const RING_CHANCE = {
+    gas_giant: 0.65, ice_world: 0.08, barren_rock: 0.03, habitable: 0.02,
+    ocean_world: 0.02, volcanic: 0.01, anomalous: 0.15,
+    rocky_moon: 0.01, ice_moon: 0.04, volcanic_moon: 0.01,
+    habitable_moon: 0.02, barren_moon: 0.01
+};
+
+// Ring color palettes by composition type
+const RING_COMPOSITIONS = [
+    { id: 'ice',    name: 'Ice particles',       colors: ['#c8d8e8','#a0b8cc','#e0ecf4'] },
+    { id: 'rock',   name: 'Rocky debris',         colors: ['#8a7a65','#6a5a48','#a09080'] },
+    { id: 'dust',   name: 'Fine dust',            colors: ['#b8a890','#c8b8a0','#988870'] },
+    { id: 'metal',  name: 'Metallic fragments',   colors: ['#90908a','#a8a8a0','#707068'] },
+    { id: 'mixed',  name: 'Mixed composition',    colors: ['#b0a898','#88a0b0','#c0b0a0'] },
+];
+
+function generateRings(rng, bodyTypeId, sizeN) {
+    const chance = RING_CHANCE[bodyTypeId] || 0.02;
+    if (rng.next() > chance) return null;
+
+    const composition = RING_COMPOSITIONS[Math.floor(rng.next() * RING_COMPOSITIONS.length)];
+
+    // Inner radius: 1.3–1.8× body radius; outer: 1.8–3.0× body radius
+    const innerRatio = 1.3 + rng.next() * 0.5;
+    const outerRatio = innerRatio + 0.5 + rng.next() * 1.2;
+
+    // Number of visible bands (1–4), with gaps between them
+    const bandCount = 1 + Math.floor(rng.next() * 4);
+    const bands = [];
+    const totalRange = outerRatio - innerRatio;
+    let cursor = innerRatio;
+    for (let b = 0; b < bandCount; b++) {
+        const bandWidth = (totalRange / bandCount) * (0.5 + rng.next() * 0.5);
+        const gapWidth = (totalRange / bandCount) * (0.05 + rng.next() * 0.2);
+        const colorIdx = Math.floor(rng.next() * composition.colors.length);
+        const opacity = 0.25 + rng.next() * 0.45;
+        bands.push({
+            inner: cursor,
+            outer: Math.min(cursor + bandWidth, outerRatio),
+            color: composition.colors[colorIdx],
+            opacity: opacity
+        });
+        cursor += bandWidth + gapWidth;
+        if (cursor >= outerRatio) break;
+    }
+
+    // Axial tilt (degrees) — how much the ring plane tilts from the orbital plane
+    const tilt = 5 + rng.next() * 30; // 5°–35°
+    const tiltPhase = rng.next() * Math.PI * 2; // random rotation of the tilt axis
+
+    return {
+        composition: composition,
+        innerRatio: innerRatio,
+        outerRatio: outerRatio,
+        bands: bands,
+        tilt: tilt,
+        tiltPhase: tiltPhase
+    };
+}
+
+function generateSystem(seed, parentSystemId, forcedStarTypeId) {
+    const rng = new SeededRandom(seed);
+
+    // Star — use galaxy-assigned type if provided, else pick randomly
+    let starDef;
+    if (forcedStarTypeId) {
+        starDef = STAR_TYPES.find(t => t.id === forcedStarTypeId) || rng.weightedPick(STAR_TYPES);
+        rng.weightedPick(STAR_TYPES); // burn one RNG call to keep sequence consistent
+    } else {
+        starDef = rng.weightedPick(STAR_TYPES);
+    }
+    const starName = rng.pick(STAR_NAMES_PREFIX) + ' ' + rng.pick(STAR_NAMES_SUFFIX);
+
+    // System ID — from galaxy context or standalone
+    const systemId = parentSystemId || `SYS-${String(seed).padStart(6,'0')}`;
+
+    // Generate binary companion if applicable
+    let companion = null;
+    if (starDef.id === 'binary') {
+        const compDef = rng.weightedPick(BINARY_COMPANIONS);
+        companion = {
+            type: compDef,
+            name: starName + ' B'
+        };
+    }
+
+    const star = {
+        name: starName,
+        id: systemId,
+        type: starDef,
+        companion: companion,
+        seed: seed
+    };
+
+    // Planets
+    const planetCount = rng.nextInt(starDef.planetCount[0], starDef.planetCount[1]);
+    const planets = [];
+
+    for (let i = 0; i < planetCount; i++) {
+        const orbit = i + 1;
+        const inHabZone = starDef.habZone.length >= 2 && orbit >= starDef.habZone[0] && orbit <= starDef.habZone[1];
+
+        // Weight planet type by orbital position
+        const weightedTypes = PLANET_TYPES.map(pt => {
+            let freq = pt.frequency;
+            if (pt.orbitalBias === 'inner' && orbit <= 2) freq *= 2;
+            else if (pt.orbitalBias === 'inner' && orbit > 3) freq *= 0.3;
+            if (pt.orbitalBias === 'outer' && orbit > 3) freq *= 2;
+            else if (pt.orbitalBias === 'outer' && orbit <= 2) freq *= 0.2;
+            if (pt.orbitalBias === 'hab_zone' && inHabZone) freq *= 3;
+            else if (pt.orbitalBias === 'hab_zone' && !inHabZone) freq *= 0.3;
+            return { ...pt, frequency: freq };
+        });
+
+        const typeDef = rng.weightedPick(weightedTypes);
+
+        // Pick gas giant subtype if applicable
+        let gasSubtype = null;
+        if (typeDef.id === 'gas_giant') {
+            gasSubtype = rng.weightedPick(GAS_GIANT_SUBTYPES);
+        }
+
+        const sizeN = rng.nextInt(typeDef.sizeN[0], typeDef.sizeN[1]);
+        const tileCount = 10 * sizeN * sizeN + 2;
+
+        // Life classification
+        const lifeFreqs = LIFE_FREQ[typeDef.id] || LIFE_FREQ.barren_rock;
+        let lifeRoll = rng.next();
+        let lifeIndex = 0;
+        let cumulative = 0;
+        for (let li = 0; li < lifeFreqs.length; li++) {
+            cumulative += lifeFreqs[li];
+            if (lifeRoll <= cumulative) { lifeIndex = li; break; }
+        }
+        const life = LIFE_CLASSES[lifeIndex];
+
+        const planetName = starName.split(' ')[0] + ' ' + GREEK[i];
+        const planetId = `${systemId}:${GREEK[i]}`;
+
+        // Moon count
+        let moonCount = 0;
+        if (typeDef.moonRange) {
+            moonCount = rng.nextInt(typeDef.moonRange[0], typeDef.moonRange[1]);
+        } else if (sizeN > 15 && rng.next() > 0.5) {
+            moonCount = rng.nextInt(0, 3);
+        }
+
+        // Generate actual moon objects
+        const moonObjects = [];
+        for (let mi = 0; mi < moonCount; mi++) {
+            const moonTypeDef = rng.weightedPick(MOON_TYPES);
+            const moonSizeN = rng.nextInt(moonTypeDef.sizeN[0], moonTypeDef.sizeN[1]);
+            const moonTileCount = 10 * moonSizeN * moonSizeN + 2;
+
+            // Moon life classification (most moons are lifeless)
+            const moonLifeRoll = rng.next();
+            let moonLife = LIFE_CLASSES[0]; // default: no life
+            if (moonTypeDef.id === 'habitable_moon') {
+                if (moonLifeRoll < 0.05) moonLife = LIFE_CLASSES[4]; // advanced
+                else if (moonLifeRoll < 0.20) moonLife = LIFE_CLASSES[2]; // civilized
+                else if (moonLifeRoll < 0.50) moonLife = LIFE_CLASSES[1]; // primitive
+            } else if (moonTypeDef.id === 'ice_moon') {
+                if (moonLifeRoll < 0.10) moonLife = LIFE_CLASSES[1]; // primitive (subsurface life)
+            }
+
+            const moonId = `${planetId}:${ROMAN[mi]}`;
+            moonObjects.push({
+                name: planetName + ' ' + ROMAN[mi],
+                id: moonId,
+                type: moonTypeDef,
+                sizeN: moonSizeN,
+                tileCount: moonTileCount,
+                life: moonLife,
+                seed: seed * 1000 + orbit * 100 + mi + 50,
+                orbitIndex: mi,
+                isMoon: true
+            });
+        }
+
+        // Stations (gas giants)
+        let stations = 0;
+        if (typeDef.stationRange) {
+            stations = rng.nextInt(typeDef.stationRange[0], typeDef.stationRange[1]);
+        }
+
+        // Planetary rings — gas giants very likely, others rare
+        const rings = generateRings(rng, typeDef.id, sizeN);
+
+        // Moon rings (rare — only large moons)
+        for (const moon of moonObjects) {
+            moon.rings = generateRings(new SeededRandom(moon.seed + 888), moon.type.id, moon.sizeN);
+        }
+
+        planets.push({
+            name: planetName,
+            id: planetId,
+            orbit: orbit,
+            type: typeDef,
+            gasSubtype: gasSubtype,
+            sizeN: sizeN,
+            tileCount: tileCount,
+            life: life,
+            moons: moonCount,
+            moonData: moonObjects,
+            stations: stations,
+            inHabZone: inHabZone,
+            seed: seed * 1000 + orbit,
+            orbitAngle: rng.nextFloat(0, Math.PI * 2),
+            rings: rings
+        });
+    }
+
+    // ---- Wormhole generation (separate RNG to avoid disrupting planet sequence) ----
+    const whRng = new SeededRandom(seed + 9999);
+    // Burn a few calls to avoid LCG first-call bias for small seeds
+    whRng.next(); whRng.next(); whRng.next();
+    let wormhole = null;
+    if (whRng.next() < 0.05) { // ~5% of systems have a wormhole
+        const destSeed = whRng.nextInt(1, 999999);
+        const destGalaxySeed = whRng.nextInt(1, 999999);
+        // Determine a star type for the destination (so we can render it on arrival)
+        const destStarType = whRng.pick(STAR_TYPES);
+        wormhole = {
+            name: 'Wormhole ' + whRng.pick(GREEK),
+            id: systemId + ':WH',
+            orbit: whRng.nextFloat(2, Math.max(3, planetCount + 2)),
+            orbitAngle: whRng.nextFloat(0, Math.PI * 2),
+            destSeed: destSeed,
+            destGalaxySeed: destGalaxySeed,
+            destStarTypeId: destStarType.id,
+            destName: generateWormholeDestName(destSeed),
+            destGalaxyName: generateWormholeDestName(destGalaxySeed)
+        };
+    }
+
+    // ---- Coupled return wormhole: if we arrived here via wormhole, always create one back ----
+    if (!wormhole && urlWormholeReturnSeed) {
+        wormhole = {
+            name: 'Return Wormhole',
+            id: systemId + ':WH-RET',
+            orbit: whRng.nextFloat(2, Math.max(3, planetCount + 2)),
+            orbitAngle: whRng.nextFloat(0, Math.PI * 2),
+            destSeed: parseInt(urlWormholeReturnSeed),
+            destGalaxySeed: urlWormholeReturnGalaxySeed ? parseInt(urlWormholeReturnGalaxySeed) : 1,
+            destStarTypeId: urlWormholeReturnStarTypeId || 'yellow_sun',
+            destName: urlWormholeReturnName || 'Origin System',
+            destGalaxyName: urlWormholeReturnGalaxyName || 'Origin Galaxy',
+            isReturn: true
+        };
+    }
+
+    return { star, planets, wormhole };
+}
+
+// ============================================================
+// THREE.JS SCENE SETUP
+// ============================================================
+let scene, camera, renderer;
+let systemData = null;
+let selectedPlanetIndex = -1;
+let selectedMoon = null;
+let hoveredPlanetIndex = -1;
+let hoveredMoon = null;
+let animationTime = 0;
+let containerWidth, containerHeight;
+
+// Camera controls
+let camTheta = 0;
+let camPhi = Math.PI / 3;
+let camDist = 300;
+const camMinDist = 0.5;
+const camMaxDist = 1500;
+let isDragging = false;
+let isPanning = false;
+let dragStarted = false;
+const dragThreshold = 3; // pixels before drag/pan activates
+let camTarget = new THREE.Vector3(0, 0, 0);
+let focusTarget = null;        // mesh to smoothly track (set on select)
+const focusLerpSpeed = 0.04;   // how fast camera slides to target (0-1)
+let lastMouseX = 0, lastMouseY = 0;
+let dragStartX = 0, dragStartY = 0;
+let autoRotateTimer = null;
+let autoResumeTimeout = null;
+const autoRotateSpeed = 0.0003;
+const autoResumeDelay = 4000;
+
+// 3D Object references
+let planetMeshes = [];
+let moonMeshes = [];
+let ringMeshes = [];   // { mesh, parentType: 'planet'|'moon', planetIndex, moonIndex? }
+let orbitLines = [];
+let starSprite = null;
+let binaryCompanionSprite = null;
+let pulsarBeamSprites = [];
+let pulsarGroup = null;        // group for all pulsar extras (magnetosphere, hotspots)
+let habZoneRing = null;
+let engulfZoneCircle = null;
+let dustDiscMesh = null;
+let starGlowSprite = null;
+let binaryCompanionGlow = null;
+let starPointLight = null;
+let starSurfaceState = null;       // { canvas, ctx, texture, spots, profile, seed }
+let companionSurfaceState = null;  // same for binary companion
+let surfaceFrameCounter = 0;       // throttle canvas repaints
+let labelContainer = null;
+let planetLabelEls = [];
+let moonLabelEls = [];
+let wormholeMesh = null;
+let wormholeGlowSprite = null;
+let wormholeLabelEl = null;
+
+function initThreeJS() {
+    const container = document.getElementById('canvas-container');
+    containerWidth = container.clientWidth;
+    containerHeight = container.clientHeight;
+
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1a);
+
+    // Camera
+    camera = new THREE.PerspectiveCamera(60, containerWidth / containerHeight, 0.1, 10000);
+    updateCameraPosition();
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(containerWidth, containerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+    labelContainer = document.getElementById('label-container');
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    // Starfield background
+    createStarfield();
+
+    // Event listeners
+    window.addEventListener('resize', onWindowResize);
+    renderer.domElement.addEventListener('mousedown', onMouseDown);
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
+    renderer.domElement.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('mouseleave', onMouseUp);
+    window.addEventListener('mouseup', onMouseUp);
+    renderer.domElement.addEventListener('wheel', onMouseWheel, { passive: false });
+    renderer.domElement.addEventListener('click', onClick);
+    renderer.domElement.addEventListener('dblclick', onDblClick);
+    renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Start auto-rotation
+    startAutoRotate();
+}
+
+function createStarfield() {
+    const bgRng = new SeededRandom(12345);
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const starRadius = 2500;
+
+    for (let i = 0; i < 1500; i++) {
+        const theta = bgRng.nextFloat(0, Math.PI * 2);
+        const phi = bgRng.nextFloat(0, Math.PI);
+        const x = starRadius * Math.sin(phi) * Math.cos(theta);
+        const y = starRadius * Math.sin(phi) * Math.sin(theta);
+        const z = starRadius * Math.cos(phi);
+        positions.push(x, y, z);
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    const material = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+    const starfield = new THREE.Points(geometry, material);
+    scene.add(starfield);
+}
+
+function updateCameraPosition() {
+    camera.position.x = camTarget.x + camDist * Math.sin(camPhi) * Math.cos(camTheta);
+    camera.position.z = camTarget.z + camDist * Math.sin(camPhi) * Math.sin(camTheta);
+    camera.position.y = camTarget.y + camDist * Math.cos(camPhi);
+    camera.lookAt(camTarget);
+}
+
+function onWindowResize() {
+    const container = document.getElementById('canvas-container');
+    containerWidth = container.clientWidth;
+    containerHeight = container.clientHeight;
+    camera.aspect = containerWidth / containerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(containerWidth, containerHeight);
+}
+
+function onMouseDown(e) {
+    // Prevent browser defaults for middle-click (auto-scroll) and right-click
+    if (e.button === 1 || e.button === 2) e.preventDefault();
+
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+    dragStarted = false;
+
+    // Reset both flags to avoid stuck state from missed mouseup
+    isDragging = false;
+    isPanning = false;
+
+    // Right-click, middle-click, or shift+click = pan; left-click = orbit
+    if (e.button === 2 || e.button === 1 || e.shiftKey) {
+        isPanning = true;
+    } else {
+        isDragging = true;
+    }
+    pauseAutoRotate();
+}
+
+function onMouseMove(e) {
+    // Don't start actual movement until past the drag threshold
+    // (prevents tiny jitter from breaking click/dblclick raycasts)
+    if (!dragStarted) {
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) < dragThreshold && Math.abs(dy) < dragThreshold) {
+            return;
+        }
+        dragStarted = true;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+    }
+
+    if (isPanning) {
+        focusTarget = null; // manual pan overrides auto-focus
+        const dx = e.clientX - lastMouseX;
+        const dy = e.clientY - lastMouseY;
+        const panScale = camDist * 0.001;
+
+        // Get camera right and up vectors from its world matrix
+        camera.updateMatrixWorld();
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        right.setFromMatrixColumn(camera.matrixWorld, 0);
+        up.setFromMatrixColumn(camera.matrixWorld, 1);
+
+        camTarget.addScaledVector(right, -dx * panScale);
+        camTarget.addScaledVector(up, dy * panScale);
+
+        updateCameraPosition();
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        renderer.domElement.style.cursor = 'move';
+    } else if (isDragging) {
+        const dx = e.clientX - lastMouseX;
+        const dy = e.clientY - lastMouseY;
+        camTheta += dx * 0.005;
+        camPhi -= dy * 0.005;
+        camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi));
+        updateCameraPosition();
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        renderer.domElement.style.cursor = 'grab';
+    } else {
+        renderer.domElement.style.cursor = 'crosshair';
+    }
+}
+
+function onMouseUp(e) {
+    isDragging = false;
+    isPanning = false;
+    dragStarted = false;
+    renderer.domElement.style.cursor = 'crosshair';
+    resumeAutoRotateAfterDelay();
+}
+
+function onMouseWheel(e) {
+    e.preventDefault();
+    camDist += e.deltaY > 0 ? 10 : -10;
+    camDist = Math.max(camMinDist, Math.min(camMaxDist, camDist));
+    updateCameraPosition();
+    pauseAutoRotate();
+    resumeAutoRotateAfterDelay();
+}
+
+function startAutoRotate() {
+    if (autoRotateTimer) return; // prevent stacking
+    autoRotateTimer = setInterval(() => {
+        camTheta += autoRotateSpeed;
+        updateCameraPosition();
+    }, 16);
+}
+
+function pauseAutoRotate() {
+    if (autoRotateTimer) {
+        clearInterval(autoRotateTimer);
+        autoRotateTimer = null;
+    }
+}
+
+function resumeAutoRotateAfterDelay() {
+    pauseAutoRotate();
+    // Cancel any pending resume so timeouts don't stack
+    if (autoResumeTimeout) {
+        clearTimeout(autoResumeTimeout);
+        autoResumeTimeout = null;
+    }
+    autoResumeTimeout = setTimeout(() => {
+        autoResumeTimeout = null;
+        startAutoRotate();
+    }, autoResumeDelay);
+}
+
+function zoomIn() {
+    camDist = Math.max(camMinDist, camDist - 50);
+    updateCameraPosition();
+}
+
+function zoomOut() {
+    camDist = Math.min(camMaxDist, camDist + 50);
+    updateCameraPosition();
+}
+
+function zoomReset() {
+    camTheta = 0;
+    camPhi = Math.PI / 3;
+    camDist = 300;
+    camTarget.set(0, 0, 0);
+    focusTarget = null;
+    clearBodyHighlights();
+    updateCameraPosition();
+}
+
+// ============================================================
+// 2D SIMPLEX NOISE (compact, for star surface textures)
+// ============================================================
+const SimplexNoise2D = (function() {
+    const F2 = 0.5 * (Math.sqrt(3) - 1);
+    const G2 = (3 - Math.sqrt(3)) / 6;
+    const grad2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+    let perm = new Uint8Array(512);
+
+    function seed(s) {
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        for (let i = 255; i > 0; i--) {
+            s = (s * 16807) % 2147483647;
+            const j = s % (i + 1);
+            [p[i], p[j]] = [p[j], p[i]];
+        }
+        for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+    }
+
+    function noise(x, y) {
+        const s = (x + y) * F2;
+        const i = Math.floor(x + s), j = Math.floor(y + s);
+        const t = (i + j) * G2;
+        const x0 = x - (i - t), y0 = y - (j - t);
+        const i1 = x0 > y0 ? 1 : 0, j1 = x0 > y0 ? 0 : 1;
+        const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+        const x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+        const ii = i & 255, jj = j & 255;
+        let n0 = 0, n1 = 0, n2 = 0;
+        let t0 = 0.5 - x0*x0 - y0*y0;
+        if (t0 > 0) { t0 *= t0; const g = grad2[perm[ii + perm[jj]] & 7]; n0 = t0*t0*(g[0]*x0+g[1]*y0); }
+        let t1 = 0.5 - x1*x1 - y1*y1;
+        if (t1 > 0) { t1 *= t1; const g = grad2[perm[ii+i1 + perm[jj+j1]] & 7]; n1 = t1*t1*(g[0]*x1+g[1]*y1); }
+        let t2 = 0.5 - x2*x2 - y2*y2;
+        if (t2 > 0) { t2 *= t2; const g = grad2[perm[ii+1 + perm[jj+1]] & 7]; n2 = t2*t2*(g[0]*x2+g[1]*y2); }
+        return 70 * (n0 + n1 + n2); // range approx -1..1
+    }
+
+    return { seed, noise };
+})();
+
+// ============================================================
+// STAR SURFACE DYNAMICS — animated canvas textures
+// ============================================================
+
+// Physical properties for each star type.
+// diameterSol: diameter in solar radii (Sun = 1.0)
+// massSol: mass in solar masses (Sun = 1.0)
+// tempK: surface temperature in Kelvin
+// luminositySol: luminosity in solar luminosities (Sun = 1.0)
+// densityKgM3: mean density in kg/m³
+// ageDesc: typical age description
+// spectralClass: stellar classification
+const STAR_PHYSICS = {
+    red_dwarf:    { diameterSol: 0.45,  massSol: 0.35,   tempK: 3400,   luminositySol: 0.04,    densityKgM3: 10000,  spectralClass: 'M-type',   ageDesc: 'Main sequence, 10+ Gyr lifespan' },
+    orange_dwarf: { diameterSol: 0.75,  massSol: 0.7,    tempK: 4800,   luminositySol: 0.3,     densityKgM3: 3500,   spectralClass: 'K-type',   ageDesc: 'Main sequence, 15–30 Gyr lifespan' },
+    yellow_sun:   { diameterSol: 1.0,   massSol: 1.0,    tempK: 5778,   luminositySol: 1.0,     densityKgM3: 1408,   spectralClass: 'G2V',      ageDesc: 'Main sequence, ~10 Gyr lifespan' },
+    blue_giant:   { diameterSol: 8.0,   massSol: 12.0,   tempK: 22000,  luminositySol: 10000,   densityKgM3: 35,     spectralClass: 'O/B-type', ageDesc: 'Short-lived, < 100 Myr' },
+    red_giant:    { diameterSol: 50.0,  massSol: 1.5,    tempK: 3500,   luminositySol: 1500,    densityKgM3: 0.02,   spectralClass: 'M-type',   ageDesc: 'Post main-sequence, expanding' },
+    white_dwarf:  { diameterSol: 0.015, massSol: 0.6,    tempK: 25000,  luminositySol: 0.001,   densityKgM3: 1e9,    spectralClass: 'DA/DB',    ageDesc: 'Stellar remnant, cooling' },
+    brown_dwarf:  { diameterSol: 0.12,  massSol: 0.04,   tempK: 1500,   luminositySol: 0.00001, densityKgM3: 80000,  spectralClass: 'T/Y-type', ageDesc: 'Failed star, slowly cooling' },
+    binary:       { diameterSol: 1.0,   massSol: 1.2,    tempK: 5800,   luminositySol: 1.5,     densityKgM3: 1400,   spectralClass: 'Variable', ageDesc: 'Gravitationally bound pair' },
+    neutron_star: { diameterSol: 0.00003, massSol: 1.4,  tempK: 600000, luminositySol: 0.01,    densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Supernova remnant' },
+    pulsar:       { diameterSol: 0.00003, massSol: 1.4,  tempK: 1000000,luminositySol: 100,     densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Rotating neutron star' },
+    black_hole:   { diameterSol: null,  massSol: 10,     tempK: null,   luminositySol: null,    densityKgM3: null,   spectralClass: 'Singularity', ageDesc: 'Gravitational collapse remnant' },
+    protostar:    { diameterSol: 3.0,   massSol: 0.5,    tempK: 3000,   luminositySol: 5,       densityKgM3: 0.5,    spectralClass: 'Pre-MS',   ageDesc: 'Forming, < 10 Myr old' },
+};
+
+// Surface phenomena descriptions for each star type (seeded — pick based on seed).
+// Each type has a few variations so different stars of the same type feel unique.
+const STAR_SURFACE_DESC = {
+    red_dwarf: [
+        'Coarse convection cells dominate the photosphere. Occasional powerful flares erupt near the equatorial band, briefly outshining the entire star.',
+        'Large, slowly churning granules cover the surface. Starspot clusters persist for months near mid-latitudes, with intermittent magnetic flare activity.',
+        'Dim, irregular convection patterns with a few enormous starspots. Flare events are rare but intense, releasing bursts of UV radiation.',
+    ],
+    orange_dwarf: [
+        'Stable, warm photosphere with moderate granulation. Fewer and smaller starspots than solar-type stars. The long main-sequence lifetime allows extremely steady luminosity over tens of billions of years.',
+        'Gentle convection cells cover the surface with warm amber hues. Magnetic activity is subdued but persistent, with small spot groups cycling over multi-year periods. Considered ideal for hosting habitable worlds.',
+        'A tranquil surface between the turbulent red dwarfs and active yellow suns. Faculae brighten the equatorial regions while small, scattered spots drift slowly across higher latitudes.',
+    ],
+    yellow_sun: [
+        'Classic solar-type granulation with well-defined convection cells. Sunspot pairs track across the surface following an 11-year magnetic cycle. Bright faculae cluster near active regions.',
+        'Active photosphere with numerous sunspot groups. The equatorial region shows differential rotation, dragging spot complexes into elongated bands. Occasional coronal mass ejections visible as bright flares.',
+        'Relatively quiet surface with scattered small sunspots. Fine granulation visible at all latitudes, with subtle supergranulation patterns beneath.',
+    ],
+    blue_giant: [
+        'Intensely hot photosphere with fine, high-contrast granulation driven by fierce convective currents. Numerous small, rapidly-shifting spots dot the surface. Stellar wind erosion is visible at the limb.',
+        'Blindingly luminous surface dominated by tight convection cells. Magnetic hotspots appear and vanish within hours. The extreme UV output strips material from the outer atmosphere.',
+        'Turbulent, fast-rotating photosphere with intricate granulation patterns. Frequent bright eruptions mark magnetic reconnection events across the surface.',
+    ],
+    red_giant: [
+        'Enormous, sluggish convection cells span thousands of kilometers. A few massive dark spots mark cooler downdraft regions. The bloated atmosphere shows visible pulsation.',
+        'The swollen photosphere heaves with slow, irregular convection. Deep starspots persist for years, surrounded by bright convective plumes. Material slowly escapes from the tenuous outer layers.',
+        'Vast, roiling surface with blobby convection patterns. The star visibly pulsates on a timescale of weeks. Dust formation occurs in cooler starspot regions.',
+    ],
+    white_dwarf: [
+        'Featureless, intensely hot surface with uniform emission. No convection or spots — the degenerate matter below conducts heat perfectly. A faint shimmer indicates residual atmospheric settling.',
+        'Smooth, white-hot photosphere cooling over billions of years. Trace elements in the thin atmosphere create subtle spectral variations across the disk.',
+    ],
+    brown_dwarf: [
+        'Atmospheric bands reminiscent of gas giant planets, with alternating light and dark zones. Cloud decks of silicate and iron droplets drift across the surface.',
+        'Jupiter-like banding with swirling storm systems visible in the upper atmosphere. Methane and water vapor clouds create complex layered patterns.',
+        'Turbulent atmospheric bands with occasional bright spots marking deep convective upwellings. The boundary between star and planet blurs in this failed star.',
+    ],
+    binary: [
+        'The primary star shows solar-type granulation distorted by tidal interactions with its companion. Sunspot activity is enhanced along the sub-companion hemisphere.',
+        'Tidal bulges from the companion create elongated convection patterns. Enhanced magnetic activity produces frequent flare events on the facing hemisphere.',
+    ],
+    neutron_star: [
+        'No visible surface in the traditional sense. The ultra-dense crust pulses with intense magnetic field oscillations. Starquakes occasionally crack the crystalline neutron-degenerate surface.',
+        'A tiny, incredibly dense sphere radiating primarily in X-rays. The surface magnetic field exceeds 10¹² Gauss, channeling charged particles into luminous polar hotspots.',
+    ],
+    pulsar: [
+        'Rapidly rotating neutron star surface with powerful magnetic poles emitting coherent beams of radio and X-ray radiation. The rotation period is measured in milliseconds.',
+        'Spinning at tremendous speed, the magnetic poles sweep lighthouse beams across space. The magnetosphere crackles with relativistic particle acceleration.',
+        'Incandescent polar caps blaze with channeled X-ray emission while the equatorial magnetosphere hums with synchrotron radiation. Relativistic plasma jets extend for light-years from each pole.',
+    ],
+    black_hole: [
+        'No surface exists beyond the event horizon. An accretion disk of superheated plasma spirals inward, glowing with intense X-ray emission. A faint photon ring marks the last stable orbit.',
+        'The event horizon cloaks an unknowable interior. Infalling matter forms a luminous accretion disk, with relativistic jets possibly extending from the poles.',
+    ],
+    protostar: [
+        'A chaotic, still-contracting surface wreathed in infalling gas and dust. Bright eruptions mark accretion hotspots where material impacts the growing star. A circumstellar disk feeds the collapse.',
+        'The young, unstable photosphere flickers with irregular accretion bursts. Bipolar outflows carve cavities in the surrounding natal cloud. The surface has not yet reached equilibrium.',
+    ],
+};
+
+// Per-star-type surface profiles
+const STAR_SURFACE_PROFILES = {
+    red_dwarf:    { granScale: 3.0,  granContrast: 0.15, spotCount: [2,4],  spotSize: [4,10],  spotDark: 0.55, bandCount: 0, driftSpeed: 0.00004, flareChance: 0.003 },
+    orange_dwarf: { granScale: 4.0,  granContrast: 0.15, spotCount: [2,6],  spotSize: [2,6],   spotDark: 0.50, bandCount: 0, driftSpeed: 0.00005, flareChance: 0.0005 },
+    yellow_sun:   { granScale: 5.0,  granContrast: 0.20, spotCount: [5,10], spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
+    blue_giant:   { granScale: 7.0,  granContrast: 0.25, spotCount: [6,12], spotSize: [2,5],   spotDark: 0.50, bandCount: 0, driftSpeed: 0.00008, flareChance: 0.002 },
+    red_giant:    { granScale: 2.0,  granContrast: 0.30, spotCount: [3,6],  spotSize: [6,14],  spotDark: 0.40, bandCount: 0, driftSpeed: 0.00002, flareChance: 0.001 },
+    white_dwarf:  { granScale: 12.0, granContrast: 0.06, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0.00003, flareChance: 0 },
+    brown_dwarf:  { granScale: 4.0,  granContrast: 0.12, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 6, driftSpeed: 0.00003, flareChance: 0 },
+    binary:       { granScale: 5.0,  granContrast: 0.20, spotCount: [4,8],  spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
+    neutron_star: { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
+    pulsar:       { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
+    black_hole:   null, // no surface
+    protostar:    { granScale: 2.5,  granContrast: 0.35, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0.00005, flareChance: 0.005 },
+};
+
+// Parse hex color to [r,g,b] 0-255
+function parseHexRGB(hex) {
+    const h = hex.replace('#', '');
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+function createStarSurfaceState(starType, seed) {
+    const profile = STAR_SURFACE_PROFILES[starType.id];
+    if (!profile) return null; // black_hole — no surface
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // Seed the noise
+    SimplexNoise2D.seed(seed);
+
+    // Generate sunspot positions (seeded)
+    const rng = new SeededRandom(seed + 777);
+    const spotCount = profile.spotCount[0] + (profile.spotCount[1] > profile.spotCount[0]
+        ? rng.nextInt(0, profile.spotCount[1] - profile.spotCount[0]) : 0);
+    const spots = [];
+    for (let i = 0; i < spotCount; i++) {
+        // Spots in UV space (0-1), biased toward equatorial band
+        const u = rng.next();
+        const v = 0.25 + rng.next() * 0.5; // avoid poles
+        const size = profile.spotSize[0] + rng.next() * (profile.spotSize[1] - profile.spotSize[0]);
+        const penumbra = size * (1.2 + rng.next() * 0.6); // penumbra slightly larger
+        spots.push({ u, v, size, penumbra, baseU: u });
+    }
+
+    const baseRGB = parseHexRGB(starType.color);
+    const texture = new THREE.CanvasTexture(canvas);
+
+    return { canvas, ctx, texture, spots, profile, seed, baseRGB, starType, noiseOffsetX: 0, noiseOffsetY: 0 };
+}
+
+function paintStarSurface(state, time) {
+    if (!state) return;
+    const { canvas, ctx, spots, profile, baseRGB, starType } = state;
+    const W = canvas.width, H = canvas.height;
+
+    // Drift noise offset for rotation effect
+    const drift = time * profile.driftSpeed;
+    state.noiseOffsetX = drift;
+
+    // Get image data for pixel-level manipulation
+    const imgData = ctx.createImageData(W, H);
+    const data = imgData.data;
+
+    const [bR, bG, bB] = baseRGB;
+    const gs = profile.granScale;
+    const gc = profile.granContrast;
+
+    // Full equirectangular projection — every pixel maps to a point on the sphere.
+    // No circle mask needed since the texture wraps a SphereGeometry.
+    for (let py = 0; py < H; py++) {
+        // Spherical latitude: theta=0 at north pole, PI at south
+        const v = py / H;
+        const theta = v * Math.PI;
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        for (let px = 0; px < W; px++) {
+            const u = px / W;
+            const phi = u * Math.PI * 2;
+
+            // 3D point on unit sphere (for spherically-correct distances & noise)
+            const sx = sinTheta * Math.cos(phi);
+            const sy = sinTheta * Math.sin(phi);
+            const sz = cosTheta;
+
+            // Base brightness from granulation noise (spherical coords)
+            let brightness = 1.0;
+            if (gs > 0) {
+                const nx = (sx + state.noiseOffsetX) * gs;
+                const ny = sy * gs;
+                const nz = sz * gs;
+                const n1 = SimplexNoise2D.noise(nx + nz * 0.7, ny + nz * 0.3);
+                const n2 = SimplexNoise2D.noise((nx + nz * 0.7) * 2.3 + 100, (ny + nz * 0.3) * 2.3 + 100) * 0.5;
+                brightness = 1.0 + (n1 + n2) * gc;
+            }
+
+            // Brown dwarf banding (latitude-based, like gas giant)
+            if (profile.bandCount > 0) {
+                const lat = theta - Math.PI * 0.5; // -PI/2..PI/2
+                const band = Math.sin(lat * profile.bandCount + state.noiseOffsetX * 3);
+                const bandNoise = SimplexNoise2D.noise((sx + drift) * 8, sy * 8) * 0.15;
+                brightness = 0.85 + (band + bandNoise) * 0.15;
+            }
+
+            // Sunspot darkening (great-circle distance on the sphere)
+            for (const spot of spots) {
+                const latFactor = 1.0 + (0.5 - spot.v) * (0.5 - spot.v) * 2;
+                const su = ((spot.baseU + drift * latFactor * 0.3) % 1 + 1) % 1;
+                spot.u = su;
+
+                const sTheta = spot.v * Math.PI;
+                const sPhi = su * Math.PI * 2;
+                const sSinT = Math.sin(sTheta);
+                const spotX = sSinT * Math.cos(sPhi);
+                const spotY = sSinT * Math.sin(sPhi);
+                const spotZ = Math.cos(sTheta);
+                const dotP = sx * spotX + sy * spotY + sz * spotZ;
+                const angDist = Math.acos(Math.min(1, Math.max(-1, dotP)));
+                const spotDist = (angDist / Math.PI) * W;
+
+                if (spotDist < spot.penumbra) {
+                    if (spotDist < spot.size) {
+                        brightness *= profile.spotDark;
+                    } else {
+                        const penT = (spotDist - spot.size) / (spot.penumbra - spot.size);
+                        brightness *= profile.spotDark + (1.0 - profile.spotDark) * penT;
+                    }
+                }
+            }
+
+            // Flare (spherical distance)
+            if (profile.flareChance > 0 && spots.length > 0) {
+                const flareCycle = Math.floor(time * 0.0002);
+                const flarePhase = (time * 0.0002) % 1;
+                if (flarePhase < 0.15) {
+                    const flareSpot = spots[flareCycle % spots.length];
+                    const fTheta = flareSpot.v * Math.PI;
+                    const fPhi = flareSpot.u * Math.PI * 2;
+                    const fSinT = Math.sin(fTheta);
+                    const fDot = sx * fSinT * Math.cos(fPhi) + sy * fSinT * Math.sin(fPhi) + sz * Math.cos(fTheta);
+                    const fAngDist = Math.acos(Math.min(1, Math.max(-1, fDot)));
+                    const flareDist = (fAngDist / Math.PI) * W;
+                    if (flareDist < 12) {
+                        brightness += (1.0 - flareDist / 12) * 0.6;
+                    }
+                }
+            }
+
+            // Neutron star: rapid intensity pulse
+            if (starType.id === 'neutron_star') {
+                brightness = 0.6 + 0.4 * Math.sin(time * 0.008 + theta * 3);
+            }
+
+            // Pulsar: intense polar hotspots + rapid surface sweep
+            if (starType.id === 'pulsar') {
+                // Base: dim bluish surface
+                brightness = 0.3;
+                // Polar hotspots — bright caps near poles
+                const polarDist = Math.min(theta, Math.PI - theta); // distance from nearest pole
+                if (polarDist < 0.5) {
+                    const hotGlow = 1.0 - polarDist / 0.5;
+                    brightness += hotGlow * 1.2;
+                }
+                // Sweeping beam light across equator (lighthouse flash)
+                const sweepPhase = phi - time * 0.008;
+                const sweepGlow = Math.pow(Math.max(0, Math.cos(sweepPhase)), 8);
+                brightness += sweepGlow * 0.4 * Math.sin(theta); // strongest at equator
+                // Magnetic field line texture (faint latitude bands)
+                brightness += Math.sin(theta * 8) * 0.05;
+            }
+
+            // White dwarf: gentle shimmer
+            if (starType.id === 'white_dwarf') {
+                brightness += Math.sin(time * 0.002 + phi * 3 + theta * 3) * 0.04;
+            }
+
+            // Protostar: chaotic bright eruptions
+            if (starType.id === 'protostar') {
+                const eruptNoise = SimplexNoise2D.noise((sx + drift * 2) * 3, sy * 3);
+                if (eruptNoise > 0.5) brightness += (eruptNoise - 0.5) * 0.8;
+            }
+
+            // Clamp and apply color
+            brightness = Math.max(0.1, Math.min(1.8, brightness));
+            const idx = (py * W + px) * 4;
+            data[idx]   = Math.min(255, Math.round(bR * brightness));
+            data[idx+1] = Math.min(255, Math.round(bG * brightness));
+            data[idx+2] = Math.min(255, Math.round(bB * brightness));
+            data[idx+3] = 255;
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    state.texture.needsUpdate = true;
+}
+
+// ============================================================
+// STAR RENDERING
+// ============================================================
+function createStarTexture(starType) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const cx = 256, cy = 256;
+
+    // Clear
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, 512, 512);
+
+    if (starType.id === 'black_hole') {
+        // Accretion disk glow
+        const diskGrad = ctx.createRadialGradient(cx, cy, 50, cx, cy, 250);
+        diskGrad.addColorStop(0, 'rgba(255,102,34,0.6)');
+        diskGrad.addColorStop(0.3, 'rgba(255,68,0,0.3)');
+        diskGrad.addColorStop(0.8, 'rgba(200,50,0,0.1)');
+        diskGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = diskGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 250, 0, Math.PI * 2);
+        ctx.fill();
+        // Dark core
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+        ctx.fill();
+        // Photon ring
+        ctx.strokeStyle = 'rgba(255,150,50,0.5)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 70, 0, Math.PI * 2);
+        ctx.stroke();
+    } else if (starType.id === 'protostar') {
+        // Fuzzy glow with disk
+        const glowGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 200);
+        glowGrad.addColorStop(0, starType.color + 'ff');
+        glowGrad.addColorStop(0.3, starType.color + 'aa');
+        glowGrad.addColorStop(0.7, starType.color + '33');
+        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 200, 0, Math.PI * 2);
+        ctx.fill();
+        // Core
+        ctx.fillStyle = '#ffffcc';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (starType.id === 'red_giant') {
+        // Large outer glow
+        const outerGlow = ctx.createRadialGradient(cx, cy, 20, cx, cy, 240);
+        outerGlow.addColorStop(0, '#ff553388');
+        outerGlow.addColorStop(0.2, '#ff443344');
+        outerGlow.addColorStop(0.6, '#ff221111');
+        outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 240, 0, Math.PI * 2);
+        ctx.fill();
+        // Body
+        const bodyGrad = ctx.createRadialGradient(cx - 20, cy - 20, 10, cx, cy, 120);
+        bodyGrad.addColorStop(0, '#ffaa66');
+        bodyGrad.addColorStop(0.5, starType.color);
+        bodyGrad.addColorStop(1, '#cc2200');
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 120, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        // Standard star: glow + body + inner highlight
+        const glowGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 200);
+        glowGrad.addColorStop(0, starType.color + 'cc');
+        glowGrad.addColorStop(0.3, starType.color + '55');
+        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 200, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body
+        ctx.fillStyle = starType.color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner highlight
+        const innerGrad = ctx.createRadialGradient(cx - 30, cy - 30, 5, cx, cy, 80);
+        innerGrad.addColorStop(0, '#ffffff');
+        innerGrad.addColorStop(0.5, starType.color);
+        innerGrad.addColorStop(1, starType.color);
+        ctx.fillStyle = innerGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+// Create dusty particle-based ring meshes for a body
+function createRingMeshes(rings, bodyVisualR, parentType, planetIndex, moonIndex) {
+    const tiltRad = rings.tilt * Math.PI / 180;
+
+    // We group all bands into a single group per ring system
+    const ringGroup = new THREE.Group();
+    // Apply tilt to the whole group
+    ringGroup.rotation.x = -Math.PI / 2 + tiltRad * Math.cos(rings.tiltPhase);
+    ringGroup.rotation.z = tiltRad * Math.sin(rings.tiltPhase);
+
+    for (const band of rings.bands) {
+        const innerR = bodyVisualR * band.inner;
+        const outerR = bodyVisualR * band.outer;
+        const bandWidth = outerR - innerR;
+        const midR = (innerR + outerR) / 2;
+
+        // --- Dust particle cloud ---
+        // More particles for larger rings, capped for performance
+        const particleCount = Math.min(3000, Math.max(400, Math.round(midR * 80)));
+        const positions = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+        const pColors = new Float32Array(particleCount * 3);
+
+        // Parse band color
+        const col = new THREE.Color(band.color);
+        const verticalSpread = bandWidth * 0.08; // slight thickness
+
+        for (let i = 0; i < particleCount; i++) {
+            // Distribute particles in the ring annulus
+            const angle = Math.random() * Math.PI * 2;
+            // Use sqrt for uniform area distribution
+            const rr = innerR + Math.sqrt(Math.random()) * bandWidth;
+            const yOff = (Math.random() - 0.5) * verticalSpread * (1 + 0.5 * Math.random());
+
+            positions[i * 3]     = Math.cos(angle) * rr;
+            positions[i * 3 + 1] = yOff;
+            positions[i * 3 + 2] = Math.sin(angle) * rr;
+
+            // Vary size: some larger chunks, mostly fine dust
+            const sizeRoll = Math.random();
+            if (sizeRoll > 0.97) {
+                sizes[i] = bodyVisualR * 0.12 * (0.8 + Math.random() * 0.4); // rare big chunks
+            } else if (sizeRoll > 0.85) {
+                sizes[i] = bodyVisualR * 0.06 * (0.6 + Math.random() * 0.6); // medium debris
+            } else {
+                sizes[i] = bodyVisualR * 0.025 * (0.4 + Math.random() * 0.8); // fine dust
+            }
+
+            // Color variation — subtle shifts from base color
+            const variation = 0.85 + Math.random() * 0.3;
+            pColors[i * 3]     = Math.min(1, col.r * variation);
+            pColors[i * 3 + 1] = Math.min(1, col.g * variation);
+            pColors[i * 3 + 2] = Math.min(1, col.b * variation);
+        }
+
+        const pGeom = new THREE.BufferGeometry();
+        pGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        pGeom.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        pGeom.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+
+        // Create a small soft circle texture for the dust particles
+        const dotCanvas = document.createElement('canvas');
+        dotCanvas.width = 32; dotCanvas.height = 32;
+        const dCtx = dotCanvas.getContext('2d');
+        const grad = dCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, 'rgba(255,255,255,1.0)');
+        grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+        grad.addColorStop(0.7, 'rgba(255,255,255,0.15)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        dCtx.fillStyle = grad;
+        dCtx.fillRect(0, 0, 32, 32);
+        const dotTex = new THREE.CanvasTexture(dotCanvas);
+
+        const pMat = new THREE.PointsMaterial({
+            vertexColors: true,
+            size: bodyVisualR * 0.05,
+            sizeAttenuation: true,
+            map: dotTex,
+            transparent: true,
+            opacity: band.opacity * 0.9,
+            depthWrite: false,
+            blending: THREE.NormalBlending
+        });
+
+        const particles = new THREE.Points(pGeom, pMat);
+        ringGroup.add(particles);
+
+        // --- Sparse brighter chunks (fewer, slightly emissive look) ---
+        const chunkCount = Math.min(120, Math.max(20, Math.round(midR * 3)));
+        const chunkPos = new Float32Array(chunkCount * 3);
+        const chunkSizes = new Float32Array(chunkCount);
+        const chunkColors = new Float32Array(chunkCount * 3);
+        for (let i = 0; i < chunkCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const rr = innerR + Math.sqrt(Math.random()) * bandWidth;
+            chunkPos[i * 3]     = Math.cos(angle) * rr;
+            chunkPos[i * 3 + 1] = (Math.random() - 0.5) * verticalSpread * 0.5;
+            chunkPos[i * 3 + 2] = Math.sin(angle) * rr;
+            chunkSizes[i] = bodyVisualR * 0.15 * (0.5 + Math.random() * 0.8);
+            const bright = 1.0 + Math.random() * 0.3;
+            chunkColors[i * 3]     = Math.min(1, col.r * bright);
+            chunkColors[i * 3 + 1] = Math.min(1, col.g * bright);
+            chunkColors[i * 3 + 2] = Math.min(1, col.b * bright);
+        }
+        const chunkGeom = new THREE.BufferGeometry();
+        chunkGeom.setAttribute('position', new THREE.BufferAttribute(chunkPos, 3));
+        chunkGeom.setAttribute('color', new THREE.BufferAttribute(chunkColors, 3));
+        const chunkMat = new THREE.PointsMaterial({
+            vertexColors: true,
+            size: bodyVisualR * 0.1,
+            sizeAttenuation: true,
+            map: dotTex,
+            transparent: true,
+            opacity: Math.min(0.85, band.opacity * 1.2),
+            depthWrite: false
+        });
+        const chunks = new THREE.Points(chunkGeom, chunkMat);
+        ringGroup.add(chunks);
+    }
+
+    scene.add(ringGroup);
+    ringMeshes.push({ mesh: ringGroup, parentType, planetIndex, moonIndex });
+}
+
+function renderSystem() {
+    if (!systemData) return;
+
+    const { star, planets } = systemData;
+    const totalOrbits = planets.length > 0 ? planets[planets.length - 1].orbit + 1 : 2;
+
+    // Compute binary clearance so planet orbits don't overlap with star orbits
+    binaryClearanceR = 0;
+    if (star.type.id === 'binary' && star.companion) {
+        const pBodyR = Math.max(2, star.type.radius * 0.3);
+        const cBodyR = Math.max(1.5, pBodyR * star.companion.type.radius);
+        const pMass = pBodyR * pBodyR * pBodyR;
+        const cMass = cBodyR * cBodyR * cBodyR;
+        const tMass = pMass + cMass;
+        const sep = (pBodyR + cBodyR) * 2.5;
+        const pOrbitR = sep * (cMass / tMass);
+        const cOrbitR = sep * (pMass / tMass);
+        // Clearance = max extent of either star body + glow padding
+        binaryClearanceR = Math.max(pOrbitR + pBodyR * 3, cOrbitR + cBodyR * 3) + 8;
+    }
+
+    // Clear previous meshes
+    planetMeshes.forEach(m => scene.remove(m));
+    moonMeshes.forEach(m => scene.remove(m));
+    ringMeshes.forEach(r => scene.remove(r.mesh));
+    orbitLines.forEach(l => scene.remove(l));
+    if (starSprite) scene.remove(starSprite);
+    if (starGlowSprite) scene.remove(starGlowSprite);
+    if (binaryCompanionSprite) scene.remove(binaryCompanionSprite);
+    if (binaryCompanionGlow) scene.remove(binaryCompanionGlow);
+    if (starPointLight) scene.remove(starPointLight);
+    pulsarBeamSprites.forEach(b => scene.remove(b));
+    if (pulsarGroup) { scene.remove(pulsarGroup); pulsarGroup = null; }
+    if (habZoneRing) scene.remove(habZoneRing);
+    if (engulfZoneCircle) scene.remove(engulfZoneCircle);
+    if (dustDiscMesh) scene.remove(dustDiscMesh);
+    if (wormholeMesh) scene.remove(wormholeMesh);
+    if (wormholeGlowSprite) scene.remove(wormholeGlowSprite);
+    wormholeMesh = null;
+    wormholeGlowSprite = null;
+    wormholeLabelEl = null;
+    starSurfaceState = null;
+    companionSurfaceState = null;
+    surfaceFrameCounter = 0;
+    planetMeshes = [];
+    moonMeshes = [];
+    ringMeshes = [];
+    orbitLines = [];
+    pulsarBeamSprites = [];
+    if (labelContainer) labelContainer.innerHTML = '';
+    planetLabelEls = [];
+    moonLabelEls = [];
+
+    // Render star
+    renderStar(star);
+
+    // Render orbits and planets
+    for (let pi = 0; pi < planets.length; pi++) {
+        const planet = planets[pi];
+        const orbitR = getOrbitRadius(planet.orbit, totalOrbits);
+
+        // Orbit line
+        const orbitGeom = new THREE.BufferGeometry();
+        const orbitPoints = [];
+        for (let i = 0; i <= 64; i++) {
+            const angle = (i / 64) * Math.PI * 2;
+            orbitPoints.push(
+                Math.cos(angle) * orbitR,
+                0,
+                Math.sin(angle) * orbitR
+            );
+        }
+        orbitGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(orbitPoints), 3));
+        const orbitColor = planet.inHabZone ? 0x50b450 : 0xffffff;
+        const orbitMaterial = new THREE.LineBasicMaterial({ color: orbitColor, transparent: true, opacity: planet.inHabZone ? 0.2 : 0.08 });
+        const orbitLine = new THREE.Line(orbitGeom, orbitMaterial);
+        scene.add(orbitLine);
+        orbitLines.push(orbitLine);
+
+        // Planet mesh — use gas giant subtype color if applicable
+        const r = getPlanetVisualRadius(planet);
+        const geom = new THREE.SphereGeometry(r, 32, 32);
+        const planetColor = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
+        const material = new THREE.MeshPhongMaterial({ color: planetColor, emissive: 0x000000 });
+        const mesh = new THREE.Mesh(geom, material);
+        mesh.userData = { type: 'planet', index: pi };
+        planetMeshes.push(mesh);
+        scene.add(mesh);
+
+        // Planet rings
+        if (planet.rings) {
+            createRingMeshes(planet.rings, r, 'planet', pi, -1);
+        }
+
+        // Planet moons
+        if (planet.moonData && planet.moonData.length > 0) {
+            for (let mi = 0; mi < planet.moonData.length; mi++) {
+                const moon = planet.moonData[mi];
+                const moonR = getPlanetVisualRadius(moon);
+                const moonGeom = new THREE.SphereGeometry(moonR, 16, 16);
+                const moonMaterial = new THREE.MeshPhongMaterial({ color: moon.type.color });
+                const moonMesh = new THREE.Mesh(moonGeom, moonMaterial);
+                moonMesh.userData = { type: 'moon', planetIndex: pi, moonIndex: mi };
+                moonMeshes.push(moonMesh);
+                scene.add(moonMesh);
+
+                // Moon rings
+                if (moon.rings) {
+                    createRingMeshes(moon.rings, moonR, 'moon', pi, mi);
+                }
+            }
+        }
+    }
+
+    // Habitable zone ring (uses clamped zone radius to avoid blowup in small systems)
+    if (star.type.habZone.length >= 2) {
+        const innerR = getZoneRadius(star.type.habZone[0] - 0.4, totalOrbits);
+        const outerR = getZoneRadius(star.type.habZone[1] + 0.4, totalOrbits);
+        const habGeom = new THREE.RingGeometry(innerR, outerR, 256);
+        const habMaterial = new THREE.MeshBasicMaterial({
+            color: 0x50b450,
+            transparent: true,
+            opacity: 0.06,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        habZoneRing = new THREE.Mesh(habGeom, habMaterial);
+        habZoneRing.rotation.x = -Math.PI / 2;
+        scene.add(habZoneRing);
+    }
+
+    // Engulf zone for red giants (clamped radius)
+    if (star.type.engulfZone) {
+        const engulfR = getZoneRadius(star.type.engulfZone, totalOrbits);
+        const engulfGeom = new THREE.BufferGeometry();
+        const engulfPoints = [];
+        for (let i = 0; i <= 64; i++) {
+            const angle = (i / 64) * Math.PI * 2;
+            engulfPoints.push(
+                Math.cos(angle) * engulfR,
+                0,
+                Math.sin(angle) * engulfR
+            );
+        }
+        engulfGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(engulfPoints), 3));
+        const engulfMaterial = new THREE.LineBasicMaterial({ color: 0xff3200, transparent: true, opacity: 0.15 });
+        engulfZoneCircle = new THREE.Line(engulfGeom, engulfMaterial);
+        scene.add(engulfZoneCircle);
+    }
+
+    // ---- Orbital dust disc (shows the plane of rotation) ----
+    const dustTexture = createDustDiscTexture(star.type.color);
+    const discRadius = 250; // extends slightly beyond max orbit (200)
+    const discGeom = new THREE.CircleGeometry(discRadius, 128);
+    const discMat = new THREE.MeshBasicMaterial({
+        map: dustTexture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+    dustDiscMesh = new THREE.Mesh(discGeom, discMat);
+    dustDiscMesh.rotation.x = -Math.PI / 2;
+    dustDiscMesh.renderOrder = -2; // render before glow sprites
+    scene.add(dustDiscMesh);
+
+    // ---- Wormhole rendering ----
+    if (systemData.wormhole) {
+        const wh = systemData.wormhole;
+        const whOrbitR = getOrbitRadius(wh.orbit, totalOrbits);
+
+        // Torus ring
+        const torusGeom = new THREE.TorusGeometry(3.5, 0.4, 16, 48);
+        const torusMat = new THREE.MeshPhongMaterial({
+            color: 0x44ffdd,
+            emissive: new THREE.Color(0x22ccaa),
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.85
+        });
+        wormholeMesh = new THREE.Mesh(torusGeom, torusMat);
+        wormholeMesh.userData = { type: 'wormhole' };
+        scene.add(wormholeMesh);
+
+        // Glow sprite
+        const whTexture = createWormholeTexture();
+        const whGlowMat = new THREE.SpriteMaterial({
+            map: whTexture,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        wormholeGlowSprite = new THREE.Sprite(whGlowMat);
+        wormholeGlowSprite.scale.set(14, 14, 1);
+        scene.add(wormholeGlowSprite);
+
+        // Label
+        const whLabel = document.createElement('div');
+        whLabel.className = 'body-label';
+        whLabel.textContent = wh.name;
+        whLabel.style.color = '#44ffdd';
+        if (labelContainer) labelContainer.appendChild(whLabel);
+        wormholeLabelEl = whLabel;
+    }
+
+    // ---- Create projected labels for planets and moons ----
+    for (let pi = 0; pi < planets.length; pi++) {
+        const planet = planets[pi];
+        const label = document.createElement('div');
+        label.className = 'body-label';
+        label.textContent = planet.name;
+        if (labelContainer) labelContainer.appendChild(label);
+        planetLabelEls.push(label);
+
+        if (planet.moonData) {
+            for (let mi = 0; mi < planet.moonData.length; mi++) {
+                const moon = planet.moonData[mi];
+                const moonLabel = document.createElement('div');
+                moonLabel.className = 'body-label';
+                moonLabel.textContent = moon.name;
+                moonLabel.style.fontSize = '9px';
+                moonLabel.style.color = '#999';
+                if (labelContainer) labelContainer.appendChild(moonLabel);
+                moonLabelEls.push({ el: moonLabel, planetIndex: pi, moonIndex: mi });
+            }
+        }
+    }
+}
+
+function createDustDiscTexture(starColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const cx = 256, cy = 256;
+
+    // Parse star color for tinting
+    const tc = new THREE.Color(starColor);
+    const r = Math.round(140 + tc.r * 60);
+    const g = Math.round(130 + tc.g * 50);
+    const b = Math.round(100 + tc.b * 40);
+
+    // Radial gradient: transparent center → subtle dust → transparent edge
+    const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 252);
+    grad.addColorStop(0,    `rgba(${r},${g},${b}, 0)`);      // transparent at star
+    grad.addColorStop(0.06, `rgba(${r},${g},${b}, 0)`);      // still clear near star
+    grad.addColorStop(0.12, `rgba(${r},${g},${b}, 0.10)`);   // dust fades in
+    grad.addColorStop(0.25, `rgba(${r},${g},${b}, 0.07)`);   // peak inner dust
+    grad.addColorStop(0.50, `rgba(${r},${g},${b}, 0.04)`);   // thinning
+    grad.addColorStop(0.80, `rgba(${r},${g},${b}, 0.02)`);   // faint outer
+    grad.addColorStop(1.0,  `rgba(${r},${g},${b}, 0)`);      // fade to nothing
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 252, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(canvas);
+}
+
+function renderStar(star) {
+    const starTexture = createStarTexture(star.type);
+
+    // ---- Star body radius — dominant object in the system ----
+    // star.type.radius values: neutron=8, white_dwarf=10, brown_dwarf=15,
+    // black_hole=18, red_dwarf=20, binary=25, yellow_sun=30, protostar=35,
+    // blue_giant=45, red_giant=50.
+    // Planet visual radii range ~1.5 (tiny moon) to ~5.3 (sizeN=100).
+    // With 0.3× multiplier, stars range 2.4 (neutron) to 15 (red giant).
+    // Glow sprite at 3× body keeps visual presence large; smaller body
+    // gives inner planets more breathing room for clickability.
+    const bodyRadius = Math.max(2, star.type.radius * 0.3);
+    const sphereGeom = new THREE.SphereGeometry(bodyRadius, 64, 64);
+
+    let sphereMaterial;
+    if (star.type.id === 'black_hole') {
+        sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        starSurfaceState = null;
+    } else {
+        // Create animated surface canvas texture
+        starSurfaceState = createStarSurfaceState(star.type, star.seed || 42);
+        if (starSurfaceState) {
+            paintStarSurface(starSurfaceState, 0);
+            sphereMaterial = new THREE.MeshBasicMaterial({
+                map: starSurfaceState.texture,
+                transparent: false,
+            });
+        } else {
+            sphereMaterial = new THREE.MeshPhongMaterial({
+                color: star.type.color,
+                emissive: new THREE.Color(star.type.color),
+                emissiveIntensity: 0.9,
+                shininess: 0
+            });
+        }
+    }
+
+    starSprite = new THREE.Mesh(sphereGeom, sphereMaterial);
+    starSprite.userData = { type: 'star', index: 0 };
+    scene.add(starSprite);
+
+    // ---- Glow sprite (additive, always faces camera) ----
+    const glowMaterial = new THREE.SpriteMaterial({
+        map: starTexture,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true   // occluded by the opaque star body so glow doesn't bleed through
+    });
+    starGlowSprite = new THREE.Sprite(glowMaterial);
+    starGlowSprite.userData = { type: 'star_glow', index: 0 };
+    starGlowSprite.renderOrder = -1; // render before other transparent objects
+    const glowScale = bodyRadius * 3;
+    starGlowSprite.scale.set(glowScale, glowScale, 1);
+    scene.add(starGlowSprite);
+
+    // ---- Point light from the star ----
+    const lightColor = star.type.id === 'black_hole' ? new THREE.Color(0x442200)
+                     : new THREE.Color(star.type.color);
+    starPointLight = new THREE.PointLight(lightColor, 2, 600);
+    scene.add(starPointLight);
+
+    // ---- Binary companion (also 3D sphere + glow) ----
+    if (star.type.id === 'binary' && star.companion) {
+        const compTexture = createStarTexture(star.companion.type);
+        // Companion radius is relative (0.25–1.2) to the primary star body
+        const compBodyR = Math.max(1.5, bodyRadius * star.companion.type.radius);
+        const compSphereGeom = new THREE.SphereGeometry(compBodyR, 32, 32);
+
+        // Companion surface dynamics
+        companionSurfaceState = createStarSurfaceState(star.companion.type, (star.seed || 42) + 5000);
+        let compSphereMat;
+        if (companionSurfaceState) {
+            paintStarSurface(companionSurfaceState, 0);
+            compSphereMat = new THREE.MeshBasicMaterial({
+                map: companionSurfaceState.texture,
+                transparent: false,
+            });
+        } else {
+            compSphereMat = new THREE.MeshPhongMaterial({
+                color: star.companion.type.color,
+                emissive: new THREE.Color(star.companion.type.color),
+                emissiveIntensity: 0.9,
+                shininess: 0
+            });
+        }
+        binaryCompanionSprite = new THREE.Mesh(compSphereGeom, compSphereMat);
+        binaryCompanionSprite.userData = { type: 'star', index: 1 }; // companion
+        scene.add(binaryCompanionSprite);
+
+        // Companion glow
+        const compGlowMat = new THREE.SpriteMaterial({
+            map: compTexture,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true   // occluded by opaque companion body
+        });
+        binaryCompanionGlow = new THREE.Sprite(compGlowMat);
+        binaryCompanionGlow.userData = { type: 'star_glow', index: 1 };
+        binaryCompanionGlow.renderOrder = -1;
+        const compGlowScale = compBodyR * 3;
+        binaryCompanionGlow.scale.set(compGlowScale, compGlowScale, 1);
+        scene.add(binaryCompanionGlow);
+    }
+
+    // ---- Enhanced Pulsar: beams, polar hotspots, magnetosphere ----
+    if (star.type.id === 'pulsar') {
+        pulsarGroup = new THREE.Group();
+        scene.add(pulsarGroup);
+
+        // Polar hotspot glow caps (two bright spots at poles)
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const hotspotGeo = new THREE.SphereGeometry(bodyRadius * 0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.4);
+            const hotspotMat = new THREE.MeshBasicMaterial({
+                color: 0xeeccff,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const hotspot = new THREE.Mesh(hotspotGeo, hotspotMat);
+            hotspot.position.y = bodyRadius * 0.85 * pole;
+            if (pole === -1) hotspot.rotation.x = Math.PI;
+            pulsarGroup.add(hotspot);
+        }
+
+        // Volumetric beam cones — multiple nested layers for 3D depth
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const beamLength = bodyRadius * 12;
+            const beamBaseR = bodyRadius * 0.6;
+            const beamTipR = bodyRadius * 2.0;
+
+            // Layer 0: outermost diffuse shell, Layer 1: mid glow, Layer 2: bright core
+            const layers = [
+                { radiusScale: 1.0,  opacity: 0.12, segments: 24, heightSegs: 12, color: [0.6, 0.3, 1.0, 0.15, 0.05, 0.3] },
+                { radiusScale: 0.65, opacity: 0.22, segments: 16, heightSegs: 10, color: [0.85, 0.55, 1.0, 0.15, 0.1, 0.2] },
+                { radiusScale: 0.3,  opacity: 0.45, segments: 12, heightSegs: 8,  color: [1.0, 0.8, 1.0, 0.4, 0.2, 0.5] },
+            ];
+
+            for (const layer of layers) {
+                const lBaseR = beamBaseR * layer.radiusScale;
+                const lTipR = beamTipR * layer.radiusScale;
+                const topR = pole === 1 ? lTipR : lBaseR;
+                const botR = pole === 1 ? lBaseR : lTipR;
+                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, layer.segments, layer.heightSegs, true);
+
+                // Wobble the radii slightly for organic turbulence
+                const pos = geo.attributes.position;
+                for (let vi = 0; vi < pos.count; vi++) {
+                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                    const angle = Math.atan2(pz, px);
+                    const ht = (py + beamLength / 2) / beamLength;
+                    const wobble = 1.0 + 0.12 * Math.sin(angle * 5 + ht * 8) * ht;
+                    pos.setX(vi, px * wobble);
+                    pos.setZ(vi, pz * wobble);
+                }
+                pos.needsUpdate = true;
+
+                // Vertex colors with gradient + alpha fade at tip
+                const colors = new Float32Array(pos.count * 3);
+                for (let vi = 0; vi < pos.count; vi++) {
+                    const vy = pos.getY(vi);
+                    const t = (vy + beamLength / 2) / beamLength;
+                    const fade = pole === 1 ? (1 - t) : t;
+                    const c = layer.color;
+                    colors[vi * 3]     = c[0] * fade + c[3] * (1 - fade);
+                    colors[vi * 3 + 1] = c[1] * fade + c[4] * (1 - fade);
+                    colors[vi * 3 + 2] = c[2] * fade + c[5] * (1 - fade);
+                }
+                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                const mat = new THREE.MeshBasicMaterial({
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: layer.opacity,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
+                pulsarGroup.add(mesh);
+            }
+
+            // Helical filament — spiral structure inside the jet for depth cues
+            const helixPoints = [];
+            const helixTurns = 4;
+            const helixSteps = 80;
+            for (let si = 0; si <= helixSteps; si++) {
+                const ht = si / helixSteps; // 0→1 along beam
+                const angle = ht * Math.PI * 2 * helixTurns;
+                const r = (beamBaseR + (beamTipR - beamBaseR) * ht) * 0.5;
+                const hx = Math.cos(angle) * r;
+                const hz = Math.sin(angle) * r;
+                const hy = (ht - 0.5) * beamLength;
+                helixPoints.push(new THREE.Vector3(hx, hy, hz));
+            }
+            const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
+            const helixGeo = new THREE.TubeGeometry(helixCurve, 60, bodyRadius * 0.08, 6, false);
+            const helixMat = new THREE.MeshBasicMaterial({
+                color: 0xccaaff,
+                transparent: true,
+                opacity: 0.25,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const helix = new THREE.Mesh(helixGeo, helixMat);
+            helix.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
+            pulsarGroup.add(helix);
+        }
+
+        // Flat beam planes (enhanced — 2 perpendicular planes per beam for volume)
+        for (let i = 0; i < 2; i++) {
+            for (let p = 0; p < 2; p++) {
+                const beamGeom = new THREE.PlaneGeometry(1, 1);
+                const beamMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xdd99ff,
+                    transparent: true,
+                    opacity: 0.3,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
+                beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 14, 1);
+                if (p === 1) beamSprite.rotation.y = Math.PI / 2; // perpendicular
+                pulsarBeamSprites.push(beamSprite);
+                scene.add(beamSprite);
+            }
+        }
+
+        // Magnetosphere ring (toroidal field visualization)
+        const torusGeo = new THREE.TorusGeometry(bodyRadius * 4, bodyRadius * 0.15, 8, 48);
+        const torusMat = new THREE.MeshBasicMaterial({
+            color: 0x8866dd,
+            transparent: true,
+            opacity: 0.15,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            wireframe: true
+        });
+        const magnetosphere = new THREE.Mesh(torusGeo, torusMat);
+        magnetosphere.rotation.x = Math.PI / 2;
+        pulsarGroup.add(magnetosphere);
+
+        // Second tilted magnetosphere ring for depth
+        const torus2Geo = new THREE.TorusGeometry(bodyRadius * 5.5, bodyRadius * 0.1, 6, 48);
+        const torus2Mat = new THREE.MeshBasicMaterial({
+            color: 0x6644bb,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            wireframe: true
+        });
+        const magnetosphere2 = new THREE.Mesh(torus2Geo, torus2Mat);
+        magnetosphere2.rotation.x = Math.PI / 2 + 0.3;
+        magnetosphere2.rotation.z = 0.4;
+        pulsarGroup.add(magnetosphere2);
+    }
+}
+
+// Binary clearance: computed once in renderSystem and stored here
+let binaryClearanceR = 0;
+
+function getOrbitRadius(orbit, totalOrbits) {
+    const minR = Math.max(30, binaryClearanceR);
+    const maxR = Math.max(minR + 50, 200);
+    return minR + (maxR - minR) * (orbit - 1) / Math.max(1, totalOrbits - 1);
+}
+
+// Same formula but clamped so zone rings don't blow up in small systems
+function getZoneRadius(orbit, totalOrbits) {
+    const effectiveOrbits = Math.max(8, totalOrbits);
+    return getOrbitRadius(orbit, effectiveOrbits);
+}
+
+function formatRingsInfo(rings) {
+    if (!rings) return 'None';
+    const bandStr = rings.bands.length === 1 ? '1 band' : `${rings.bands.length} bands`;
+    return `<span style="color:#ddc">${rings.composition.name}</span> — ${bandStr}, ${rings.tilt.toFixed(0)}° tilt`;
+}
+
+function getPlanetVisualRadius(planet) {
+    return Math.max(1.5, Math.log2(planet.sizeN + 1) * 0.8);
+}
+
+function lightenColor(hex, amount) {
+    let r = parseInt(hex.slice(1, 3), 16);
+    let g = parseInt(hex.slice(3, 5), 16);
+    let b = parseInt(hex.slice(5, 7), 16);
+    r = Math.min(255, r + amount);
+    g = Math.min(255, g + amount);
+    b = Math.min(255, b + amount);
+    return `rgb(${r},${g},${b})`;
+}
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+function animate(time) {
+    animationTime = time;
+
+    if (systemData) {
+        const { star, planets } = systemData;
+        const totalOrbits = planets.length > 0 ? planets[planets.length - 1].orbit + 1 : 2;
+
+        // Update planet positions
+        for (let pi = 0; pi < planets.length; pi++) {
+            const planet = planets[pi];
+            const orbitR = getOrbitRadius(planet.orbit, totalOrbits);
+            const angle = planet.orbitAngle + time * 0.0003 / planet.orbit;
+            const x = Math.cos(angle) * orbitR;
+            const z = Math.sin(angle) * orbitR;
+
+            if (pi < planetMeshes.length) {
+                planetMeshes[pi].position.set(x, 0, z);
+            }
+
+            // Moon positions
+            if (planet.moonData) {
+                for (let mi = 0; mi < planet.moonData.length; mi++) {
+                    const moon = planet.moonData[mi];
+                    const moonAngle = time * 0.0004 + (mi * Math.PI * 2 / planet.moonData.length);
+                    const moonDist = getPlanetVisualRadius(planet) + 3 + mi * 2;
+                    const mx = x + Math.cos(moonAngle) * moonDist;
+                    const mz = z + Math.sin(moonAngle) * moonDist;
+
+                    // Find moon mesh
+                    for (const moonMesh of moonMeshes) {
+                        if (moonMesh.userData.planetIndex === pi && moonMesh.userData.moonIndex === mi) {
+                            moonMesh.position.set(mx, 0, mz);
+                        }
+                    }
+
+                    // Position moon ring meshes
+                    for (const rm of ringMeshes) {
+                        if (rm.parentType === 'moon' && rm.planetIndex === pi && rm.moonIndex === mi) {
+                            rm.mesh.position.set(mx, 0, mz);
+                        }
+                    }
+                }
+            }
+
+            // Position planet ring meshes
+            for (const rm of ringMeshes) {
+                if (rm.parentType === 'planet' && rm.planetIndex === pi) {
+                    rm.mesh.position.set(x, 0, z);
+                }
+            }
+        }
+
+        // ---- Wormhole animation: orbit, self-rotation, glow pulse ----
+        if (systemData.wormhole && wormholeMesh) {
+            const wh = systemData.wormhole;
+            const whOrbitR = getOrbitRadius(wh.orbit, totalOrbits);
+            const whAngle = wh.orbitAngle + time * 0.00015;
+            const whx = Math.cos(whAngle) * whOrbitR;
+            const whz = Math.sin(whAngle) * whOrbitR;
+            wormholeMesh.position.set(whx, 0, whz);
+            wormholeMesh.rotation.x += 0.008;
+            wormholeMesh.rotation.z += 0.012;
+
+            if (wormholeGlowSprite) {
+                wormholeGlowSprite.position.set(whx, 0, whz);
+                const pulse = 14 + 2 * Math.sin(time * 0.003);
+                wormholeGlowSprite.scale.set(pulse, pulse, 1);
+            }
+        }
+
+        // Binary stars orbit their shared barycenter (center of mass)
+        // Both stars swing around the origin, 180° apart, weighted by mass ratio.
+        if (star.type.id === 'binary' && binaryCompanionSprite) {
+            const primaryBodyR = Math.max(2, star.type.radius * 0.3);
+            const compBodyR = Math.max(1.5, primaryBodyR * (star.companion ? star.companion.type.radius : 0.5));
+
+            // Mass ~ radius^3 (rough approximation: similar densities)
+            const primaryMass = primaryBodyR * primaryBodyR * primaryBodyR;
+            const compMass = compBodyR * compBodyR * compBodyR;
+            const totalMass = primaryMass + compMass;
+
+            // Total separation between the two stars (just enough clearance)
+            const separation = (primaryBodyR + compBodyR) * 2.5;
+
+            // Each star's distance from the barycenter (origin)
+            // Primary orbits close (small circle), companion orbits far (big circle)
+            const primaryOrbitR = separation * (compMass / totalMass);
+            const compOrbitR = separation * (primaryMass / totalMass);
+
+            const binaryAngle = time * 0.0006;
+
+            // Primary star: small orbit, opposite side from companion
+            const px = Math.cos(binaryAngle + Math.PI) * primaryOrbitR;
+            const pz = Math.sin(binaryAngle + Math.PI) * primaryOrbitR;
+            starSprite.position.set(px, 0, pz);
+            if (starGlowSprite) starGlowSprite.position.set(px, 0, pz);
+            if (starPointLight) starPointLight.position.set(px, 0, pz);
+
+            // Companion star: larger orbit
+            const cx = Math.cos(binaryAngle) * compOrbitR;
+            const cz = Math.sin(binaryAngle) * compOrbitR;
+            binaryCompanionSprite.position.set(cx, 0, cz);
+            if (binaryCompanionGlow) binaryCompanionGlow.position.set(cx, 0, cz);
+        }
+
+        // Pulsar beam rotation — fast spin + pulsing opacity
+        if (star.type.id === 'pulsar' && pulsarBeamSprites.length > 0) {
+            const beamAngle = time * 0.008;  // faster rotation
+            // beamSprites: [beam0-plane0, beam0-plane1, beam1-plane0, beam1-plane1]
+            for (let i = 0; i < pulsarBeamSprites.length; i++) {
+                const beamIdx = Math.floor(i / 2); // which pole
+                pulsarBeamSprites[i].rotation.z = beamAngle + (beamIdx * Math.PI);
+            }
+            // Pulse opacity with rotation phase
+            const pulse = 0.2 + 0.15 * Math.sin(time * 0.01);
+            for (const bs of pulsarBeamSprites) bs.material.opacity = pulse;
+
+            // Rotate pulsar group (hotspots + cones + magnetosphere)
+            if (pulsarGroup) {
+                pulsarGroup.rotation.y = beamAngle;
+                // Gentle magnetosphere wobble
+                const kids = pulsarGroup.children;
+                for (let k = 0; k < kids.length; k++) {
+                    if (kids[k].geometry && kids[k].geometry.type === 'TorusGeometry') {
+                        kids[k].rotation.z = 0.4 + Math.sin(time * 0.002 + k) * 0.1;
+                    }
+                }
+            }
+        }
+
+        // ---- Star surface animation (throttled to every 3rd frame) ----
+        surfaceFrameCounter++;
+        if (surfaceFrameCounter % 3 === 0) {
+            if (starSurfaceState) paintStarSurface(starSurfaceState, time);
+            if (companionSurfaceState) paintStarSurface(companionSurfaceState, time);
+        }
+
+        // Slow star rotation so the surface texture visibly turns
+        if (starSprite && starSurfaceState) {
+            starSprite.rotation.y = time * 0.00008;
+        }
+        if (binaryCompanionSprite && companionSurfaceState) {
+            binaryCompanionSprite.rotation.y = time * 0.0001;
+        }
+    }
+
+    // ---- Update projected labels each frame ----
+    if (labelContainer && systemData) {
+        const halfW = containerWidth / 2;
+        const halfH = containerHeight / 2;
+
+        for (let pi = 0; pi < planetMeshes.length; pi++) {
+            if (pi < planetLabelEls.length) {
+                const pos = planetMeshes[pi].position.clone();
+                pos.y += getPlanetVisualRadius(systemData.planets[pi]) + 1.5;
+                pos.project(camera);
+
+                const sx = (pos.x * halfW) + halfW;
+                const sy = -(pos.y * halfH) + halfH;
+                const label = planetLabelEls[pi];
+
+                if (pos.z < 1) {
+                    label.style.display = '';
+                    label.style.left = sx + 'px';
+                    label.style.top = sy + 'px';
+                    label.style.transform = 'translate(-50%, -100%)';
+                } else {
+                    label.style.display = 'none';
+                }
+            }
+        }
+
+        for (const moonInfo of moonLabelEls) {
+            const moonMesh = moonMeshes.find(m =>
+                m.userData.planetIndex === moonInfo.planetIndex &&
+                m.userData.moonIndex === moonInfo.moonIndex
+            );
+            if (moonMesh) {
+                const pos = moonMesh.position.clone();
+                pos.y += 1;
+                pos.project(camera);
+
+                const sx = (pos.x * halfW) + halfW;
+                const sy = -(pos.y * halfH) + halfH;
+
+                if (pos.z < 1) {
+                    moonInfo.el.style.display = '';
+                    moonInfo.el.style.left = sx + 'px';
+                    moonInfo.el.style.top = sy + 'px';
+                    moonInfo.el.style.transform = 'translate(-50%, -100%)';
+                } else {
+                    moonInfo.el.style.display = 'none';
+                }
+            }
+        }
+    }
+
+    // ---- Update wormhole label ----
+    if (wormholeLabelEl && wormholeMesh) {
+        const halfW = containerWidth / 2;
+        const halfH = containerHeight / 2;
+        const pos = wormholeMesh.position.clone();
+        pos.y += 5;
+        pos.project(camera);
+        const sx = (pos.x * halfW) + halfW;
+        const sy = -(pos.y * halfH) + halfH;
+        if (pos.z < 1) {
+            wormholeLabelEl.style.display = '';
+            wormholeLabelEl.style.left = sx + 'px';
+            wormholeLabelEl.style.top = sy + 'px';
+            wormholeLabelEl.style.transform = 'translate(-50%, -100%)';
+        } else {
+            wormholeLabelEl.style.display = 'none';
+        }
+    }
+
+    // ---- Smooth camera tracking of focused body ----
+    if (focusTarget && !isPanning) {
+        const targetPos = focusTarget.position;
+        camTarget.lerp(targetPos, focusLerpSpeed);
+        updateCameraPosition();
+    }
+
+    // ---- Selection ring follows selected body & faces camera ----
+    if (selectionRing && selectedMesh) {
+        selectionRing.position.copy(selectedMesh.position);
+        selectionRing.lookAt(camera.position);
+        // Gentle pulse animation
+        const pulse = 0.7 + 0.15 * Math.sin(time * 0.004);
+        selectionRing.material.opacity = pulse;
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+
+// ============================================================
+// INTERACTION (RAYCASTING)
+// ============================================================
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function onClick(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / containerWidth) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / containerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    // Raycast against all clickable meshes
+    // Order: wormhole, companion glow (bigger target), companion body, planets,
+    // moons, primary glow, primary body. intersectObjects sorts by distance,
+    // but listing companion glow early helps when objects overlap.
+    const allMeshes = [
+        ...(wormholeMesh ? [wormholeMesh] : []),
+        ...(binaryCompanionGlow ? [binaryCompanionGlow] : []),
+        ...(binaryCompanionSprite ? [binaryCompanionSprite] : []),
+        ...planetMeshes, ...moonMeshes,
+        ...(starGlowSprite ? [starGlowSprite] : []),
+        ...(starSprite ? [starSprite] : [])
+    ];
+    const intersects = raycaster.intersectObjects(allMeshes);
+
+    if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        if (hit.userData.type === 'wormhole') {
+            selectWormhole();
+        } else if (hit.userData.type === 'star' || hit.userData.type === 'star_glow') {
+            selectStar(hit.userData.index || 0);
+        } else if (hit.userData.type === 'planet') {
+            selectPlanet(hit.userData.index);
+        } else if (hit.userData.type === 'moon') {
+            selectMoon(hit.userData.planetIndex, hit.userData.moonIndex);
+        }
+    }
+}
+
+function onDblClick(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / containerWidth) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / containerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const allMeshes = [
+        ...(wormholeMesh ? [wormholeMesh] : []),
+        ...(binaryCompanionGlow ? [binaryCompanionGlow] : []),
+        ...(binaryCompanionSprite ? [binaryCompanionSprite] : []),
+        ...planetMeshes, ...moonMeshes,
+        ...(starGlowSprite ? [starGlowSprite] : []),
+        ...(starSprite ? [starSprite] : [])
+    ];
+    const intersects = raycaster.intersectObjects(allMeshes);
+
+    if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        if (hit.userData.type === 'wormhole') {
+            enterWormhole();
+        } else if (hit.userData.type === 'star' || hit.userData.type === 'star_glow') {
+            selectStar(hit.userData.index || 0); // no landing on stars
+        } else if (hit.userData.type === 'planet') {
+            selectPlanet(hit.userData.index);
+            landOnPlanet(hit.userData.index);
+        } else if (hit.userData.type === 'moon') {
+            selectMoon(hit.userData.planetIndex, hit.userData.moonIndex);
+            const moon = systemData.planets[hit.userData.planetIndex].moonData[hit.userData.moonIndex];
+            landOnBody(moon);
+        }
+    }
+}
+
+// ============================================================
+// PANEL INTERACTION
+// ============================================================
+let selectionRing = null;  // visible ring around selected body
+let selectedMesh = null;   // mesh currently highlighted (persists through pan)
+
+function clearBodyHighlights() {
+    planetMeshes.forEach(m => {
+        if (m.material.emissive) {
+            m.material.emissive.setHex(0x000000);
+            m.material.emissiveIntensity = 0;
+        }
+    });
+    moonMeshes.forEach(m => {
+        if (m.material.emissive) {
+            m.material.emissive.setHex(0x000000);
+            m.material.emissiveIntensity = 0;
+        }
+    });
+    // Remove existing selection ring
+    if (selectionRing) {
+        scene.remove(selectionRing);
+        selectionRing.geometry.dispose();
+        selectionRing.material.dispose();
+        selectionRing = null;
+    }
+    selectedMesh = null;
+}
+
+function highlightMesh(mesh) {
+    clearBodyHighlights();
+    if (mesh) {
+        // Emissive glow on the body itself (only if material supports it)
+        if (mesh.material.emissive) {
+            mesh.material.emissive.setHex(0xffcc00);
+            mesh.material.emissiveIntensity = 0.6;
+        }
+
+        // Add a visible selection ring around the body
+        const radius = mesh.geometry.parameters.radius || 1;
+        const ringGeom = new THREE.RingGeometry(radius * 1.6, radius * 1.85, 48);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffcc00,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false
+        });
+        selectionRing = new THREE.Mesh(ringGeom, ringMat);
+        selectionRing.userData.isSelectionRing = true;
+        selectedMesh = mesh;
+        scene.add(selectionRing);
+    }
+}
+
+function selectPlanet(index) {
+    selectedPlanetIndex = index;
+    selectedMoon = null;
+    setDetailLabels(defaultDetailLabels); // restore planet labels (in case star was selected)
+    const planet = systemData.planets[index];
+
+    // Highlight 3D mesh and set focus target
+    if (index >= 0 && index < planetMeshes.length) {
+        highlightMesh(planetMeshes[index]);
+        focusTarget = planetMeshes[index];
+    }
+
+    // Highlight in list — use body-item class to skip star entries
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+    const bodyItems = document.querySelectorAll('.planet-list-item.body-planet');
+    if (index >= 0 && index < bodyItems.length) bodyItems[index].classList.add('selected');
+
+    // Update detail panel
+    const detail = document.getElementById('planet-detail');
+    detail.classList.add('active');
+    document.getElementById('pd-name').textContent = planet.name;
+    document.getElementById('pd-id').textContent = planet.id;
+    const typeColor = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
+    const subtypeLabel = planet.gasSubtype ? ` (${planet.gasSubtype.name})` : '';
+    document.getElementById('pd-type').innerHTML = `<span style="color:${typeColor}">${planet.type.name}${subtypeLabel}</span>`;
+    document.getElementById('pd-orbit').textContent = `${planet.orbit}${planet.inHabZone ? ' (habitable zone)' : ''}`;
+    document.getElementById('pd-size').textContent = planet.sizeN;
+    document.getElementById('pd-tiles').textContent = planet.tileCount.toLocaleString();
+    document.getElementById('pd-atmo').textContent = planet.type.atmosphere;
+    document.getElementById('pd-life').innerHTML = `<span style="color:${planet.life.color}">${planet.life.name}</span>`;
+    document.getElementById('pd-biomes').textContent = planet.type.biomes.join(', ');
+    document.getElementById('pd-moons').textContent = planet.moons + (planet.stations ? ` (+${planet.stations} stations)` : '');
+    document.getElementById('pd-rings').innerHTML = formatRingsInfo(planet.rings);
+
+    const btnContainer = document.getElementById('pd-land-btn-container');
+    if (planet.type.diveable) {
+        btnContainer.innerHTML = `<button class="btn primary" onclick="landOnPlanet(${index})">Dive into ${planet.name}</button>`;
+    } else if (planet.type.landable) {
+        btnContainer.innerHTML = `<button class="btn primary" onclick="landOnPlanet(${index})">Land on ${planet.name}</button>`;
+    } else {
+        btnContainer.innerHTML = `<span class="stat" style="color:#884444;">Cannot land — no solid surface</span>`;
+    }
+}
+
+function selectMoon(planetIndex, moonIndex) {
+    selectedMoon = { planetIndex, moonIndex };
+    selectedPlanetIndex = -1;
+    setDetailLabels(defaultDetailLabels); // restore planet labels
+
+    // Highlight 3D mesh and set focus target
+    const targetMoonMesh = moonMeshes.find(m =>
+        m.userData.planetIndex === planetIndex && m.userData.moonIndex === moonIndex
+    );
+    highlightMesh(targetMoonMesh);
+    if (targetMoonMesh) focusTarget = targetMoonMesh;
+
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+
+    const planet = systemData.planets[planetIndex];
+    const moon = planet.moonData[moonIndex];
+
+    const detail = document.getElementById('planet-detail');
+    detail.classList.add('active');
+    document.getElementById('pd-name').textContent = moon.name;
+    document.getElementById('pd-id').textContent = moon.id;
+    document.getElementById('pd-type').innerHTML = `<span style="color:${moon.type.color}">${moon.type.name}</span> <span style="color:#888">(moon of ${planet.name})</span>`;
+    document.getElementById('pd-orbit').textContent = `Moon orbit ${moonIndex + 1} around ${planet.name}`;
+    document.getElementById('pd-size').textContent = moon.sizeN;
+    document.getElementById('pd-tiles').textContent = moon.tileCount.toLocaleString();
+    document.getElementById('pd-atmo').textContent = moon.type.atmosphere;
+    document.getElementById('pd-life').innerHTML = `<span style="color:${moon.life.color}">${moon.life.name}</span>`;
+    document.getElementById('pd-biomes').textContent = moon.type.biomes.join(', ');
+    document.getElementById('pd-moons').textContent = '—';
+    document.getElementById('pd-rings').innerHTML = formatRingsInfo(moon.rings);
+
+    const btnContainer = document.getElementById('pd-land-btn-container');
+    btnContainer.innerHTML = `<button class="btn primary" onclick="landOnBody(systemData.planets[${planetIndex}].moonData[${moonIndex}])">Land on ${moon.name}</button>`;
+}
+
+function selectWormhole() {
+    if (!systemData || !systemData.wormhole) return;
+    const wh = systemData.wormhole;
+
+    selectedPlanetIndex = -1;
+    selectedMoon = null;
+    setDetailLabels(defaultDetailLabels);
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+
+    // Highlight wormhole mesh
+    if (wormholeMesh) {
+        highlightMesh(wormholeMesh);
+        focusTarget = wormholeMesh;
+    }
+
+    // Show wormhole info in detail panel
+    const detail = document.getElementById('planet-detail');
+    detail.classList.add('active');
+    document.getElementById('pd-name').textContent = wh.name;
+    document.getElementById('pd-id').textContent = wh.id;
+    document.getElementById('pd-type').innerHTML = '<span style="color:#44ffdd">Spatial Wormhole</span>';
+    document.getElementById('pd-orbit').textContent = `Orbit ${wh.orbit.toFixed(1)}`;
+    document.getElementById('pd-size').textContent = '—';
+    document.getElementById('pd-tiles').textContent = '—';
+    document.getElementById('pd-atmo').textContent = 'Unstable spacetime';
+    document.getElementById('pd-life').innerHTML = '<span style="color:#44ffdd">Unknown</span>';
+    document.getElementById('pd-biomes').textContent = '—';
+    document.getElementById('pd-moons').textContent = '—';
+    document.getElementById('pd-rings').textContent = '—';
+
+    const btnContainer = document.getElementById('pd-land-btn-container');
+    const destLabel = wh.isReturn ? 'Return to' : 'Destination';
+    const btnLabel = wh.isReturn ? 'Return Through Wormhole' : 'Enter Wormhole';
+    btnContainer.innerHTML = `
+        <div class="stat" style="margin-top:8px; color:#44ffdd;">${destLabel}: <span style="color:#fff">${wh.destName}</span></div>
+        <div class="stat" style="color:#44ffdd;">Galaxy: <span style="color:#fff">${wh.destGalaxyName}</span></div>
+        <div class="stat" style="color:#888; font-size:11px;">Status: ${wh.isReturn ? 'Coupled / Stable' : 'Stable / Active'}</div>
+        <button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterWormhole()">${btnLabel}</button>
+    `;
+}
+
+// Solar constants for unit conversion
+const SOLAR_DIAMETER_KM = 1392700;
+const SOLAR_MASS_KG = 1.989e30;
+
+function selectStar(companionIndex) {
+    if (!systemData) return;
+    const star = systemData.star;
+    const isCompanion = companionIndex === 1 && star.companion;
+
+    selectedPlanetIndex = -1;
+    selectedMoon = null;
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+
+    // Highlight the star mesh (use selection ring but skip emissive for stars with surface textures)
+    const targetMesh = isCompanion ? binaryCompanionSprite : starSprite;
+    if (targetMesh) {
+        clearBodyHighlights();
+        // Add selection ring without emissive glow (star sphere is self-lit)
+        const radius = targetMesh.geometry.parameters.radius || 1;
+        const ringGeom = new THREE.RingGeometry(radius * 1.6, radius * 1.85, 48);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffcc00, side: THREE.DoubleSide,
+            transparent: true, opacity: 0.7, depthWrite: false
+        });
+        selectionRing = new THREE.Mesh(ringGeom, ringMat);
+        selectionRing.userData.isSelectionRing = true;
+        selectedMesh = targetMesh;
+        scene.add(selectionRing);
+        focusTarget = targetMesh;
+    }
+
+    // Get the star type data
+    const starType = isCompanion ? star.companion.type : star.type;
+    const physics = STAR_PHYSICS[starType.id] || STAR_PHYSICS.yellow_sun;
+    const starSeed = isCompanion ? (star.seed || 42) + 5000 : (star.seed || 42);
+
+    // Pick a surface description (seeded)
+    const descs = STAR_SURFACE_DESC[starType.id] || [];
+    const descIndex = descs.length > 0 ? (starSeed % descs.length) : 0;
+    const surfaceDesc = descs[descIndex] || 'No surface data available.';
+
+    // Compute physical values
+    const diameterKm = physics.diameterSol !== null ? physics.diameterSol * SOLAR_DIAMETER_KM : null;
+    const massKg = physics.massSol * SOLAR_MASS_KG;
+
+    // Format display values
+    const diameterStr = diameterKm !== null
+        ? (diameterKm >= 1e6 ? `${(diameterKm / 1e6).toFixed(2)} M km` :
+           diameterKm >= 1000 ? `${Math.round(diameterKm).toLocaleString()} km` :
+           `${diameterKm.toFixed(1)} km`)
+        + ` (${physics.diameterSol.toFixed(physics.diameterSol < 0.01 ? 5 : 2)} R☉)`
+        : 'Undefined (singularity)';
+
+    const tempStr = physics.tempK !== null
+        ? `${physics.tempK.toLocaleString()} K`
+        : 'Undefined';
+
+    const massExp = Math.floor(Math.log10(massKg));
+    const massMantissa = massKg / Math.pow(10, massExp);
+    const massStr = `${massMantissa.toFixed(2)} × 10${toSuperscript(massExp)} kg (${physics.massSol} M☉)`;
+
+    const lumStr = physics.luminositySol !== null
+        ? (physics.luminositySol >= 1000 ? `${physics.luminositySol.toLocaleString()} L☉` :
+           physics.luminositySol >= 0.001 ? `${physics.luminositySol} L☉` :
+           `${physics.luminositySol.toExponential(1)} L☉`)
+        : 'None (gravitational)';
+
+    const densityStr = physics.densityKgM3 !== null
+        ? (physics.densityKgM3 >= 1e6 ? `${physics.densityKgM3.toExponential(1)} kg/m³` :
+           `${Math.round(physics.densityKgM3).toLocaleString()} kg/m³`)
+        : 'Undefined';
+
+    // Populate the detail panel (reuse planet-detail with star-specific content)
+    const detail = document.getElementById('planet-detail');
+    detail.classList.add('active');
+
+    const label = isCompanion ? `${starType.name} (companion)` : star.name;
+    document.getElementById('pd-name').textContent = label;
+    document.getElementById('pd-id').textContent = isCompanion ? `${star.id}:companion` : star.id;
+    document.getElementById('pd-type').innerHTML =
+        `<span style="color:${starType.color}">${starType.name}</span>` +
+        ` <span style="color:#888">${physics.spectralClass}</span>`;
+    document.getElementById('pd-orbit').textContent = physics.ageDesc;
+    document.getElementById('pd-size').textContent = diameterStr;
+    document.getElementById('pd-tiles').textContent = tempStr;
+    document.getElementById('pd-atmo').textContent = lumStr;
+    document.getElementById('pd-life').textContent = densityStr;
+    document.getElementById('pd-biomes').textContent = massStr;
+    document.getElementById('pd-moons').textContent = isCompanion
+        ? `Companion to ${star.name}`
+        : `${systemData.planets.length} planet${systemData.planets.length !== 1 ? 's' : ''}`;
+    document.getElementById('pd-rings').textContent = '—';
+
+    // Temporarily relabel the panel fields for star context
+    setDetailLabels({
+        name: isCompanion ? 'Companion' : 'Star',
+        type: 'Classification',
+        orbit: 'Age / Stage',
+        size: 'Diameter',
+        tiles: 'Surface Temp',
+        atmo: 'Luminosity',
+        life: 'Density',
+        biomes: 'Mass',
+        moons: 'System'
+    });
+
+    const btnContainer = document.getElementById('pd-land-btn-container');
+    btnContainer.innerHTML = `
+        <div style="margin-top:10px; padding:10px; background:#0a0a1a; border:1px solid #333; border-radius:4px; font-size:12px; color:#ccc; line-height:1.5;">
+            <div style="color:#ffcc00; font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Surface Phenomena</div>
+            ${surfaceDesc}
+        </div>
+    `;
+}
+
+// Temporarily change detail panel labels (for star view vs planet view)
+const defaultDetailLabels = { name:'Name', type:'Type', orbit:'Orbit', size:'Size (n)', tiles:'Tiles', atmo:'Atmosphere', life:'Life', biomes:'Biomes', moons:'Moons', rings:'Rings' };
+function setDetailLabels(labels) {
+    const fields = ['name','type','orbit','size','tiles','atmo','life','biomes','moons','rings'];
+    const ids = ['pd-name','pd-type','pd-orbit','pd-size','pd-tiles','pd-atmo','pd-life','pd-biomes','pd-moons','pd-rings'];
+    for (let i = 0; i < fields.length; i++) {
+        const span = document.getElementById(ids[i]);
+        if (span && span.parentNode) {
+            const label = labels[fields[i]] || defaultDetailLabels[fields[i]];
+            // Replace the label text before the <span>
+            const parent = span.parentNode;
+            parent.firstChild.textContent = label + ': ';
+        }
+    }
+}
+
+// Unicode superscript converter for exponents
+function toSuperscript(n) {
+    const superDigits = '\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079';
+    const str = Math.abs(n).toString();
+    let result = n < 0 ? '\u207B' : '';
+    for (const ch of str) result += superDigits[parseInt(ch)];
+    return result;
+}
+
+function enterWormhole() {
+    if (!systemData || !systemData.wormhole) return;
+    const wh = systemData.wormhole;
+
+    // Navigate to a completely different star system via wormhole
+    const params = new URLSearchParams({
+        seed: wh.destSeed,
+        starTypeId: wh.destStarTypeId,
+        returnGalaxySeed: wh.destGalaxySeed,
+        galaxy: wh.destGalaxyName
+    });
+    // Pass our system info so the destination creates a coupled return wormhole
+    params.set('wormholeReturnSeed', systemData.star.seed);
+    params.set('wormholeReturnStarTypeId', systemData.star.type.id);
+    params.set('wormholeReturnName', systemData.star.name);
+    if (urlReturnGalaxySeed) params.set('wormholeReturnGalaxySeed', urlReturnGalaxySeed);
+    if (urlGalaxy) params.set('wormholeReturnGalaxyName', urlGalaxy);
+    // Preserve universe context if available
+    if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
+    if (urlUniverse) params.set('universe', urlUniverse);
+    if (urlUniverseId) params.set('universeId', urlUniverseId);
+    if (urlDensity) params.set('density', urlDensity);
+    window.location.href = `star_system.html?${params.toString()}`;
+}
+
+function landOnBody(body) {
+    const params = new URLSearchParams({
+        seed: body.seed,
+        n: body.sizeN,
+        name: body.name,
+        type: body.type.id,
+        life: body.life.id,
+        system: systemData.star.name,
+        returnSeed: systemData.star.seed,
+        returnStarTypeId: systemData.star.type.id,
+        bodyId: body.id
+    });
+    // Pass gas giant subtype for atmospheric color tinting
+    if (body.gasSubtype) params.set('gasSubtype', body.gasSubtype.id);
+    // Pass ring data as compact JSON
+    if (body.rings) params.set('rings', JSON.stringify(body.rings));
+    // Pass galaxy/system navigation context through to planet view
+    if (urlReturnGalaxySeed) params.set('returnGalaxySeed', urlReturnGalaxySeed);
+    if (urlGalaxy) params.set('galaxy', urlGalaxy);
+    if (urlGalaxyId) params.set('galaxyId', urlGalaxyId);
+    if (urlSystemId) params.set('systemId', urlSystemId);
+    // Pass universe context through
+    if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
+    if (urlUniverse) params.set('universe', urlUniverse);
+    if (urlUniverseId) params.set('universeId', urlUniverseId);
+    if (urlGalaxyCatalogId) params.set('galaxyCatalogId', urlGalaxyCatalogId);
+    if (urlDensity) params.set('density', urlDensity);
+    window.location.href = `hex_globe.html?${params.toString()}`;
+}
+
+function landOnPlanet(index) {
+    const planet = systemData.planets[index];
+    if (!planet.type.landable && !planet.type.diveable) return;
+    landOnBody(planet);
+}
+
+function buildPlanetList() {
+    const container = document.getElementById('planet-list');
+    container.innerHTML = '';
+
+    // ---- Star entry at top of list ----
+    const star = systemData.star;
+    const starItem = document.createElement('div');
+    starItem.className = 'planet-list-item';
+    starItem.onclick = () => selectStar(0);
+
+    const starDot = document.createElement('div');
+    starDot.className = 'planet-dot';
+    starDot.style.width = '18px';
+    starDot.style.height = '18px';
+    starDot.style.background = `radial-gradient(circle, #fff, ${star.type.color})`;
+    starDot.style.boxShadow = `0 0 8px ${star.type.color}`;
+
+    const starInfo = document.createElement('div');
+    starInfo.className = 'planet-info-text';
+    const physics = STAR_PHYSICS[star.type.id] || {};
+    const tempK = physics.tempK ? `${physics.tempK.toLocaleString()} K` : '—';
+    starInfo.innerHTML = `
+        <div class="name" style="color:${star.type.color}">${star.name}</div>
+        <div class="type">${star.type.name} · ${physics.spectralClass || ''} · ${tempK}</div>
+    `;
+    starItem.appendChild(starDot);
+    starItem.appendChild(starInfo);
+    container.appendChild(starItem);
+
+    // Binary companion entry
+    if (star.type.id === 'binary' && star.companion) {
+        const compItem = document.createElement('div');
+        compItem.className = 'planet-list-item';
+        compItem.style.paddingLeft = '30px';
+        compItem.style.fontSize = '11px';
+        compItem.onclick = () => selectStar(1);
+
+        const compDot = document.createElement('div');
+        compDot.className = 'planet-dot';
+        compDot.style.width = '12px';
+        compDot.style.height = '12px';
+        compDot.style.background = `radial-gradient(circle, #fff, ${star.companion.type.color})`;
+        compDot.style.boxShadow = `0 0 6px ${star.companion.type.color}`;
+
+        const compInfo = document.createElement('div');
+        compInfo.className = 'planet-info-text';
+        const compPhysics = STAR_PHYSICS[star.companion.type.id] || {};
+        compInfo.innerHTML = `
+            <div class="name" style="font-size:12px; color:${star.companion.type.color}">${star.companion.type.name} (companion)</div>
+            <div class="type">${compPhysics.spectralClass || ''} · ${compPhysics.tempK ? compPhysics.tempK.toLocaleString() + ' K' : '—'}</div>
+        `;
+        compItem.appendChild(compDot);
+        compItem.appendChild(compInfo);
+        container.appendChild(compItem);
+    }
+
+    // Separator between star and planets
+    const sep = document.createElement('div');
+    sep.style.cssText = 'border-top:1px solid #333; margin:6px 0;';
+    container.appendChild(sep);
+
+    for (let pi = 0; pi < systemData.planets.length; pi++) {
+        const planet = systemData.planets[pi];
+        const r = getPlanetVisualRadius(planet);
+
+        const item = document.createElement('div');
+        item.className = 'planet-list-item body-planet';
+        item.onclick = () => selectPlanet(pi);
+        item.ondblclick = () => { selectPlanet(pi); landOnPlanet(pi); };
+
+        const dot = document.createElement('div');
+        dot.className = 'planet-dot';
+        const dotSize = Math.max(10, Math.round(6 + Math.sqrt(planet.sizeN) * 4));
+        dot.style.width = dotSize + 'px';
+        dot.style.height = dotSize + 'px';
+        dot.style.background = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
+        if (planet.rings) {
+            dot.style.boxShadow = `0 0 0 2px #0a0a1a, 0 0 0 3px ${planet.rings.bands[0].color}`;
+        }
+
+        const info = document.createElement('div');
+        info.className = 'planet-info-text';
+
+        let tags = '';
+        if (planet.rings) {
+            tags += '<span class="tag" style="background:#55504a;color:#ddc">Ringed</span>';
+        }
+        if (planet.type.diveable) {
+            tags += '<span class="tag tag-diveable">Diveable</span>';
+        } else if (planet.type.landable) {
+            tags += '<span class="tag tag-landable">Landable</span>';
+        } else {
+            tags += '<span class="tag tag-not-landable">No Landing</span>';
+        }
+        if (planet.life.id !== 'none') {
+            tags += `<span class="tag tag-life-${planet.life.id}">${planet.life.name}</span>`;
+        }
+
+        const subtypeStr = planet.gasSubtype ? `${planet.gasSubtype.name} ` : '';
+        info.innerHTML = `
+            <div class="name">${planet.name}</div>
+            <div class="type">${subtypeStr}${planet.type.name} · Orbit ${planet.orbit} · n=${planet.sizeN} (${planet.tileCount.toLocaleString()} tiles)${tags}</div>
+        `;
+
+        item.appendChild(dot);
+        item.appendChild(info);
+        container.appendChild(item);
+
+        // Add moon sub-items
+        if (planet.moonData && planet.moonData.length > 0) {
+            for (let mi = 0; mi < planet.moonData.length; mi++) {
+                const moon = planet.moonData[mi];
+                const moonItem = document.createElement('div');
+                moonItem.className = 'planet-list-item body-moon';
+                moonItem.style.paddingLeft = '30px';
+                moonItem.style.fontSize = '11px';
+                moonItem.onclick = () => selectMoon(pi, mi);
+                moonItem.ondblclick = () => { selectMoon(pi, mi); landOnBody(planet.moonData[mi]); };
+
+                const moonDot = document.createElement('div');
+                moonDot.className = 'planet-dot';
+                const moonDotSize = Math.max(6, Math.round(4 + Math.sqrt(moon.sizeN) * 3));
+                moonDot.style.width = moonDotSize + 'px';
+                moonDot.style.height = moonDotSize + 'px';
+                moonDot.style.background = moon.type.color;
+                if (moon.rings) {
+                    moonDot.style.boxShadow = `0 0 0 1px #0a0a1a, 0 0 0 2px ${moon.rings.bands[0].color}`;
+                }
+
+                const moonInfo = document.createElement('div');
+                moonInfo.className = 'planet-info-text';
+
+                let moonTags = '';
+                if (moon.rings) moonTags += '<span class="tag" style="background:#55504a;color:#ddc;font-size:9px">Ringed</span>';
+                moonTags += '<span class="tag tag-landable">Landable</span>';
+                if (moon.life.id !== 'none') {
+                    moonTags += `<span class="tag tag-life-${moon.life.id}">${moon.life.name}</span>`;
+                }
+
+                moonInfo.innerHTML = `
+                    <div class="name" style="font-size:12px">${moon.name}</div>
+                    <div class="type">${moon.type.name} · n=${moon.sizeN} (${moon.tileCount.toLocaleString()} tiles)${moonTags}</div>
+                `;
+
+                moonItem.appendChild(moonDot);
+                moonItem.appendChild(moonInfo);
+                container.appendChild(moonItem);
+            }
+        }
+    }
+
+    // ---- Wormhole entry in sidebar ----
+    if (systemData.wormhole) {
+        const wh = systemData.wormhole;
+        const whItem = document.createElement('div');
+        whItem.className = 'planet-list-item';
+        whItem.onclick = () => selectWormhole();
+        whItem.ondblclick = () => enterWormhole();
+
+        const whDot = document.createElement('div');
+        whDot.className = 'planet-dot';
+        whDot.style.width = '14px';
+        whDot.style.height = '14px';
+        whDot.style.background = 'radial-gradient(circle, #aaffee, #44ffdd, #2288aa)';
+        whDot.style.boxShadow = '0 0 6px #44ffdd';
+
+        const whInfo = document.createElement('div');
+        whInfo.className = 'planet-info-text';
+        whInfo.innerHTML = `
+            <div class="name" style="color:#44ffdd">${wh.name}</div>
+            <div class="type" style="color:#66aa99;">Spatial Wormhole · → ${wh.destName}</div>
+        `;
+
+        whItem.appendChild(whDot);
+        whItem.appendChild(whInfo);
+        container.appendChild(whItem);
+    }
+}
+
+function updateStarInfo() {
+    const star = systemData.star;
+    document.getElementById('star-name').textContent = star.name;
+    document.getElementById('star-id').textContent = star.id;
+    document.getElementById('star-type').innerHTML = `<span style="color:${star.type.color}">${star.type.name}</span>`;
+    document.getElementById('star-luminosity').textContent = star.type.luminosity;
+    document.getElementById('star-planet-count').textContent = systemData.planets.length;
+    document.getElementById('star-hab-zone').textContent = star.type.habZone.length >= 2 ?
+        `Orbits ${star.type.habZone[0]}–${star.type.habZone[1]}` : 'None';
+    document.getElementById('star-name-hud').textContent = star.name;
+
+    // Show companion info if binary
+    let compInfo = document.getElementById('star-companion');
+    if (!compInfo) {
+        compInfo = document.createElement('div');
+        compInfo.className = 'stat';
+        compInfo.id = 'star-companion';
+        document.getElementById('star-info').appendChild(compInfo);
+    }
+    if (star.companion) {
+        compInfo.innerHTML = `Companion: <span style="color:${star.companion.type.color}">${star.companion.type.name}</span> (${star.companion.name})`;
+        compInfo.style.display = '';
+    } else {
+        compInfo.style.display = 'none';
+    }
+}
+
+function regenerateSystem() {
+    const seedInput = document.getElementById('seed-input');
+    const seed = parseInt(seedInput.value) || 42;
+    // Pass galaxy-assigned star type on first load; ignore for manual re-gen
+    systemData = generateSystem(seed, urlSystemId, urlStarTypeId);
+    selectedPlanetIndex = -1;
+    selectedMoon = null;
+    document.getElementById('planet-detail').classList.remove('active');
+    updateStarInfo();
+    buildPlanetList();
+    renderSystem();
+}
+
+function randomSeed() {
+    const seed = Math.floor(Math.random() * 999999) + 1;
+    document.getElementById('seed-input').value = seed;
+    regenerateSystem();
+}
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+const urlParams = new URLSearchParams(window.location.search);
+const urlSeed = urlParams.get('seed');
+const urlGalaxy = urlParams.get('galaxy');
+const urlGalaxyId = urlParams.get('galaxyId');
+const urlSystemId = urlParams.get('systemId');
+const urlReturnGalaxySeed = urlParams.get('returnGalaxySeed');
+const urlUniverse = urlParams.get('universe');
+const urlUniverseId = urlParams.get('universeId');
+const urlReturnUniverseSeed = urlParams.get('returnUniverseSeed');
+const urlGalaxyCatalogId = urlParams.get('galaxyCatalogId');
+const urlDensity = urlParams.get('density');
+const urlStarTypeId = urlParams.get('starTypeId');
+const urlWormholeReturnSeed = urlParams.get('wormholeReturnSeed');
+const urlWormholeReturnStarTypeId = urlParams.get('wormholeReturnStarTypeId');
+const urlWormholeReturnName = urlParams.get('wormholeReturnName');
+const urlWormholeReturnGalaxySeed = urlParams.get('wormholeReturnGalaxySeed');
+const urlWormholeReturnGalaxyName = urlParams.get('wormholeReturnGalaxyName');
+
+if (urlSeed) {
+    document.getElementById('seed-input').value = urlSeed;
+}
+
+// Show back button and galaxy name if launched from galaxy view
+if (urlReturnGalaxySeed) {
+    document.getElementById('back-btn').style.display = 'block';
+    if (urlGalaxy) {
+        const header = document.querySelector('#info-panel h1');
+        header.textContent = 'Star System View';
+        const galaxyLabel = document.createElement('div');
+        galaxyLabel.className = 'stat';
+        galaxyLabel.innerHTML = `Galaxy: <span style="color:#ffcc00">${urlGalaxy}</span>`;
+        header.after(galaxyLabel);
+    }
+}
+
+function returnToGalaxy() {
+    if (urlReturnGalaxySeed) {
+        const params = new URLSearchParams({ seed: urlReturnGalaxySeed });
+        // Preserve universe context for the back chain
+        if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
+        if (urlUniverse) params.set('universe', urlUniverse);
+        if (urlUniverseId) params.set('universeId', urlUniverseId);
+        // Pass galaxyCatalogId back for catalog ID override
+        if (urlGalaxyCatalogId) params.set('galaxyCatalogId', urlGalaxyCatalogId);
+        else if (urlGalaxyId) params.set('galaxyCatalogId', urlGalaxyId);
+        if (urlDensity) params.set('density', urlDensity);
+        window.location.href = `galaxy_view.html?${params.toString()}`;
+    } else {
+        window.history.back();
+    }
+}
+
+// Initialize and start
+initThreeJS();
+regenerateSystem();
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>
