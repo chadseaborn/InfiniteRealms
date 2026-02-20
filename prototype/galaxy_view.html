@@ -714,6 +714,8 @@ let selectionRing = null, hoverRing = null;
 let selectedSystemIndex = -1, hoveredSystemIndex = -1;
 let selectedSMBH = false, hoveredSMBH = false;
 let smbhMesh = null;
+let agnJetGroup = null;     // AGN/quasar jet + accretion effects
+let agnGlowSprite = null;   // pulsing AGN glow sprite
 let wormholeSprites = []; // galaxy-level wormhole sprites
 
 // Camera orbit
@@ -821,6 +823,8 @@ function clearGalaxyScene() {
     ambientPoints = null;
     dustPoints = null;
     smbhMesh = null;
+    agnJetGroup = null;
+    agnGlowSprite = null;
     wormholeSprites = [];
     selectionRing.visible = false;
     hoverRing.visible = false;
@@ -882,16 +886,86 @@ function buildGalaxyScene() {
     photonRing.rotation.x = Math.PI / 2;
     galaxyGroup.add(photonRing);
 
-    // Accretion disc if active
+    // Active Galactic Nucleus — spectacular quasar effects
     if (galaxy.smbh.active) {
-        const accGeo = new THREE.RingGeometry(6, 20, 32);
-        const accMat = new THREE.MeshBasicMaterial({
-            color: 0xff6420, side: THREE.DoubleSide,
-            transparent: true, opacity: 0.15, depthWrite: false
+        agnJetGroup = new THREE.Group();
+        galaxyGroup.add(agnJetGroup);
+
+        // Multi-layered accretion disc — hot inner ring to cooler outer
+        const accColors = [
+            { inner: 7,  outer: 12, color: 0xffcc44, opacity: 0.30 },  // hot yellow inner
+            { inner: 12, outer: 20, color: 0xff8822, opacity: 0.20 },  // orange mid
+            { inner: 20, outer: 30, color: 0xcc4411, opacity: 0.10 },  // red outer
+        ];
+        for (const ring of accColors) {
+            const geo = new THREE.RingGeometry(ring.inner, ring.outer, 64);
+            const mat = new THREE.MeshBasicMaterial({
+                color: ring.color, side: THREE.DoubleSide,
+                transparent: true, opacity: ring.opacity, depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = Math.PI / 2;
+            agnJetGroup.add(mesh);
+        }
+
+        // Relativistic jets — glowing cones extending from poles
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const jetLen = 60 + galaxy.smbh.mass;
+            const jetGeo = new THREE.CylinderGeometry(1.5, 6, jetLen, 12, 6, true);
+            // Vertex colors: white-hot at base fading to blue/violet at tips
+            const jColors = new Float32Array(jetGeo.attributes.position.count * 3);
+            for (let vi = 0; vi < jetGeo.attributes.position.count; vi++) {
+                const vy = jetGeo.attributes.position.getY(vi);
+                const t = (vy + jetLen / 2) / jetLen; // 0=base, 1=tip
+                const fade = pole === 1 ? (1 - t) : t;
+                jColors[vi * 3]     = 1.0 * fade + 0.3 * (1 - fade);   // R: white→blue
+                jColors[vi * 3 + 1] = 0.7 * fade + 0.2 * (1 - fade);   // G
+                jColors[vi * 3 + 2] = 0.3 * fade + 1.0 * (1 - fade);   // B: warm→blue
+            }
+            jetGeo.setAttribute('color', new THREE.BufferAttribute(jColors, 3));
+            const jetMat = new THREE.MeshBasicMaterial({
+                vertexColors: true,
+                transparent: true, opacity: 0.25,
+                side: THREE.DoubleSide, depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const jet = new THREE.Mesh(jetGeo, jetMat);
+            jet.position.y = pole * (jetLen / 2 + 5);
+            agnJetGroup.add(jet);
+
+            // Bright inner jet beam (narrower, brighter)
+            const beamGeo = new THREE.CylinderGeometry(0.3, 2, jetLen * 0.8, 8, 1, true);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: 0xffddaa, transparent: true, opacity: 0.35,
+                side: THREE.DoubleSide, depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const beam = new THREE.Mesh(beamGeo, beamMat);
+            beam.position.y = pole * (jetLen * 0.4 + 5);
+            agnJetGroup.add(beam);
+        }
+
+        // Bright AGN glow sprite — pulsing golden-white point source
+        const agnCanvas = document.createElement('canvas');
+        agnCanvas.width = 128; agnCanvas.height = 128;
+        const aCtx = agnCanvas.getContext('2d');
+        const aGrad = aCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        aGrad.addColorStop(0, 'rgba(255,255,240,1.0)');
+        aGrad.addColorStop(0.1, 'rgba(255,220,140,0.8)');
+        aGrad.addColorStop(0.3, 'rgba(255,160,60,0.3)');
+        aGrad.addColorStop(0.6, 'rgba(200,80,20,0.08)');
+        aGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        aCtx.fillStyle = aGrad;
+        aCtx.fillRect(0, 0, 128, 128);
+        const agnTex = new THREE.CanvasTexture(agnCanvas);
+        const agnMat = new THREE.SpriteMaterial({
+            map: agnTex, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
-        const accDisc = new THREE.Mesh(accGeo, accMat);
-        accDisc.rotation.x = Math.PI / 2;
-        galaxyGroup.add(accDisc);
+        agnGlowSprite = new THREE.Sprite(agnMat);
+        agnGlowSprite.scale.set(30, 30, 1);
+        galaxyGroup.add(agnGlowSprite);
     }
 
     // Star systems as a Points mesh with per-star colors and sizes
@@ -1614,6 +1688,18 @@ function animate() {
 
     if (selectionRing.visible) selectionRing.lookAt(camera.position);
     if (hoverRing.visible) hoverRing.lookAt(camera.position);
+
+    // Animate AGN jet rotation + glow pulse
+    if (agnJetGroup) {
+        const t = performance.now();
+        agnJetGroup.rotation.y = t * 0.0003; // slow rotation of accretion disc
+        // Pulse glow
+        if (agnGlowSprite) {
+            const pulse = 28 + 6 * Math.sin(t * 0.004) + 3 * Math.sin(t * 0.011);
+            agnGlowSprite.scale.set(pulse, pulse, 1);
+            agnGlowSprite.material.opacity = 0.7 + 0.3 * Math.sin(t * 0.003);
+        }
+    }
 
     // Pulse wormhole sprites
     if (wormholeSprites.length > 0 && galaxyData && galaxyData.galaxyWormholes) {

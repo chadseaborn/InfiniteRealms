@@ -376,7 +376,7 @@ function createWormholeTexture() {
 }
 
 function createQuasarTexture() {
-    const size = 128;
+    const size = 192;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -384,33 +384,73 @@ function createQuasarTexture() {
     const cx = size / 2, cy = size / 2;
     ctx.clearRect(0, 0, size, size);
 
-    // Large outer halo — warm golden glow, much bigger than galaxy sprites
-    const outerGrad = ctx.createRadialGradient(cx, cy, 4, cx, cy, 62);
-    outerGrad.addColorStop(0, 'rgba(255,240,180,0.6)');
-    outerGrad.addColorStop(0.2, 'rgba(255,200,80,0.3)');
-    outerGrad.addColorStop(0.5, 'rgba(255,160,40,0.1)');
+    // Multi-colored outer halo — violet to orange gradient
+    const outerGrad = ctx.createRadialGradient(cx, cy, 6, cx, cy, 90);
+    outerGrad.addColorStop(0, 'rgba(255,220,140,0.5)');
+    outerGrad.addColorStop(0.15, 'rgba(255,160,60,0.3)');
+    outerGrad.addColorStop(0.35, 'rgba(200,80,180,0.12)');
+    outerGrad.addColorStop(0.6, 'rgba(100,60,200,0.05)');
     outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = outerGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 62, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 90, 0, Math.PI * 2);
     ctx.fill();
 
-    // 6-point diffraction spikes — bold, clearly different from round galaxies
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    for (let spike = 0; spike < 6; spike++) {
-        const angle = spike * Math.PI / 3;
-        const len = 60;
-        const dx = Math.cos(angle), dy = Math.sin(angle);
 
-        // Main thick spike
+    // Color-shifting spikes: each spike a different hue (rainbow quasar)
+    const spikeColors = [
+        ['rgba(255,255,255,1.0)', 'rgba(255,200,80,0.5)',  'rgba(255,120,20,0.1)'],  // gold
+        ['rgba(255,255,255,1.0)', 'rgba(200,140,255,0.5)', 'rgba(120,60,200,0.1)'],  // violet
+        ['rgba(255,255,255,1.0)', 'rgba(100,200,255,0.5)', 'rgba(40,100,220,0.1)'],  // blue
+        ['rgba(255,255,255,1.0)', 'rgba(255,180,100,0.5)', 'rgba(220,80,40,0.1)'],   // orange
+        ['rgba(255,255,255,1.0)', 'rgba(180,255,140,0.4)', 'rgba(60,200,80,0.08)'],  // green
+        ['rgba(255,255,255,1.0)', 'rgba(255,140,180,0.5)', 'rgba(200,40,100,0.1)'],  // pink
+    ];
+
+    for (let spike = 0; spike < 6; spike++) {
+        const angle = spike * Math.PI / 3 + Math.PI / 6;
+        const len = 85;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const colors = spikeColors[spike];
+
+        // Main spike
         const spikeGrad = ctx.createLinearGradient(cx, cy, cx + dx * len, cy + dy * len);
-        spikeGrad.addColorStop(0, 'rgba(255,255,255,1.0)');
-        spikeGrad.addColorStop(0.15, 'rgba(255,230,140,0.7)');
-        spikeGrad.addColorStop(0.5, 'rgba(255,180,60,0.2)');
+        spikeGrad.addColorStop(0, colors[0]);
+        spikeGrad.addColorStop(0.2, colors[1]);
+        spikeGrad.addColorStop(0.6, colors[2]);
         spikeGrad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.strokeStyle = spikeGrad;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + dx * len, cy + dy * len);
+        ctx.stroke();
+
+        // Secondary thinner spike (slightly offset for sparkle)
+        const a2 = angle + 0.08;
+        ctx.strokeStyle = spikeGrad;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a2) * len * 0.6, cy + Math.sin(a2) * len * 0.6);
+        ctx.stroke();
+    }
+
+    // Two dominant jet spikes (vertical-ish, extra bright)
+    for (let j = 0; j < 2; j++) {
+        const angle = j * Math.PI + Math.PI / 2; // top and bottom
+        const len = 90;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const jetGrad = ctx.createLinearGradient(cx, cy, cx + dx * len, cy + dy * len);
+        jetGrad.addColorStop(0, 'rgba(255,255,255,1.0)');
+        jetGrad.addColorStop(0.1, 'rgba(255,200,120,0.8)');
+        jetGrad.addColorStop(0.3, 'rgba(100,160,255,0.4)');
+        jetGrad.addColorStop(0.6, 'rgba(80,60,200,0.15)');
+        jetGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.strokeStyle = jetGrad;
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + dx * len, cy + dy * len);
@@ -418,15 +458,16 @@ function createQuasarTexture() {
     }
     ctx.restore();
 
-    // Blazing white core — unmistakably bright
-    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 12);
+    // Blazing multi-ring core: white → gold → orange → violet
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
     coreGrad.addColorStop(0, 'rgba(255,255,255,1.0)');
-    coreGrad.addColorStop(0.4, 'rgba(255,245,200,0.9)');
-    coreGrad.addColorStop(0.7, 'rgba(255,200,100,0.4)');
+    coreGrad.addColorStop(0.2, 'rgba(255,240,200,0.95)');
+    coreGrad.addColorStop(0.4, 'rgba(255,180,80,0.7)');
+    coreGrad.addColorStop(0.65, 'rgba(200,100,200,0.3)');
     coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
     ctx.fill();
 
     return new THREE.CanvasTexture(canvas);
@@ -1460,16 +1501,18 @@ function animate() {
         }
     }
 
-    // Pulse quasar sprites — brightness flicker
+    // Pulse quasar sprites — vivid brightness flicker + slow rotation
     if (quasarSprites.length > 0) {
         const t = performance.now();
         for (let i = 0; i < quasarSprites.length; i++) {
-            const baseSize = quasarSprites[i].scale.x;
-            const flicker = 1.0 + 0.15 * Math.sin(t * 0.005 + i * 2.7) + 0.08 * Math.sin(t * 0.013 + i * 4.1);
-            const s = baseSize * flicker / (1.0 + 0.15 + 0.08); // normalize so base stays roughly stable
+            const baseSize = quasarSprites[i].userData.baseSize || quasarSprites[i].scale.x;
+            if (!quasarSprites[i].userData.baseSize) quasarSprites[i].userData.baseSize = baseSize;
+            const flicker = 1.0 + 0.12 * Math.sin(t * 0.004 + i * 2.7) + 0.06 * Math.sin(t * 0.011 + i * 4.1);
+            const s = baseSize * flicker;
             quasarSprites[i].scale.set(s, s, 1);
-            // Also pulse opacity
-            quasarSprites[i].material.opacity = 0.8 + 0.2 * Math.sin(t * 0.004 + i * 3.3);
+            quasarSprites[i].material.opacity = 0.85 + 0.15 * Math.sin(t * 0.003 + i * 3.3);
+            // Slow rotation so the spikes shift visually
+            quasarSprites[i].material.rotation = t * 0.0002 + i * 0.5;
         }
     }
 
