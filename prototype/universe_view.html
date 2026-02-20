@@ -608,14 +608,14 @@ function generateUniverse(seed) {
     const quasars = [];
     const agnGalaxies = galaxies.filter(g => g.props && g.props.smbhActive);
     for (let qi = 0; qi < agnGalaxies.length; qi++) {
-        // ~40% of AGN galaxies host a visible quasar
-        if (qRng.next() > 0.4) continue;
+        // ~10% of AGN galaxies host a visible quasar (they're rare, extreme objects)
+        if (qRng.next() > 0.10) continue;
         const hostGal = agnGalaxies[qi];
         const qType = qRng.weightedPick(QUASAR_TYPES);
         const designation = qRng.pick(QUASAR_PREFIX) + ' ' + qRng.pick(QUASAR_SUFFIX);
         const luminosity = qRng.nextFloat(10, 1000); // in 10^12 solar luminosities
         const redshift = qRng.nextFloat(0.05, 4.0);
-        const jetLength = qType.id === 'blazar' ? qRng.nextFloat(30, 60) : qRng.nextFloat(10, 35);
+        const jetLength = qType.id === 'blazar' ? qRng.nextFloat(20, 40) : qRng.nextFloat(8, 20);
         // Quasar position slightly offset from galaxy center
         const qOff = 3;
         quasars.push({
@@ -992,50 +992,37 @@ function buildUniverseScene() {
             });
             const coreSprite = new THREE.Sprite(coreMat);
             coreSprite.position.set(q.x, q.y, q.z);
-            const coreSize = 14 + Math.min(q.luminosity / 100, 12);
+            const coreSize = 8 + Math.min(q.luminosity / 200, 6);
             coreSprite.scale.set(coreSize, coreSize, 1);
             coreSprite.userData = { type: 'quasar', quasarIndex: qi };
             universeGroup.add(coreSprite);
             quasarSprites.push(coreSprite);
 
-            // Relativistic jets — two lines extending from the quasar
-            const jetDir = new THREE.Vector3(
-                Math.cos(q.jetAngle) * Math.cos(q.jetTilt),
-                Math.sin(q.jetTilt),
-                Math.sin(q.jetAngle) * Math.cos(q.jetTilt)
-            ).normalize();
-            const origin = new THREE.Vector3(q.x, q.y, q.z);
-            const jet1End = origin.clone().add(jetDir.clone().multiplyScalar(q.jetLength));
-            const jet2End = origin.clone().add(jetDir.clone().multiplyScalar(-q.jetLength));
+            // Relativistic jets — only visible for radio-loud and blazar types
+            const hasVisibleJets = (q.type.id === 'blazar' || q.type.id === 'radio_loud');
+            if (hasVisibleJets) {
+                const jetDir = new THREE.Vector3(
+                    Math.cos(q.jetAngle) * Math.cos(q.jetTilt),
+                    Math.sin(q.jetTilt),
+                    Math.sin(q.jetAngle) * Math.cos(q.jetTilt)
+                ).normalize();
+                const origin = new THREE.Vector3(q.x, q.y, q.z);
+                const jet1End = origin.clone().add(jetDir.clone().multiplyScalar(q.jetLength));
+                const jet2End = origin.clone().add(jetDir.clone().multiplyScalar(-q.jetLength));
 
-            const jetColor = new THREE.Color(q.type.jetColor);
-            const jetMat = new THREE.LineBasicMaterial({
-                color: jetColor, transparent: true, opacity: 0.5,
-                depthWrite: false
-            });
-            const jet1Geo = new THREE.BufferGeometry().setFromPoints([origin, jet1End]);
-            const jet2Geo = new THREE.BufferGeometry().setFromPoints([origin, jet2End]);
-            const jet1 = new THREE.Line(jet1Geo, jetMat);
-            const jet2 = new THREE.Line(jet2Geo, jetMat);
-            universeGroup.add(jet1);
-            universeGroup.add(jet2);
-            quasarJetMeshes.push(jet1, jet2);
-
-            // Jet glow — wider faint lines alongside
-            const jetGlowMat = new THREE.LineBasicMaterial({
-                color: jetColor, transparent: true, opacity: 0.15,
-                depthWrite: false
-            });
-            // Slightly offset glow lines for width illusion
-            for (let offset = 0; offset < 2; offset++) {
-                const perpDir = new THREE.Vector3(-jetDir.z, 0, jetDir.x).normalize().multiplyScalar(1.5 * (offset === 0 ? 1 : -1));
-                const gPt1 = origin.clone().add(perpDir);
-                const gPt2 = jet1End.clone().add(perpDir);
-                const gPt3 = jet2End.clone().add(perpDir);
-                const gGeo1 = new THREE.BufferGeometry().setFromPoints([gPt1, gPt2]);
-                const gGeo2 = new THREE.BufferGeometry().setFromPoints([gPt1, gPt3]);
-                universeGroup.add(new THREE.Line(gGeo1, jetGlowMat));
-                universeGroup.add(new THREE.Line(gGeo2, jetGlowMat));
+                const jetColor = new THREE.Color(q.type.jetColor);
+                const jetOpacity = q.type.id === 'blazar' ? 0.35 : 0.2;
+                const jetMat = new THREE.LineBasicMaterial({
+                    color: jetColor, transparent: true, opacity: jetOpacity,
+                    depthWrite: false
+                });
+                const jet1Geo = new THREE.BufferGeometry().setFromPoints([origin, jet1End]);
+                const jet2Geo = new THREE.BufferGeometry().setFromPoints([origin, jet2End]);
+                const jet1 = new THREE.Line(jet1Geo, jetMat);
+                const jet2 = new THREE.Line(jet2Geo, jetMat);
+                universeGroup.add(jet1);
+                universeGroup.add(jet2);
+                quasarJetMeshes.push(jet1, jet2);
             }
         }
     }
