@@ -1359,7 +1359,13 @@ function createGalaxyListItem(gal) {
     const item = document.createElement('div');
     item.className = 'galaxy-list-item';
     item.dataset.index = gal.index;
-    item.dataset.name = gal.name.toLowerCase();
+    // Build searchable text: name + type + tags
+    let searchText = gal.name.toLowerCase() + ' ' + gal.type.name.toLowerCase();
+    if (gal.cluster) searchText += ' ' + gal.cluster.name.toLowerCase();
+    else searchText += ' field';
+    if (gal.props && gal.props.smbhActive) searchText += ' agn active';
+    if (gal.hasQuasar) searchText += ' quasar';
+    item.dataset.name = searchText;
     item.onclick = () => { selectGalaxy(gal.index); };
     item.ondblclick = () => { enterGalaxy(gal.index); };
 

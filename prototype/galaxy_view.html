@@ -1504,7 +1504,13 @@ function buildSystemList() {
         const item = document.createElement('div');
         item.className = 'system-list-item';
         item.dataset.index = sys.index;
-        item.dataset.name = sys.name.toLowerCase();
+        // Build searchable text: name + star type + tags + sector
+        let searchText = sys.name.toLowerCase() + ' ' + sys.starType.name.toLowerCase();
+        searchText += ' ' + (sys.sector || '').toLowerCase();
+        if (sys.binaryCompanion) searchText += ' binary ' + sys.binaryCompanion.name.toLowerCase();
+        if (sys.hasHabitable) searchText += ' habitable';
+        if (sys.hasWormhole) searchText += ' wormhole';
+        item.dataset.name = searchText;
         item.onclick = () => { selectSystem(sys.index); };
         item.ondblclick = () => { enterSystem(sys.index); };
 
