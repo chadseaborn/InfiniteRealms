@@ -670,6 +670,22 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
         };
     }
 
+    // ---- Coupled return wormhole: if we arrived here via wormhole, always create one back ----
+    if (!wormhole && urlWormholeReturnSeed) {
+        wormhole = {
+            name: 'Return Wormhole',
+            id: systemId + ':WH-RET',
+            orbit: whRng.nextFloat(2, Math.max(3, planetCount + 2)),
+            orbitAngle: whRng.nextFloat(0, Math.PI * 2),
+            destSeed: parseInt(urlWormholeReturnSeed),
+            destGalaxySeed: urlWormholeReturnGalaxySeed ? parseInt(urlWormholeReturnGalaxySeed) : 1,
+            destStarTypeId: urlWormholeReturnStarTypeId || 'yellow_sun',
+            destName: urlWormholeReturnName || 'Origin System',
+            destGalaxyName: urlWormholeReturnGalaxyName || 'Origin Galaxy',
+            isReturn: true
+        };
+    }
+
     return { star, planets, wormhole };
 }
 
@@ -2383,11 +2399,13 @@ function selectWormhole() {
     document.getElementById('pd-rings').textContent = '—';
 
     const btnContainer = document.getElementById('pd-land-btn-container');
+    const destLabel = wh.isReturn ? 'Return to' : 'Destination';
+    const btnLabel = wh.isReturn ? 'Return Through Wormhole' : 'Enter Wormhole';
     btnContainer.innerHTML = `
-        <div class="stat" style="margin-top:8px; color:#44ffdd;">Destination: <span style="color:#fff">${wh.destName}</span></div>
+        <div class="stat" style="margin-top:8px; color:#44ffdd;">${destLabel}: <span style="color:#fff">${wh.destName}</span></div>
         <div class="stat" style="color:#44ffdd;">Galaxy: <span style="color:#fff">${wh.destGalaxyName}</span></div>
-        <div class="stat" style="color:#888; font-size:11px;">Status: Stable / Active</div>
-        <button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterWormhole()">Enter Wormhole</button>
+        <div class="stat" style="color:#888; font-size:11px;">Status: ${wh.isReturn ? 'Coupled / Stable' : 'Stable / Active'}</div>
+        <button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterWormhole()">${btnLabel}</button>
     `;
 }
 
@@ -2542,6 +2560,12 @@ function enterWormhole() {
         returnGalaxySeed: wh.destGalaxySeed,
         galaxy: wh.destGalaxyName
     });
+    // Pass our system info so the destination creates a coupled return wormhole
+    params.set('wormholeReturnSeed', systemData.star.seed);
+    params.set('wormholeReturnStarTypeId', systemData.star.type.id);
+    params.set('wormholeReturnName', systemData.star.name);
+    if (urlReturnGalaxySeed) params.set('wormholeReturnGalaxySeed', urlReturnGalaxySeed);
+    if (urlGalaxy) params.set('wormholeReturnGalaxyName', urlGalaxy);
     // Preserve universe context if available
     if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
     if (urlUniverse) params.set('universe', urlUniverse);
@@ -2826,6 +2850,11 @@ const urlReturnUniverseSeed = urlParams.get('returnUniverseSeed');
 const urlGalaxyCatalogId = urlParams.get('galaxyCatalogId');
 const urlDensity = urlParams.get('density');
 const urlStarTypeId = urlParams.get('starTypeId');
+const urlWormholeReturnSeed = urlParams.get('wormholeReturnSeed');
+const urlWormholeReturnStarTypeId = urlParams.get('wormholeReturnStarTypeId');
+const urlWormholeReturnName = urlParams.get('wormholeReturnName');
+const urlWormholeReturnGalaxySeed = urlParams.get('wormholeReturnGalaxySeed');
+const urlWormholeReturnGalaxyName = urlParams.get('wormholeReturnGalaxyName');
 
 if (urlSeed) {
     document.getElementById('seed-input').value = urlSeed;

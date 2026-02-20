@@ -323,36 +323,36 @@ function createWormholeTexture() {
     const cx = 64, cy = 64;
     ctx.clearRect(0, 0, 128, 128);
 
-    // Concentric rings
-    for (let ring = 0; ring < 8; ring++) {
-        const r = 6 + ring * 7;
-        const alpha = Math.max(0, 0.7 - ring * 0.08);
-        const hue = 170 + ring * 15;
+    // Subtle concentric rings — fewer, thinner, more transparent
+    for (let ring = 0; ring < 4; ring++) {
+        const r = 8 + ring * 10;
+        const alpha = Math.max(0, 0.35 - ring * 0.07);
+        const hue = 180 + ring * 20;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${alpha})`;
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${alpha})`;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
     }
 
-    // Bright center
-    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 20);
-    coreGrad.addColorStop(0, 'rgba(200,255,255,0.9)');
-    coreGrad.addColorStop(0.5, 'rgba(100,255,220,0.4)');
-    coreGrad.addColorStop(1, 'rgba(50,200,180,0)');
+    // Soft center glow — teal, not blazing
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
+    coreGrad.addColorStop(0, 'rgba(160,240,240,0.6)');
+    coreGrad.addColorStop(0.5, 'rgba(80,200,200,0.25)');
+    coreGrad.addColorStop(1, 'rgba(40,160,160,0)');
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 16, 0, Math.PI * 2);
     ctx.fill();
 
-    // Outer glow
-    const outerGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 64);
-    outerGrad.addColorStop(0, 'rgba(100,200,255,0.2)');
-    outerGrad.addColorStop(0.5, 'rgba(180,100,255,0.1)');
+    // Faint outer halo
+    const outerGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 50);
+    outerGrad.addColorStop(0, 'rgba(80,180,220,0.1)');
+    outerGrad.addColorStop(0.5, 'rgba(120,80,200,0.04)');
     outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = outerGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 64, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 50, 0, Math.PI * 2);
     ctx.fill();
 
     return new THREE.CanvasTexture(canvas);
@@ -1174,7 +1174,7 @@ function buildGalaxyScene() {
                 depthWrite: false
             });
             const whSprite = new THREE.Sprite(whMat);
-            const s = 20 * wh.size;
+            const s = 12 * wh.size;
             whSprite.scale.set(s, s, 1);
             whSprite.position.set(wh.x, wh.y, wh.z);
             whSprite.userData = { type: 'wormhole', whIndex: wi };
@@ -1614,8 +1614,8 @@ function animate() {
         const t = performance.now();
         for (let wi = 0; wi < wormholeSprites.length; wi++) {
             const wh = galaxyData.galaxyWormholes[wi];
-            const baseSize = 20 * wh.size;
-            const pulse = baseSize + 3 * Math.sin(t * 0.003 + wi * 2);
+            const baseSize = 12 * wh.size;
+            const pulse = baseSize + 1.5 * Math.sin(t * 0.002 + wi * 2);
             wormholeSprites[wi].scale.set(pulse, pulse, 1);
         }
     }
