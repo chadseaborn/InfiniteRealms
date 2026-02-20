@@ -912,15 +912,91 @@ const SimplexNoise2D = (function() {
 // STAR SURFACE DYNAMICS — animated canvas textures
 // ============================================================
 
+// Physical properties for each star type.
+// diameterSol: diameter in solar radii (Sun = 1.0)
+// massSol: mass in solar masses (Sun = 1.0)
+// tempK: surface temperature in Kelvin
+// luminositySol: luminosity in solar luminosities (Sun = 1.0)
+// densityKgM3: mean density in kg/m³
+// ageDesc: typical age description
+// spectralClass: stellar classification
+const STAR_PHYSICS = {
+    red_dwarf:    { diameterSol: 0.45,  massSol: 0.35,   tempK: 3400,   luminositySol: 0.04,    densityKgM3: 10000,  spectralClass: 'M-type',   ageDesc: 'Main sequence, 10+ Gyr lifespan' },
+    yellow_sun:   { diameterSol: 1.0,   massSol: 1.0,    tempK: 5778,   luminositySol: 1.0,     densityKgM3: 1408,   spectralClass: 'G2V',      ageDesc: 'Main sequence, ~10 Gyr lifespan' },
+    blue_giant:   { diameterSol: 8.0,   massSol: 12.0,   tempK: 22000,  luminositySol: 10000,   densityKgM3: 35,     spectralClass: 'O/B-type', ageDesc: 'Short-lived, < 100 Myr' },
+    red_giant:    { diameterSol: 50.0,  massSol: 1.5,    tempK: 3500,   luminositySol: 1500,    densityKgM3: 0.02,   spectralClass: 'M-type',   ageDesc: 'Post main-sequence, expanding' },
+    white_dwarf:  { diameterSol: 0.015, massSol: 0.6,    tempK: 25000,  luminositySol: 0.001,   densityKgM3: 1e9,    spectralClass: 'DA/DB',    ageDesc: 'Stellar remnant, cooling' },
+    brown_dwarf:  { diameterSol: 0.12,  massSol: 0.04,   tempK: 1500,   luminositySol: 0.00001, densityKgM3: 80000,  spectralClass: 'T/Y-type', ageDesc: 'Failed star, slowly cooling' },
+    binary:       { diameterSol: 1.0,   massSol: 1.2,    tempK: 5800,   luminositySol: 1.5,     densityKgM3: 1400,   spectralClass: 'Variable', ageDesc: 'Gravitationally bound pair' },
+    neutron_star: { diameterSol: 0.00003, massSol: 1.4,  tempK: 600000, luminositySol: 0.01,    densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Supernova remnant' },
+    pulsar:       { diameterSol: 0.00003, massSol: 1.4,  tempK: 1000000,luminositySol: 100,     densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Rotating neutron star' },
+    black_hole:   { diameterSol: null,  massSol: 10,     tempK: null,   luminositySol: null,    densityKgM3: null,   spectralClass: 'Singularity', ageDesc: 'Gravitational collapse remnant' },
+    protostar:    { diameterSol: 3.0,   massSol: 0.5,    tempK: 3000,   luminositySol: 5,       densityKgM3: 0.5,    spectralClass: 'Pre-MS',   ageDesc: 'Forming, < 10 Myr old' },
+};
+
+// Surface phenomena descriptions for each star type (seeded — pick based on seed).
+// Each type has a few variations so different stars of the same type feel unique.
+const STAR_SURFACE_DESC = {
+    red_dwarf: [
+        'Coarse convection cells dominate the photosphere. Occasional powerful flares erupt near the equatorial band, briefly outshining the entire star.',
+        'Large, slowly churning granules cover the surface. Starspot clusters persist for months near mid-latitudes, with intermittent magnetic flare activity.',
+        'Dim, irregular convection patterns with a few enormous starspots. Flare events are rare but intense, releasing bursts of UV radiation.',
+    ],
+    yellow_sun: [
+        'Classic solar-type granulation with well-defined convection cells. Sunspot pairs track across the surface following an 11-year magnetic cycle. Bright faculae cluster near active regions.',
+        'Active photosphere with numerous sunspot groups. The equatorial region shows differential rotation, dragging spot complexes into elongated bands. Occasional coronal mass ejections visible as bright flares.',
+        'Relatively quiet surface with scattered small sunspots. Fine granulation visible at all latitudes, with subtle supergranulation patterns beneath.',
+    ],
+    blue_giant: [
+        'Intensely hot photosphere with fine, high-contrast granulation driven by fierce convective currents. Numerous small, rapidly-shifting spots dot the surface. Stellar wind erosion is visible at the limb.',
+        'Blindingly luminous surface dominated by tight convection cells. Magnetic hotspots appear and vanish within hours. The extreme UV output strips material from the outer atmosphere.',
+        'Turbulent, fast-rotating photosphere with intricate granulation patterns. Frequent bright eruptions mark magnetic reconnection events across the surface.',
+    ],
+    red_giant: [
+        'Enormous, sluggish convection cells span thousands of kilometers. A few massive dark spots mark cooler downdraft regions. The bloated atmosphere shows visible pulsation.',
+        'The swollen photosphere heaves with slow, irregular convection. Deep starspots persist for years, surrounded by bright convective plumes. Material slowly escapes from the tenuous outer layers.',
+        'Vast, roiling surface with blobby convection patterns. The star visibly pulsates on a timescale of weeks. Dust formation occurs in cooler starspot regions.',
+    ],
+    white_dwarf: [
+        'Featureless, intensely hot surface with uniform emission. No convection or spots — the degenerate matter below conducts heat perfectly. A faint shimmer indicates residual atmospheric settling.',
+        'Smooth, white-hot photosphere cooling over billions of years. Trace elements in the thin atmosphere create subtle spectral variations across the disk.',
+    ],
+    brown_dwarf: [
+        'Atmospheric bands reminiscent of gas giant planets, with alternating light and dark zones. Cloud decks of silicate and iron droplets drift across the surface.',
+        'Jupiter-like banding with swirling storm systems visible in the upper atmosphere. Methane and water vapor clouds create complex layered patterns.',
+        'Turbulent atmospheric bands with occasional bright spots marking deep convective upwellings. The boundary between star and planet blurs in this failed star.',
+    ],
+    binary: [
+        'The primary star shows solar-type granulation distorted by tidal interactions with its companion. Sunspot activity is enhanced along the sub-companion hemisphere.',
+        'Tidal bulges from the companion create elongated convection patterns. Enhanced magnetic activity produces frequent flare events on the facing hemisphere.',
+    ],
+    neutron_star: [
+        'No visible surface in the traditional sense. The ultra-dense crust pulses with intense magnetic field oscillations. Starquakes occasionally crack the crystalline neutron-degenerate surface.',
+        'A tiny, incredibly dense sphere radiating primarily in X-rays. The surface magnetic field exceeds 10¹² Gauss, channeling charged particles into luminous polar hotspots.',
+    ],
+    pulsar: [
+        'Rapidly rotating neutron star surface with powerful magnetic poles emitting coherent beams of radio and X-ray radiation. The rotation period is measured in milliseconds.',
+        'Spinning at tremendous speed, the magnetic poles sweep lighthouse beams across space. The magnetosphere crackles with relativistic particle acceleration.',
+    ],
+    black_hole: [
+        'No surface exists beyond the event horizon. An accretion disk of superheated plasma spirals inward, glowing with intense X-ray emission. A faint photon ring marks the last stable orbit.',
+        'The event horizon cloaks an unknowable interior. Infalling matter forms a luminous accretion disk, with relativistic jets possibly extending from the poles.',
+    ],
+    protostar: [
+        'A chaotic, still-contracting surface wreathed in infalling gas and dust. Bright eruptions mark accretion hotspots where material impacts the growing star. A circumstellar disk feeds the collapse.',
+        'The young, unstable photosphere flickers with irregular accretion bursts. Bipolar outflows carve cavities in the surrounding natal cloud. The surface has not yet reached equilibrium.',
+    ],
+};
+
 // Per-star-type surface profiles
 const STAR_SURFACE_PROFILES = {
-    red_dwarf:    { granScale: 3.0,  granContrast: 0.15, spotCount: [2,4],  spotSize: [20,45], spotDark: 0.55, bandCount: 0, driftSpeed: 0.00004, flareChance: 0.003 },
-    yellow_sun:   { granScale: 5.0,  granContrast: 0.20, spotCount: [5,10], spotSize: [12,35], spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
-    blue_giant:   { granScale: 7.0,  granContrast: 0.25, spotCount: [6,12], spotSize: [8,22],  spotDark: 0.50, bandCount: 0, driftSpeed: 0.00008, flareChance: 0.002 },
-    red_giant:    { granScale: 2.0,  granContrast: 0.30, spotCount: [3,6],  spotSize: [25,55], spotDark: 0.40, bandCount: 0, driftSpeed: 0.00002, flareChance: 0.001 },
+    red_dwarf:    { granScale: 3.0,  granContrast: 0.15, spotCount: [2,4],  spotSize: [4,10],  spotDark: 0.55, bandCount: 0, driftSpeed: 0.00004, flareChance: 0.003 },
+    yellow_sun:   { granScale: 5.0,  granContrast: 0.20, spotCount: [5,10], spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
+    blue_giant:   { granScale: 7.0,  granContrast: 0.25, spotCount: [6,12], spotSize: [2,5],   spotDark: 0.50, bandCount: 0, driftSpeed: 0.00008, flareChance: 0.002 },
+    red_giant:    { granScale: 2.0,  granContrast: 0.30, spotCount: [3,6],  spotSize: [6,14],  spotDark: 0.40, bandCount: 0, driftSpeed: 0.00002, flareChance: 0.001 },
     white_dwarf:  { granScale: 12.0, granContrast: 0.06, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0.00003, flareChance: 0 },
     brown_dwarf:  { granScale: 4.0,  granContrast: 0.12, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 6, driftSpeed: 0.00003, flareChance: 0 },
-    binary:       { granScale: 5.0,  granContrast: 0.20, spotCount: [4,8],  spotSize: [12,30], spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
+    binary:       { granScale: 5.0,  granContrast: 0.20, spotCount: [4,8],  spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
     neutron_star: { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
     pulsar:       { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
     black_hole:   null, // no surface
@@ -989,10 +1065,10 @@ function paintStarSurface(state, time) {
             const dist = Math.sqrt(dx*dx + dy*dy);
 
             if (dist > maxR) {
-                // Outside circle — transparent
+                // Outside circle — solid black (not transparent, to avoid inner sphere bleed-through)
                 const idx = (py * W + px) * 4;
                 data[idx] = data[idx+1] = data[idx+2] = 0;
-                data[idx+3] = 0;
+                data[idx+3] = 255;
                 continue;
             }
 
@@ -1485,6 +1561,7 @@ function renderStar(star) {
     }
 
     starSprite = new THREE.Mesh(sphereGeom, sphereMaterial);
+    starSprite.userData = { type: 'star', index: 0 };
     scene.add(starSprite);
 
     // ---- Glow sprite (additive, always faces camera) ----
@@ -1493,7 +1570,7 @@ function renderStar(star) {
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false
+        depthTest: true   // occluded by the opaque star body so glow doesn't bleed through
     });
     starGlowSprite = new THREE.Sprite(glowMaterial);
     starGlowSprite.renderOrder = -1; // render before other transparent objects
@@ -1532,6 +1609,7 @@ function renderStar(star) {
             });
         }
         binaryCompanionSprite = new THREE.Mesh(compSphereGeom, compSphereMat);
+        binaryCompanionSprite.userData = { type: 'star', index: 1 }; // companion
         scene.add(binaryCompanionSprite);
 
         // Companion glow
@@ -1540,7 +1618,7 @@ function renderStar(star) {
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            depthTest: false
+            depthTest: true   // occluded by opaque companion body
         });
         binaryCompanionGlow = new THREE.Sprite(compGlowMat);
         binaryCompanionGlow.renderOrder = -1;
@@ -1818,13 +1896,15 @@ function onClick(e) {
     raycaster.setFromCamera(mouse, camera);
 
     // Raycast against all clickable meshes (wormhole first for priority)
-    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes];
+    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes, ...(starSprite ? [starSprite] : []), ...(binaryCompanionSprite ? [binaryCompanionSprite] : [])];
     const intersects = raycaster.intersectObjects(allMeshes);
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData.type === 'wormhole') {
             selectWormhole();
+        } else if (hit.userData.type === 'star') {
+            selectStar();
         } else if (hit.userData.type === 'planet') {
             selectPlanet(hit.userData.index);
         } else if (hit.userData.type === 'moon') {
@@ -1839,13 +1919,15 @@ function onDblClick(e) {
     mouse.y = -((e.clientY - rect.top) / containerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes];
+    const allMeshes = [...(wormholeMesh ? [wormholeMesh] : []), ...planetMeshes, ...moonMeshes, ...(starSprite ? [starSprite] : []), ...(binaryCompanionSprite ? [binaryCompanionSprite] : [])];
     const intersects = raycaster.intersectObjects(allMeshes);
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData.type === 'wormhole') {
             enterWormhole();
+        } else if (hit.userData.type === 'star') {
+            selectStar(); // no landing on stars
         } else if (hit.userData.type === 'planet') {
             selectPlanet(hit.userData.index);
             landOnPlanet(hit.userData.index);
@@ -1865,12 +1947,16 @@ let selectedMesh = null;   // mesh currently highlighted (persists through pan)
 
 function clearBodyHighlights() {
     planetMeshes.forEach(m => {
-        m.material.emissive.setHex(0x000000);
-        m.material.emissiveIntensity = 0;
+        if (m.material.emissive) {
+            m.material.emissive.setHex(0x000000);
+            m.material.emissiveIntensity = 0;
+        }
     });
     moonMeshes.forEach(m => {
-        m.material.emissive.setHex(0x000000);
-        m.material.emissiveIntensity = 0;
+        if (m.material.emissive) {
+            m.material.emissive.setHex(0x000000);
+            m.material.emissiveIntensity = 0;
+        }
     });
     // Remove existing selection ring
     if (selectionRing) {
@@ -1885,9 +1971,11 @@ function clearBodyHighlights() {
 function highlightMesh(mesh) {
     clearBodyHighlights();
     if (mesh) {
-        // Emissive glow on the body itself
-        mesh.material.emissive.setHex(0xffcc00);
-        mesh.material.emissiveIntensity = 0.6;
+        // Emissive glow on the body itself (only if material supports it)
+        if (mesh.material.emissive) {
+            mesh.material.emissive.setHex(0xffcc00);
+            mesh.material.emissiveIntensity = 0.6;
+        }
 
         // Add a visible selection ring around the body
         const radius = mesh.geometry.parameters.radius || 1;
@@ -1909,6 +1997,7 @@ function highlightMesh(mesh) {
 function selectPlanet(index) {
     selectedPlanetIndex = index;
     selectedMoon = null;
+    setDetailLabels(defaultDetailLabels); // restore planet labels (in case star was selected)
     const planet = systemData.planets[index];
 
     // Highlight 3D mesh and set focus target
@@ -1951,6 +2040,7 @@ function selectPlanet(index) {
 function selectMoon(planetIndex, moonIndex) {
     selectedMoon = { planetIndex, moonIndex };
     selectedPlanetIndex = -1;
+    setDetailLabels(defaultDetailLabels); // restore planet labels
 
     // Highlight 3D mesh and set focus target
     const targetMoonMesh = moonMeshes.find(m =>
@@ -1987,6 +2077,7 @@ function selectWormhole() {
 
     selectedPlanetIndex = -1;
     selectedMoon = null;
+    setDetailLabels(defaultDetailLabels);
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
 
     // Highlight wormhole mesh
@@ -2016,6 +2107,145 @@ function selectWormhole() {
         <div class="stat" style="color:#888; font-size:11px;">Status: Stable / Active</div>
         <button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterWormhole()">Enter Wormhole</button>
     `;
+}
+
+// Solar constants for unit conversion
+const SOLAR_DIAMETER_KM = 1392700;
+const SOLAR_MASS_KG = 1.989e30;
+
+function selectStar(companionIndex) {
+    if (!systemData) return;
+    const star = systemData.star;
+    const isCompanion = companionIndex === 1 && star.companion;
+
+    selectedPlanetIndex = -1;
+    selectedMoon = null;
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+
+    // Highlight the star mesh (use selection ring but skip emissive for stars with surface textures)
+    const targetMesh = isCompanion ? binaryCompanionSprite : starSprite;
+    if (targetMesh) {
+        clearBodyHighlights();
+        // Add selection ring without emissive glow (star sphere is self-lit)
+        const radius = targetMesh.geometry.parameters.radius || 1;
+        const ringGeom = new THREE.RingGeometry(radius * 1.6, radius * 1.85, 48);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffcc00, side: THREE.DoubleSide,
+            transparent: true, opacity: 0.7, depthWrite: false
+        });
+        selectionRing = new THREE.Mesh(ringGeom, ringMat);
+        selectionRing.userData.isSelectionRing = true;
+        selectedMesh = targetMesh;
+        scene.add(selectionRing);
+        focusTarget = targetMesh;
+    }
+
+    // Get the star type data
+    const starType = isCompanion ? star.companion.type : star.type;
+    const physics = STAR_PHYSICS[starType.id] || STAR_PHYSICS.yellow_sun;
+    const starSeed = isCompanion ? (star.seed || 42) + 5000 : (star.seed || 42);
+
+    // Pick a surface description (seeded)
+    const descs = STAR_SURFACE_DESC[starType.id] || [];
+    const descIndex = descs.length > 0 ? (starSeed % descs.length) : 0;
+    const surfaceDesc = descs[descIndex] || 'No surface data available.';
+
+    // Compute physical values
+    const diameterKm = physics.diameterSol !== null ? physics.diameterSol * SOLAR_DIAMETER_KM : null;
+    const massKg = physics.massSol * SOLAR_MASS_KG;
+
+    // Format display values
+    const diameterStr = diameterKm !== null
+        ? (diameterKm >= 1e6 ? `${(diameterKm / 1e6).toFixed(2)} M km` :
+           diameterKm >= 1000 ? `${Math.round(diameterKm).toLocaleString()} km` :
+           `${diameterKm.toFixed(1)} km`)
+        + ` (${physics.diameterSol.toFixed(physics.diameterSol < 0.01 ? 5 : 2)} R☉)`
+        : 'Undefined (singularity)';
+
+    const tempStr = physics.tempK !== null
+        ? `${physics.tempK.toLocaleString()} K`
+        : 'Undefined';
+
+    const massExp = Math.floor(Math.log10(massKg));
+    const massMantissa = massKg / Math.pow(10, massExp);
+    const massStr = `${massMantissa.toFixed(2)} × 10${toSuperscript(massExp)} kg (${physics.massSol} M☉)`;
+
+    const lumStr = physics.luminositySol !== null
+        ? (physics.luminositySol >= 1000 ? `${physics.luminositySol.toLocaleString()} L☉` :
+           physics.luminositySol >= 0.001 ? `${physics.luminositySol} L☉` :
+           `${physics.luminositySol.toExponential(1)} L☉`)
+        : 'None (gravitational)';
+
+    const densityStr = physics.densityKgM3 !== null
+        ? (physics.densityKgM3 >= 1e6 ? `${physics.densityKgM3.toExponential(1)} kg/m³` :
+           `${Math.round(physics.densityKgM3).toLocaleString()} kg/m³`)
+        : 'Undefined';
+
+    // Populate the detail panel (reuse planet-detail with star-specific content)
+    const detail = document.getElementById('planet-detail');
+    detail.classList.add('active');
+
+    const label = isCompanion ? `${starType.name} (companion)` : star.name;
+    document.getElementById('pd-name').textContent = label;
+    document.getElementById('pd-id').textContent = isCompanion ? `${star.id}:companion` : star.id;
+    document.getElementById('pd-type').innerHTML =
+        `<span style="color:${starType.color}">${starType.name}</span>` +
+        ` <span style="color:#888">${physics.spectralClass}</span>`;
+    document.getElementById('pd-orbit').textContent = physics.ageDesc;
+    document.getElementById('pd-size').textContent = diameterStr;
+    document.getElementById('pd-tiles').textContent = tempStr;
+    document.getElementById('pd-atmo').textContent = lumStr;
+    document.getElementById('pd-life').textContent = densityStr;
+    document.getElementById('pd-biomes').textContent = massStr;
+    document.getElementById('pd-moons').textContent = isCompanion
+        ? `Companion to ${star.name}`
+        : `${systemData.planets.length} planet${systemData.planets.length !== 1 ? 's' : ''}`;
+
+    // Temporarily relabel the panel fields for star context
+    setDetailLabels({
+        name: isCompanion ? 'Companion' : 'Star',
+        type: 'Classification',
+        orbit: 'Age / Stage',
+        size: 'Diameter',
+        tiles: 'Surface Temp',
+        atmo: 'Luminosity',
+        life: 'Density',
+        biomes: 'Mass',
+        moons: 'System'
+    });
+
+    const btnContainer = document.getElementById('pd-land-btn-container');
+    btnContainer.innerHTML = `
+        <div style="margin-top:10px; padding:10px; background:#0a0a1a; border:1px solid #333; border-radius:4px; font-size:12px; color:#ccc; line-height:1.5;">
+            <div style="color:#ffcc00; font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Surface Phenomena</div>
+            ${surfaceDesc}
+        </div>
+    `;
+}
+
+// Temporarily change detail panel labels (for star view vs planet view)
+const defaultDetailLabels = { name:'Name', type:'Type', orbit:'Orbit', size:'Size (n)', tiles:'Tiles', atmo:'Atmosphere', life:'Life', biomes:'Biomes', moons:'Moons' };
+function setDetailLabels(labels) {
+    const fields = ['name','type','orbit','size','tiles','atmo','life','biomes','moons'];
+    const ids = ['pd-name','pd-type','pd-orbit','pd-size','pd-tiles','pd-atmo','pd-life','pd-biomes','pd-moons'];
+    for (let i = 0; i < fields.length; i++) {
+        const span = document.getElementById(ids[i]);
+        if (span && span.parentNode) {
+            const label = labels[fields[i]] || defaultDetailLabels[fields[i]];
+            // Replace the label text before the <span>
+            const parent = span.parentNode;
+            parent.firstChild.textContent = label + ': ';
+        }
+    }
+}
+
+// Unicode superscript converter for exponents
+function toSuperscript(n) {
+    const superDigits = '\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079';
+    const str = Math.abs(n).toString();
+    let result = n < 0 ? '\u207B' : '';
+    for (const ch of str) result += superDigits[parseInt(ch)];
+    return result;
 }
 
 function enterWormhole() {
@@ -2074,6 +2304,63 @@ function landOnPlanet(index) {
 function buildPlanetList() {
     const container = document.getElementById('planet-list');
     container.innerHTML = '';
+
+    // ---- Star entry at top of list ----
+    const star = systemData.star;
+    const starItem = document.createElement('div');
+    starItem.className = 'planet-list-item';
+    starItem.onclick = () => selectStar(0);
+
+    const starDot = document.createElement('div');
+    starDot.className = 'planet-dot';
+    starDot.style.width = '18px';
+    starDot.style.height = '18px';
+    starDot.style.background = `radial-gradient(circle, #fff, ${star.type.color})`;
+    starDot.style.boxShadow = `0 0 8px ${star.type.color}`;
+
+    const starInfo = document.createElement('div');
+    starInfo.className = 'planet-info-text';
+    const physics = STAR_PHYSICS[star.type.id] || {};
+    const tempK = physics.tempK ? `${physics.tempK.toLocaleString()} K` : '—';
+    starInfo.innerHTML = `
+        <div class="name" style="color:${star.type.color}">${star.name}</div>
+        <div class="type">${star.type.name} · ${physics.spectralClass || ''} · ${tempK}</div>
+    `;
+    starItem.appendChild(starDot);
+    starItem.appendChild(starInfo);
+    container.appendChild(starItem);
+
+    // Binary companion entry
+    if (star.type.id === 'binary' && star.companion) {
+        const compItem = document.createElement('div');
+        compItem.className = 'planet-list-item';
+        compItem.style.paddingLeft = '30px';
+        compItem.style.fontSize = '11px';
+        compItem.onclick = () => selectStar(1);
+
+        const compDot = document.createElement('div');
+        compDot.className = 'planet-dot';
+        compDot.style.width = '12px';
+        compDot.style.height = '12px';
+        compDot.style.background = `radial-gradient(circle, #fff, ${star.companion.type.color})`;
+        compDot.style.boxShadow = `0 0 6px ${star.companion.type.color}`;
+
+        const compInfo = document.createElement('div');
+        compInfo.className = 'planet-info-text';
+        const compPhysics = STAR_PHYSICS[star.companion.type.id] || {};
+        compInfo.innerHTML = `
+            <div class="name" style="font-size:12px; color:${star.companion.type.color}">${star.companion.type.name} (companion)</div>
+            <div class="type">${compPhysics.spectralClass || ''} · ${compPhysics.tempK ? compPhysics.tempK.toLocaleString() + ' K' : '—'}</div>
+        `;
+        compItem.appendChild(compDot);
+        compItem.appendChild(compInfo);
+        container.appendChild(compItem);
+    }
+
+    // Separator between star and planets
+    const sep = document.createElement('div');
+    sep.style.cssText = 'border-top:1px solid #333; margin:6px 0;';
+    container.appendChild(sep);
 
     for (let pi = 0; pi < systemData.planets.length; pi++) {
         const planet = systemData.planets[pi];
