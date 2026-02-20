@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite Realms — Universe View</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #040410;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    display: flex;
+}
+#canvas-container {
+    flex: 1;
+    position: relative;
+}
+canvas { display: block; }
+#info-panel {
+    width: 340px;
+    background: #0d0d1e;
+    border-left: 1px solid #2a2a3a;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100vh;
+}
+#info-panel h1 {
+    font-size: 16px;
+    color: #cc99ff;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #2a2a3a;
+    padding-bottom: 10px;
+}
+#info-panel h2 {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.stat { font-size: 13px; margin: 3px 0; color: #ccc; }
+.stat span { color: #fff; font-weight: bold; }
+.galaxy-list-item {
+    padding: 8px 10px;
+    margin: 4px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.galaxy-list-item:hover { background: #151530; border-color: #444; }
+.galaxy-list-item.selected { background: #1a1a3e; border-color: #cc99ff; }
+.galaxy-dot { border-radius: 50%; flex-shrink: 0; }
+.galaxy-info-text { flex: 1; font-size: 12px; }
+.galaxy-info-text .name { color: #fff; font-weight: bold; font-size: 13px; }
+.galaxy-info-text .type { color: #888; }
+#galaxy-detail {
+    margin-top: 15px;
+    padding: 12px;
+    background: #151530;
+    border-radius: 6px;
+    border: 1px solid #2a2a3a;
+    display: none;
+}
+#galaxy-detail.active { display: block; }
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 12px;
+    color: #555;
+}
+.btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #1a1a3a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    margin-top: 10px;
+    transition: all 0.15s;
+}
+.btn:hover { background: #2a2a4a; border-color: #cc99ff; color: #fff; }
+.btn.primary { border-color: #cc99ff; color: #cc99ff; }
+#seed-control {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #2a2a3a;
+}
+#seed-control input {
+    width: 100%;
+    padding: 6px 10px;
+    background: #151530;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    margin-top: 5px;
+}
+#density-control {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #2a2a3a;
+}
+#density-control label { display: flex; justify-content: space-between; align-items: center; }
+#density-slider {
+    width: 100%;
+    margin-top: 8px;
+    accent-color: #cc99ff;
+    cursor: pointer;
+}
+#density-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #555;
+    margin-top: 2px;
+    padding: 0 2px;
+}
+.tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
+.tag-cluster { background: #1a1a3a; color: #aa88dd; }
+.tag-field { background: #1a2a1a; color: #88aa66; }
+.tag-active { background: #3a1a1a; color: #ff8866; }
+#zoom-controls {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+#zoom-controls button {
+    width: 32px; height: 32px;
+    background: #1a1a3a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+}
+#zoom-controls button:hover { background: #2a2a4a; border-color: #cc99ff; }
+#search-box {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #2a2a3a;
+}
+#search-box input {
+    width: 100%;
+    padding: 6px 10px;
+    background: #151530;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+#search-box input::placeholder { color: #444; }
+.scroll-list { max-height: 300px; overflow-y: auto; }
+.scroll-list::-webkit-scrollbar { width: 6px; }
+.scroll-list::-webkit-scrollbar-track { background: transparent; }
+.scroll-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.cluster-header {
+    font-size: 11px; color: #8866aa; text-transform: uppercase;
+    letter-spacing: 1px; padding: 8px 0 4px 0;
+    border-bottom: 1px solid #1a1a2a; margin-top: 8px; cursor: pointer;
+}
+#hud-overlay {
+    position: absolute;
+    top: 60px;
+    left: 60px;
+    font-size: 11px;
+    color: rgba(200,150,255,0.25);
+    pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <div id="zoom-controls">
+        <button onclick="zoomIn()">+</button>
+        <button onclick="zoomOut()">−</button>
+        <button onclick="resetView()">⊙</button>
+    </div>
+    <div id="hud-overlay"></div>
+    <div id="controls">
+        <div>Drag to orbit | Scroll to zoom</div>
+        <div>Click galaxy for details | Double-click to enter</div>
+    </div>
+</div>
+
+<div id="info-panel">
+    <h1>Universe View</h1>
+    <div id="universe-info">
+        <h2>Universe</h2>
+        <div class="stat">Name: <span id="uni-name">—</span></div>
+        <div class="stat">ID: <span id="uni-id" style="color:#cc99ff;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Galaxies: <span id="uni-galaxy-count">—</span></div>
+        <div class="stat">Clusters: <span id="uni-cluster-count">—</span></div>
+        <div class="stat">Filaments: <span id="uni-filament-count">—</span></div>
+        <div class="stat">Total Systems: <span id="uni-system-count">—</span></div>
+    </div>
+    <div id="search-box">
+        <input type="text" id="search-input" placeholder="Search galaxies..." oninput="filterGalaxies()">
+    </div>
+    <h2>Galaxies</h2>
+    <div id="galaxy-list" class="scroll-list"></div>
+    <div id="galaxy-detail">
+        <h2 id="detail-header">Selected Galaxy</h2>
+        <div class="stat">Name: <span id="gd-name">—</span></div>
+        <div class="stat">ID: <span id="gd-id" style="color:#cc99ff;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Type: <span id="gd-type">—</span></div>
+        <div class="stat">Star Systems: <span id="gd-systems">—</span></div>
+        <div class="stat">Spiral Arms: <span id="gd-arms">—</span></div>
+        <div class="stat">Cluster: <span id="gd-cluster">—</span></div>
+        <div class="stat">Core: <span id="gd-smbh">—</span></div>
+        <div id="gd-enter-container"></div>
+    </div>
+    <div id="density-control">
+        <label class="stat">Universe Density <span id="density-value" style="color:#cc99ff;font-weight:bold">10x</span></label>
+        <input type="range" id="density-slider" min="0.5" max="10" step="0.5" value="10">
+        <div id="density-ticks"><span>0.5x</span><span>2x</span><span>5x</span><span>10x</span></div>
+    </div>
+    <div id="seed-control">
+        <label class="stat">Universe Seed</label>
+        <input type="text" id="seed-input" value="1">
+        <button class="btn" onclick="regenerateUniverse()">Generate</button>
+        <button class="btn" onclick="randomSeed()">Random</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+// SEEDED RANDOM
+// ============================================================
+class SeededRandom {
+    constructor(seed) {
+        this.seed = seed % 2147483647;
+        if (this.seed <= 0) this.seed += 2147483646;
+    }
+    next() { this.seed = (this.seed * 16807) % 2147483647; return (this.seed - 1) / 2147483646; }
+    nextInt(min, max) { return Math.floor(this.next() * (max - min + 1)) + min; }
+    nextFloat(min, max) { return this.next() * (max - min) + min; }
+    pick(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+    weightedPick(items) {
+        const total = items.reduce((s, i) => s + i.frequency, 0);
+        let r = this.next() * total;
+        for (const item of items) { r -= item.frequency; if (r <= 0) return item; }
+        return items[items.length - 1];
+    }
+    gaussian() {
+        const u1 = this.next(), u2 = this.next();
+        return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const GALAXY_VIEW_TYPES = [
+    { id: 'spiral',     arms: [2,6],  systemCount: [200,500] },
+    { id: 'barred',     arms: [2,4],  systemCount: [300,600] },
+    { id: 'elliptical', arms: [0,0],  systemCount: [150,400] },
+    { id: 'irregular',  arms: [0,0],  systemCount: [80,200] },
+];
+const GALAXY_VISUAL_TYPES = [
+    { id: 'spiral',     name: 'Spiral Galaxy',    color: '#88aaff', glowColor: '#4466cc' },
+    { id: 'barred',     name: 'Barred Spiral',    color: '#99bbff', glowColor: '#5577dd' },
+    { id: 'elliptical', name: 'Elliptical Galaxy', color: '#ffcc88', glowColor: '#cc9944' },
+    { id: 'irregular',  name: 'Irregular Galaxy',  color: '#aaddaa', glowColor: '#66aa66' },
+];
+const GALAXY_NAMES_PREFIX = ['Andromeda','Celestia','Draconis','Elysia','Fornax','Galactica','Helios','Icarus','Jotunheim','Kronos','Lyra','Mithras','Nebula','Orion','Pandora','Quasar','Regulus','Solara','Tethys','Umbra','Valhalla','Wyrm','Xanadu','Yggdrasil','Zenith'];
+const GALAXY_NAMES_SUFFIX = ['Expanse','Cluster','Nexus','Void','Reach','Dominion','Sector','Spiral','Drift','Wake'];
+const CLUSTER_PREFIX = ['Abell','Coma','Perseus','Virgo','Centaurus','Hydra','Ophiuchus','Hercules','Norma','Fornax','Phoenix','Sculptor','Antlia','Boötes','Sagitta','Pavo','Dorado','Horologium'];
+const CLUSTER_SUFFIX = ['Cluster','Supercluster','Group','Aggregate','Formation','Complex','Assembly','Convergence'];
+const UNI_PREFIX = ['Eternal','Infinite','Primordial','Celestial','Cosmic','Astral','Grand','Boundless','Vast','Ancient','Luminous','Sovereign','Twilight','Radiant','Abyssal'];
+const UNI_SUFFIX = ['Expanse','Continuum','Dominion','Realm','Tapestry','Lattice','Web','Horizon','Matrix','Firmament'];
+
+// ============================================================
+// UNIVERSE DENSITY
+// ============================================================
+let universeDensity = 1.0;
+
+// ============================================================
+// PEEK GALAXY PROPERTIES (matches galaxy_view.html RNG sequence)
+// ============================================================
+function peekGalaxyProperties(galaxySeed) {
+    const rng = new SeededRandom(galaxySeed);
+    const typeIndex = rng.nextInt(0, GALAXY_VIEW_TYPES.length - 1);
+    const gvType = GALAXY_VIEW_TYPES[typeIndex];
+    const name = rng.pick(GALAXY_NAMES_PREFIX) + ' ' + rng.pick(GALAXY_NAMES_SUFFIX);
+    const armCount = gvType.arms[0] === 0 ? 0 : rng.nextInt(gvType.arms[0], gvType.arms[1]);
+    const baseSystemCount = rng.nextInt(gvType.systemCount[0], gvType.systemCount[1]);
+    const systemCount = Math.round(baseSystemCount * universeDensity);
+    const smbhMass = rng.nextFloat(1, 40);
+    const smbhActive = rng.next() < 0.3;
+    return {
+        type: GALAXY_VISUAL_TYPES[typeIndex], name, armCount, systemCount, baseSystemCount,
+        smbhMass, smbhActive, smbhName: name.split(' ')[0] + ' Singularity'
+    };
+}
+
+// ============================================================
+// COSMIC WEB (MST + extra edges) — 3D
+// ============================================================
+function buildCosmicWeb(clusters, rng) {
+    const n = clusters.length;
+    if (n <= 1) return [];
+    const inMST = new Array(n).fill(false);
+    const edges = [];
+    inMST[0] = true;
+    for (let step = 0; step < n - 1; step++) {
+        let bestDist = Infinity, bestFrom = -1, bestTo = -1;
+        for (let i = 0; i < n; i++) {
+            if (!inMST[i]) continue;
+            for (let j = 0; j < n; j++) {
+                if (inMST[j]) continue;
+                const dx = clusters[i].x - clusters[j].x;
+                const dy = clusters[i].y - clusters[j].y;
+                const dz = clusters[i].z - clusters[j].z;
+                const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                if (d < bestDist) { bestDist = d; bestFrom = i; bestTo = j; }
+            }
+        }
+        if (bestTo >= 0) { inMST[bestTo] = true; edges.push([bestFrom, bestTo]); }
+    }
+    const edgeSet = new Set(edges.map(e => `${Math.min(e[0],e[1])}-${Math.max(e[0],e[1])}`));
+    const cands = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            if (!edgeSet.has(`${i}-${j}`)) {
+                const dx = clusters[i].x - clusters[j].x;
+                const dy = clusters[i].y - clusters[j].y;
+                const dz = clusters[i].z - clusters[j].z;
+                cands.push({ from: i, to: j, dist: Math.sqrt(dx*dx + dy*dy + dz*dz) });
+            }
+        }
+    }
+    cands.sort((a, b) => a.dist - b.dist);
+    const extra = Math.ceil(edges.length * 0.4);
+    for (let i = 0; i < Math.min(extra, cands.length); i++) edges.push([cands[i].from, cands[i].to]);
+    return edges;
+}
+
+// ============================================================
+// UNIVERSE GENERATION — 3D
+// ============================================================
+function generateUniverse(seed) {
+    const rng = new SeededRandom(seed);
+    const universeName = rng.pick(UNI_PREFIX) + ' ' + rng.pick(UNI_SUFFIX);
+    const universeId = `UNI-${String(seed).padStart(4, '0')}`;
+    const universeRadius = 700;
+
+    // Cluster centers — oblate disc distribution (Y flattened to 30%)
+    const flattenY = 0.55;
+    const clusterCount = rng.nextInt(8, 18);
+    const clusters = [];
+    for (let i = 0; i < clusterCount; i++) {
+        let cx, cy, cz, valid, attempts = 0;
+        do {
+            cx = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75);
+            cy = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75) * flattenY;
+            cz = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75);
+            valid = true;
+            for (const e of clusters) {
+                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 130) { valid = false; break; }
+            }
+            attempts++;
+        } while (!valid && attempts < 80);
+        clusters.push({
+            x: cx, y: cy, z: cz,
+            name: rng.pick(CLUSTER_PREFIX) + ' ' + rng.pick(CLUSTER_SUFFIX),
+            id: `${universeId}:CL-${String(i).padStart(2, '0')}`,
+            galaxyCount: rng.nextInt(3, 15),
+            radius: rng.nextFloat(60, 150),
+            index: i
+        });
+    }
+
+    const edges = buildCosmicWeb(clusters, rng);
+    const galaxies = [];
+    let galIdx = 0;
+
+    // Cluster galaxies — oblate disc distribution (scaled by density)
+    for (const cluster of clusters) {
+        const scaledGalCount = Math.max(1, Math.round(cluster.galaxyCount * universeDensity));
+        for (let g = 0; g < scaledGalCount; g++) {
+            const theta = rng.nextFloat(0, Math.PI * 2);
+            const phi = Math.acos(rng.nextFloat(-1, 1));
+            const dist = Math.abs(rng.gaussian()) * cluster.radius * 0.35;
+            const galaxySeed = rng.nextInt(1, 999999);
+            const props = peekGalaxyProperties(galaxySeed);
+            galaxies.push({
+                x: cluster.x + Math.sin(phi) * Math.cos(theta) * dist,
+                y: cluster.y + Math.cos(phi) * dist * flattenY,
+                z: cluster.z + Math.sin(phi) * Math.sin(theta) * dist,
+                seed: galaxySeed, type: props.type, name: props.name, props,
+                id: `${universeId}:GAL-${String(galIdx).padStart(3, '0')}`,
+                cluster, isField: false,
+                size: rng.nextFloat(10, 20),
+                angle: rng.nextFloat(0, Math.PI * 2),
+                index: galIdx
+            });
+            galIdx++;
+        }
+    }
+
+    // Filament galaxies — along edges in 3D (scaled by density)
+    for (const edge of edges) {
+        const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
+        const baseFilCount = rng.nextInt(0, 4);
+        const filCount = Math.round(baseFilCount * universeDensity);
+        for (let f = 0; f < filCount; f++) {
+            const t = rng.nextFloat(0.2, 0.8);
+            // 3D perpendicular offset via cross product with random vector
+            const edx = c2.x - c1.x, edy = c2.y - c1.y, edz = c2.z - c1.z;
+            const rx = rng.gaussian(), ry = rng.gaussian(), rz = rng.gaussian();
+            let px = edy*rz - edz*ry, py = edz*rx - edx*rz, pz = edx*ry - edy*rx;
+            const pLen = Math.sqrt(px*px + py*py + pz*pz) || 1;
+            const perpDist = rng.gaussian() * 25;
+            px = (px/pLen) * perpDist; py = (py/pLen) * perpDist; pz = (pz/pLen) * perpDist;
+            const galaxySeed = rng.nextInt(1, 999999);
+            const props = peekGalaxyProperties(galaxySeed);
+            galaxies.push({
+                x: c1.x + edx*t + px, y: c1.y + edy*t + py, z: c1.z + edz*t + pz,
+                seed: galaxySeed, type: props.type, name: props.name, props,
+                id: `${universeId}:GAL-${String(galIdx).padStart(3, '0')}`,
+                cluster: null, isField: true,
+                size: rng.nextFloat(7, 15), angle: rng.nextFloat(0, Math.PI * 2), index: galIdx
+            });
+            galIdx++;
+        }
+    }
+
+    // Field galaxies — scattered in void (scaled by density, Y flattened)
+    const baseFieldCount = rng.nextInt(5, 15);
+    const fieldCount = Math.max(1, Math.round(baseFieldCount * universeDensity));
+    for (let f = 0; f < fieldCount; f++) {
+        const galaxySeed = rng.nextInt(1, 999999);
+        const props = peekGalaxyProperties(galaxySeed);
+        galaxies.push({
+            x: rng.nextFloat(-universeRadius*0.9, universeRadius*0.9),
+            y: rng.nextFloat(-universeRadius*0.9, universeRadius*0.9) * flattenY,
+            z: rng.nextFloat(-universeRadius*0.9, universeRadius*0.9),
+            seed: galaxySeed, type: props.type, name: props.name, props,
+            id: `${universeId}:GAL-${String(galIdx).padStart(3, '0')}`,
+            cluster: null, isField: true,
+            size: rng.nextFloat(5, 12), angle: rng.nextFloat(0, Math.PI * 2), index: galIdx
+        });
+        galIdx++;
+    }
+
+    return { name: universeName, id: universeId, seed, clusters, galaxies, edges, universeRadius };
+}
+
+// ============================================================
+// GALAXY TEXTURES (canvas-drawn sprites per type)
+// ============================================================
+const galaxyTextures = {};
+
+function createGalaxyTextures() {
+    const types = [
+        { id: 'spiral', color: '#88aaff', draw: drawSpiralTex },
+        { id: 'barred', color: '#99bbff', draw: drawBarredTex },
+        { id: 'elliptical', color: '#ffcc88', draw: drawEllipticalTex },
+        { id: 'irregular', color: '#aaddaa', draw: drawIrregularTex },
+    ];
+    for (const t of types) {
+        const size = 128;
+        const c = document.createElement('canvas');
+        c.width = size; c.height = size;
+        const ctx = c.getContext('2d');
+        t.draw(ctx, size, t.color);
+        const tex = new THREE.CanvasTexture(c);
+        tex.needsUpdate = true;
+        galaxyTextures[t.id] = tex;
+    }
+}
+
+function drawSpiralTex(ctx, size, color) {
+    const cx = size/2, cy = size/2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
+    glow.addColorStop(0, color + '44'); glow.addColorStop(0.5, color + '11'); glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
+    for (let arm = 0; arm < 2; arm++) {
+        ctx.beginPath();
+        const start = arm * Math.PI;
+        for (let t = 0.05; t < 1; t += 0.02) {
+            const r = t * size * 0.42, a = start + t * 3.5;
+            const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r;
+            t <= 0.05 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = color + '88'; ctx.lineWidth = 3; ctx.stroke();
+    }
+    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size*0.1);
+    core.addColorStop(0, '#ffffffcc'); core.addColorStop(0.5, color + 'bb'); core.addColorStop(1, 'transparent');
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, size*0.1, 0, Math.PI*2); ctx.fill();
+}
+
+function drawBarredTex(ctx, size, color) {
+    const cx = size/2, cy = size/2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
+    glow.addColorStop(0, color + '44'); glow.addColorStop(0.5, color + '11'); glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = color + '99'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx - size*0.18, cy); ctx.lineTo(cx + size*0.18, cy); ctx.stroke();
+    for (let arm = 0; arm < 2; arm++) {
+        ctx.beginPath();
+        for (let t = 0.12; t < 1; t += 0.02) {
+            const r = t * size * 0.4, a = arm * Math.PI + t * 3.0;
+            const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r;
+            t <= 0.12 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = color + '66'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size*0.08);
+    core.addColorStop(0, '#ffffffcc'); core.addColorStop(0.5, color + 'bb'); core.addColorStop(1, 'transparent');
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, size*0.08, 0, Math.PI*2); ctx.fill();
+}
+
+function drawEllipticalTex(ctx, size, color) {
+    const cx = size/2, cy = size/2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
+    glow.addColorStop(0, color + 'cc'); glow.addColorStop(0.3, color + '66');
+    glow.addColorStop(0.6, color + '22'); glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.ellipse(cx, cy, size*0.45, size*0.3, 0, 0, Math.PI*2); ctx.fill();
+}
+
+function drawIrregularTex(ctx, size, color) {
+    const cx = size/2, cy = size/2;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
+    glow.addColorStop(0, color + '33'); glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
+    const br = new SeededRandom(42);
+    for (let b = 0; b < 6; b++) {
+        const bx = cx + br.nextFloat(-size*0.25, size*0.25);
+        const by = cy + br.nextFloat(-size*0.2, size*0.2);
+        const bRadius = br.nextFloat(size*0.06, size*0.16);
+        const bg = ctx.createRadialGradient(bx, by, 0, bx, by, bRadius);
+        bg.addColorStop(0, color + 'aa'); bg.addColorStop(1, 'transparent');
+        ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx, by, bRadius, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+// ============================================================
+// THREE.JS SCENE
+// ============================================================
+let scene, camera, renderer, raycaster, mouse;
+let universeData = null;
+let universeGroup = null;
+let galaxySprites = [];
+let clusterHaloMeshes = [];
+let selectionRing = null;
+let hoverRing = null;
+let selectedGalaxyIndex = -1;
+let hoveredGalaxyIndex = -1;
+let selectedClusterIndex = -1;
+
+// Camera orbit
+let camTheta = 0, camPhi = Math.PI / 4, camDist = 1800;
+let isDragging = false, dragStartX = 0, dragStartY = 0;
+let autoRotate = true, autoRotateTimer = null;
+
+function initThree() {
+    const container = document.getElementById('canvas-container');
+    const w = container.clientWidth, h = container.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040410);
+
+    camera = new THREE.PerspectiveCamera(50, w / h, 0.01, 10000);
+    updateCamera();
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    raycaster = new THREE.Raycaster();
+    raycaster.params.Sprite = { threshold: 10 };
+    mouse = new THREE.Vector2();
+
+    universeGroup = new THREE.Group();
+    scene.add(universeGroup);
+
+    // Selection / hover rings
+    const ringGeo = new THREE.RingGeometry(0.85, 1.0, 32);
+    const selMat = new THREE.MeshBasicMaterial({ color: 0xcc99ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7, depthWrite: false });
+    selectionRing = new THREE.Mesh(ringGeo, selMat);
+    selectionRing.visible = false;
+    scene.add(selectionRing);
+
+    const hovMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.3, depthWrite: false });
+    hoverRing = new THREE.Mesh(ringGeo.clone(), hovMat);
+    hoverRing.visible = false;
+    scene.add(hoverRing);
+
+    // Starfield background
+    createStarfield();
+
+    // Input handlers
+    const el = renderer.domElement;
+    el.addEventListener('mousedown', onMouseDown);
+    el.addEventListener('mousemove', onMouseMove);
+    el.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('mouseleave', onMouseUp);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('click', onClick);
+    el.addEventListener('dblclick', onDblClick);
+
+    window.addEventListener('resize', () => {
+        const w = container.clientWidth, h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+}
+
+function updateCamera() {
+    camera.position.x = camDist * Math.sin(camPhi) * Math.cos(camTheta);
+    camera.position.y = camDist * Math.cos(camPhi);
+    camera.position.z = camDist * Math.sin(camPhi) * Math.sin(camTheta);
+    camera.lookAt(0, 0, 0);
+}
+
+function createStarfield() {
+    const count = 3000;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+        const r = 3500 + Math.random() * 2000;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+        positions[i*3+1] = r * Math.cos(phi);
+        positions[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 1, transparent: true, opacity: 0.35, sizeAttenuation: false });
+    scene.add(new THREE.Points(geo, mat));
+}
+
+// ============================================================
+// BUILD UNIVERSE SCENE
+// ============================================================
+function clearUniverseScene() {
+    while (universeGroup.children.length) {
+        const c = universeGroup.children[0];
+        universeGroup.remove(c);
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+    }
+    galaxySprites = [];
+    clusterHaloMeshes = [];
+    selectionRing.visible = false;
+    hoverRing.visible = false;
+}
+
+function buildUniverseScene() {
+    if (!universeData) return;
+    clearUniverseScene();
+    const { clusters, galaxies, edges, universeRadius } = universeData;
+
+    // Orientation guides — disc plane ring + 2 vertical rings (flattened)
+    const discMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05 });
+    const vertMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.02 });
+    for (let plane = 0; plane < 3; plane++) {
+        const pts = [];
+        for (let i = 0; i <= 64; i++) {
+            const a = (i / 64) * Math.PI * 2;
+            const r = universeRadius * 1.02;
+            const ry = r * 0.55; // flattened Y for vertical rings
+            if (plane === 0) pts.push(new THREE.Vector3(Math.cos(a)*r, 0, Math.sin(a)*r));
+            else if (plane === 1) pts.push(new THREE.Vector3(Math.cos(a)*r, Math.sin(a)*ry, 0));
+            else pts.push(new THREE.Vector3(0, Math.cos(a)*ry, Math.sin(a)*r));
+        }
+        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), plane === 0 ? discMat : vertMat));
+    }
+
+    // Filaments
+    const filGlowMat = new THREE.LineBasicMaterial({ color: 0x5040a0, transparent: true, opacity: 0.15, depthWrite: false });
+    const filCoreMat = new THREE.LineBasicMaterial({ color: 0x8070cc, transparent: true, opacity: 0.08, depthWrite: false });
+    for (const edge of edges) {
+        const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
+        const pts = [new THREE.Vector3(c1.x, c1.y, c1.z), new THREE.Vector3(c2.x, c2.y, c2.z)];
+        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), filGlowMat));
+        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), filCoreMat));
+    }
+
+    // Cluster halos — oblate ellipsoids
+    const haloFlattenY = 0.55;
+    for (let ci = 0; ci < clusters.length; ci++) {
+        const cl = clusters[ci];
+        // Transparent oblate ellipsoid
+        const haloGeo = new THREE.SphereGeometry(cl.radius, 16, 12);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color: 0x6050b0, transparent: true, opacity: 0.025, side: THREE.DoubleSide, depthWrite: false
+        });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        halo.position.set(cl.x, cl.y, cl.z);
+        halo.scale.set(1, haloFlattenY, 1);
+        halo.userData = { clusterIndex: ci };
+        universeGroup.add(halo);
+        clusterHaloMeshes.push(halo);
+
+        // Wireframe boundary — oblate
+        const wireGeo = new THREE.SphereGeometry(cl.radius, 12, 8);
+        const wireMat = new THREE.MeshBasicMaterial({
+            color: 0x8070cc, transparent: true, opacity: 0.04, wireframe: true, depthWrite: false
+        });
+        const wire = new THREE.Mesh(wireGeo, wireMat);
+        wire.position.set(cl.x, cl.y, cl.z);
+        wire.scale.set(1, haloFlattenY, 1);
+        universeGroup.add(wire);
+    }
+
+    // Galaxy sprites
+    for (let gi = 0; gi < galaxies.length; gi++) {
+        const gal = galaxies[gi];
+        const tex = galaxyTextures[gal.type.id];
+        const mat = new THREE.SpriteMaterial({
+            map: tex, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.set(gal.x, gal.y, gal.z);
+        const s = gal.size * 1.8;
+        sprite.scale.set(s, s, 1);
+        sprite.userData = { galaxyIndex: gi };
+        universeGroup.add(sprite);
+        galaxySprites.push(sprite);
+    }
+}
+
+// ============================================================
+// CAMERA CONTROLS
+// ============================================================
+function onMouseDown(e) {
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    autoRotate = false;
+    clearTimeout(autoRotateTimer);
+    renderer.domElement.style.cursor = 'grabbing';
+}
+
+function onMouseMove(e) {
+    if (isDragging) {
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        camTheta -= dx * 0.005;
+        camPhi -= dy * 0.005;
+        camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi));
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        updateCamera();
+    } else {
+        // Hover detection
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+
+        const hits = raycaster.intersectObjects(galaxySprites);
+        hoveredGalaxyIndex = -1;
+        hoverRing.visible = false;
+
+        if (hits.length > 0) {
+            const gi = hits[0].object.userData.galaxyIndex;
+            hoveredGalaxyIndex = gi;
+            const gal = universeData.galaxies[gi];
+            hoverRing.position.set(gal.x, gal.y, gal.z);
+            hoverRing.scale.setScalar(gal.size * 2.2);
+            hoverRing.lookAt(camera.position);
+            hoverRing.visible = true;
+            renderer.domElement.style.cursor = 'pointer';
+        } else {
+            renderer.domElement.style.cursor = 'crosshair';
+        }
+    }
+}
+
+function onMouseUp() {
+    if (isDragging) {
+        isDragging = false;
+        renderer.domElement.style.cursor = 'crosshair';
+        // Resume auto-rotate after 4 seconds
+        autoRotateTimer = setTimeout(() => { autoRotate = true; }, 4000);
+    }
+}
+
+function onWheel(e) {
+    e.preventDefault();
+    camDist *= e.deltaY > 0 ? 1.08 : 0.92;
+    camDist = Math.max(0.01, Math.min(5000, camDist));
+    updateCamera();
+}
+
+function onClick(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check galaxies first
+    const galHits = raycaster.intersectObjects(galaxySprites);
+    if (galHits.length > 0) {
+        selectGalaxy(galHits[0].object.userData.galaxyIndex);
+        return;
+    }
+
+    // Check cluster halos
+    const clHits = raycaster.intersectObjects(clusterHaloMeshes);
+    if (clHits.length > 0) {
+        selectCluster(clHits[0].object.userData.clusterIndex);
+    }
+}
+
+function onDblClick(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(galaxySprites);
+    if (hits.length > 0) enterGalaxy(hits[0].object.userData.galaxyIndex);
+}
+
+function zoomIn() { camDist = Math.max(0.01, camDist * 0.7); updateCamera(); }
+function zoomOut() { camDist = Math.min(5000, camDist * 1.3); updateCamera(); }
+function resetView() { camTheta = 0; camPhi = Math.PI / 4; camDist = 1800; updateCamera(); }
+
+// ============================================================
+// SELECTION & DETAIL
+// ============================================================
+function selectGalaxy(index) {
+    selectedGalaxyIndex = index;
+    selectedClusterIndex = -1;
+    const gal = universeData.galaxies[index];
+
+    // Position selection ring
+    selectionRing.position.set(gal.x, gal.y, gal.z);
+    selectionRing.scale.setScalar(gal.size * 2.5);
+    selectionRing.lookAt(camera.position);
+    selectionRing.visible = true;
+
+    // Highlight in list
+    document.querySelectorAll('.galaxy-list-item').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.index) === index);
+    });
+
+    const detail = document.getElementById('galaxy-detail');
+    detail.classList.add('active');
+    document.getElementById('detail-header').textContent = 'Selected Galaxy';
+    document.getElementById('gd-name').textContent = gal.name;
+    document.getElementById('gd-id').textContent = gal.id;
+    document.getElementById('gd-type').innerHTML = `<span style="color:${gal.type.color}">${gal.type.name}</span>`;
+    document.getElementById('gd-systems').textContent = gal.props ? gal.props.systemCount : '—';
+    document.getElementById('gd-arms').textContent = gal.props ? (gal.props.armCount > 0 ? gal.props.armCount : 'N/A') : '—';
+    document.getElementById('gd-cluster').textContent = gal.cluster ? gal.cluster.name : 'Field Galaxy (void)';
+    document.getElementById('gd-smbh').innerHTML = gal.props
+        ? `<span style="color:#ff8844">${gal.props.smbhName}</span> (${gal.props.smbhMass.toFixed(1)}B M☉${gal.props.smbhActive ? ', <span style="color:#ff6622">Active</span>' : ''})`
+        : '—';
+    document.getElementById('gd-enter-container').innerHTML =
+        `<button class="btn primary" onclick="enterGalaxy(${index})">Enter ${gal.name}</button>`;
+}
+
+function selectCluster(index) {
+    selectedClusterIndex = index;
+    selectedGalaxyIndex = -1;
+    selectionRing.visible = false;
+    const cluster = universeData.clusters[index];
+
+    document.querySelectorAll('.galaxy-list-item').forEach(el => el.classList.remove('selected'));
+
+    const clusterGals = universeData.galaxies.filter(g => g.cluster && g.cluster.index === index);
+    const totalSystems = clusterGals.reduce((s, g) => s + (g.props ? g.props.systemCount : 0), 0);
+
+    const detail = document.getElementById('galaxy-detail');
+    detail.classList.add('active');
+    document.getElementById('detail-header').textContent = 'Selected Cluster';
+    document.getElementById('gd-name').textContent = cluster.name;
+    document.getElementById('gd-id').textContent = cluster.id;
+    document.getElementById('gd-type').innerHTML = '<span style="color:#aa88dd">Galaxy Cluster</span>';
+    document.getElementById('gd-systems').textContent = `${totalSystems} (across ${clusterGals.length} galaxies)`;
+    document.getElementById('gd-arms').textContent = '—';
+    document.getElementById('gd-cluster').textContent = `${clusterGals.length} member galaxies`;
+    document.getElementById('gd-smbh').textContent = '—';
+    document.getElementById('gd-enter-container').innerHTML = '';
+}
+
+function enterGalaxy(index) {
+    const gal = universeData.galaxies[index];
+    const params = new URLSearchParams({
+        seed: gal.seed, universe: universeData.name,
+        universeId: universeData.id, galaxyCatalogId: gal.id,
+        returnUniverseSeed: universeData.seed,
+        density: universeDensity
+    });
+    window.location.href = `galaxy_view.html?${params.toString()}`;
+}
+
+// ============================================================
+// GALAXY LIST
+// ============================================================
+let allListItems = [];
+
+function buildGalaxyList() {
+    const container = document.getElementById('galaxy-list');
+    container.innerHTML = '';
+    allListItems = [];
+
+    const clusterMap = new Map();
+    const fieldGalaxies = [];
+    for (const gal of universeData.galaxies) {
+        if (gal.cluster) {
+            if (!clusterMap.has(gal.cluster.index)) clusterMap.set(gal.cluster.index, []);
+            clusterMap.get(gal.cluster.index).push(gal);
+        } else fieldGalaxies.push(gal);
+    }
+
+    for (const [ci, gals] of clusterMap) {
+        const cluster = universeData.clusters[ci];
+        const header = document.createElement('div');
+        header.className = 'cluster-header';
+        header.textContent = `${cluster.name} (${gals.length})`;
+        header.onclick = () => selectCluster(ci);
+        container.appendChild(header);
+        for (const gal of gals.sort((a, b) => a.name.localeCompare(b.name))) {
+            container.appendChild(createGalaxyListItem(gal));
+        }
+    }
+    if (fieldGalaxies.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'cluster-header';
+        header.textContent = `Field Galaxies (${fieldGalaxies.length})`;
+        container.appendChild(header);
+        for (const gal of fieldGalaxies.sort((a, b) => a.name.localeCompare(b.name))) {
+            container.appendChild(createGalaxyListItem(gal));
+        }
+    }
+}
+
+function createGalaxyListItem(gal) {
+    const item = document.createElement('div');
+    item.className = 'galaxy-list-item';
+    item.dataset.index = gal.index;
+    item.dataset.name = gal.name.toLowerCase();
+    item.onclick = () => { selectGalaxy(gal.index); };
+    item.ondblclick = () => { enterGalaxy(gal.index); };
+
+    const dot = document.createElement('div');
+    dot.className = 'galaxy-dot';
+    dot.style.width = '12px'; dot.style.height = '12px';
+    dot.style.background = `radial-gradient(circle, ${gal.type.color}, ${gal.type.glowColor}44)`;
+
+    const info = document.createElement('div');
+    info.className = 'galaxy-info-text';
+    let tags = '';
+    if (gal.cluster) tags += `<span class="tag tag-cluster">${gal.cluster.name.split(' ')[0]}</span>`;
+    else tags += '<span class="tag tag-field">Field</span>';
+    if (gal.props && gal.props.smbhActive) tags += '<span class="tag tag-active">AGN</span>';
+    info.innerHTML = `<div class="name">${gal.name}</div>
+        <div class="type">${gal.type.name} · ${gal.props ? gal.props.systemCount : '?'} systems${tags}</div>`;
+
+    item.appendChild(dot);
+    item.appendChild(info);
+    allListItems.push(item);
+    return item;
+}
+
+function filterGalaxies() {
+    const query = document.getElementById('search-input').value.toLowerCase();
+    for (const item of allListItems) item.style.display = (!query || item.dataset.name.includes(query)) ? 'flex' : 'none';
+    document.querySelectorAll('.cluster-header').forEach(h => h.style.display = query ? 'none' : 'block');
+}
+
+// ============================================================
+// UNIVERSE INFO
+// ============================================================
+function updateUniverseInfo() {
+    const { galaxies, clusters, edges } = universeData;
+    document.getElementById('uni-name').textContent = universeData.name;
+    document.getElementById('uni-id').textContent = universeData.id;
+    document.getElementById('uni-galaxy-count').textContent = galaxies.length;
+    document.getElementById('uni-cluster-count').textContent = clusters.length;
+    document.getElementById('uni-filament-count').textContent = edges.length;
+    document.getElementById('uni-system-count').textContent =
+        galaxies.reduce((s, g) => s + (g.props ? g.props.systemCount : 0), 0).toLocaleString();
+}
+
+// ============================================================
+// ANIMATION & HUD
+// ============================================================
+function updateHUD() {
+    const { galaxies, clusters } = universeData;
+    const hud = document.getElementById('hud-overlay');
+    hud.innerHTML = `<div style="font:bold 14px 'Courier New'">${universeData.name}</div>
+        <div>${galaxies.length} galaxies · ${clusters.length} clusters</div>`;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (autoRotate && !isDragging) {
+        camTheta += 0.0008;
+        updateCamera();
+    }
+
+    // Keep selection/hover rings facing camera
+    if (selectionRing.visible) selectionRing.lookAt(camera.position);
+    if (hoverRing.visible) hoverRing.lookAt(camera.position);
+
+    renderer.render(scene, camera);
+}
+
+// ============================================================
+// GENERATION & INIT
+// ============================================================
+function regenerateUniverse(resetCamera) {
+    const seed = parseInt(document.getElementById('seed-input').value) || 1;
+    universeDensity = parseFloat(document.getElementById('density-slider').value) || 1.0;
+    document.getElementById('density-value').textContent = universeDensity + 'x';
+    universeData = generateUniverse(seed);
+    universeData.density = universeDensity;
+    selectedGalaxyIndex = -1;
+    hoveredGalaxyIndex = -1;
+    selectedClusterIndex = -1;
+    document.getElementById('galaxy-detail').classList.remove('active');
+    document.getElementById('search-input').value = '';
+    if (resetCamera !== false) {
+        camTheta = 0; camPhi = Math.PI / 4; camDist = 1800;
+        updateCamera();
+    }
+    updateUniverseInfo();
+    buildGalaxyList();
+    buildUniverseScene();
+    updateHUD();
+}
+
+// Density slider — update label live, regenerate on release
+function initDensitySlider() {
+    const slider = document.getElementById('density-slider');
+    slider.addEventListener('input', () => {
+        document.getElementById('density-value').textContent = slider.value + 'x';
+    });
+    slider.addEventListener('change', () => {
+        regenerateUniverse(false);
+    });
+}
+
+function randomSeed() {
+    document.getElementById('seed-input').value = Math.floor(Math.random() * 999999) + 1;
+    regenerateUniverse();
+}
+
+// Init
+createGalaxyTextures();
+initThree();
+initDensitySlider();
+
+// Check URL params for seed and density
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('seed')) document.getElementById('seed-input').value = urlParams.get('seed');
+if (urlParams.get('density')) document.getElementById('density-slider').value = urlParams.get('density');
+
+regenerateUniverse();
+animate();
+</script>
+</body>
+</html>

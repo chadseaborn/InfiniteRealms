@@ -228,7 +228,7 @@ canvas { display: block; }
         <div class="stat">Planets: <span id="sd-planets">—</span></div>
         <div class="stat">Sector: <span id="sd-sector">—</span></div>
         <div class="stat">Arm: <span id="sd-arm">—</span></div>
-        <div class="stat">Anomaly: <span id="sd-notable">—</span></div>
+        <div class="stat">Notable: <span id="sd-notable">—</span></div>
         <div id="sd-enter-container"></div>
     </div>
 
@@ -269,20 +269,18 @@ class SeededRandom {
 // ============================================================
 // GALAXY GENERATION
 // ============================================================
-// Frequencies match star_system.html — realistic distribution with gameplay boost for exotics
 const STAR_TYPES = [
-    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.40, luminosity: 'Low',      color: '#ff6644', radius: 3,   planetRange: [1,6] },
-    { id: 'orange_dwarf', name: 'Orange Dwarf',  frequency: 0.15, luminosity: 'Low-Med',  color: '#ffaa44', radius: 3.5, planetRange: [2,8] },
-    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.12, luminosity: 'Medium',   color: '#ffdd44', radius: 4,   planetRange: [3,14] },
-    { id: 'binary',       name: 'Binary System', frequency: 0.12, luminosity: 'Variable', color: '#ffaa44', radius: 4,   planetRange: [1,8] },
-    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.05, luminosity: 'Low',      color: '#eeeeff', radius: 2.5, planetRange: [0,5] },
-    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.05, luminosity: 'Very Low', color: '#884422', radius: 2,   planetRange: [0,4] },
-    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.03, luminosity: 'High',     color: '#6688ff', radius: 6,   planetRange: [2,10] },
-    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.03, luminosity: 'High',     color: '#ff5533', radius: 5.5, planetRange: [1,8] },
-    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.02, luminosity: 'Extreme',  color: '#cc88ff', radius: 2,   planetRange: [0,3] },
-    { id: 'protostar',    name: 'Protostar',     frequency: 0.01, luminosity: 'Variable', color: '#ffaa66', radius: 4.5, planetRange: [0,3] },
-    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.01, luminosity: 'Extreme',  color: '#dd99ff', radius: 2,   planetRange: [0,2] },
-    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.007,luminosity: 'None',     color: '#441155', radius: 3,   planetRange: [0,4] },
+    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.30, luminosity: 'Low',      color: '#ff6644', radius: 3,   planetRange: [1,6] },
+    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.22, luminosity: 'Medium',   color: '#ffdd44', radius: 4,   planetRange: [3,14] },
+    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.06, luminosity: 'High',     color: '#6688ff', radius: 6,   planetRange: [2,10] },
+    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.06, luminosity: 'High',     color: '#ff5533', radius: 5.5, planetRange: [1,8] },
+    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.08, luminosity: 'Low',      color: '#eeeeff', radius: 2.5, planetRange: [0,5] },
+    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.06, luminosity: 'Very Low', color: '#884422', radius: 2,   planetRange: [0,4] },
+    { id: 'binary',       name: 'Binary System', frequency: 0.10, luminosity: 'Variable', color: '#ffaa44', radius: 4,   planetRange: [1,8] },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.04, luminosity: 'Extreme',  color: '#cc88ff', radius: 2,   planetRange: [0,3] },
+    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.03, luminosity: 'Extreme',  color: '#dd99ff', radius: 2,   planetRange: [0,2] },
+    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.03, luminosity: 'None',     color: '#441155', radius: 3,   planetRange: [0,4] },
+    { id: 'protostar',    name: 'Protostar',     frequency: 0.02, luminosity: 'Variable', color: '#ffaa66', radius: 4.5, planetRange: [0,3] },
 ];
 
 const GALAXY_TYPES = [
@@ -303,215 +301,6 @@ const NOTABLE_FEATURES = [
     'Nebula cluster', 'Derelict fleet wreckage', 'Active trading hub',
     'Anomalous energy readings', 'Dyson sphere remnants', 'Pirate stronghold', 'Research outpost',
 ];
-
-// ============================================================
-// WORMHOLE HELPERS
-// ============================================================
-const WORMHOLE_NAME_PREFIXES = ['Nexus','Void','Rift','Gate','Passage','Breach','Fold','Tear','Drift','Maw'];
-const WORMHOLE_NAME_SUFFIXES = ['Alpha','Omega','Prime','Zero','Deep','Far','Beyond','Null','Apex','Lux'];
-
-function generateWormholeDestName(seed) {
-    const rng = new SeededRandom(seed);
-    return rng.pick(WORMHOLE_NAME_PREFIXES) + ' ' + rng.pick(WORMHOLE_NAME_SUFFIXES);
-}
-
-function createWormholeTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    const cx = 64, cy = 64;
-    ctx.clearRect(0, 0, 128, 128);
-
-    // Concentric rings
-    for (let ring = 0; ring < 8; ring++) {
-        const r = 6 + ring * 7;
-        const alpha = Math.max(0, 0.7 - ring * 0.08);
-        const hue = 170 + ring * 15;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${alpha})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-    }
-
-    // Bright center
-    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 20);
-    coreGrad.addColorStop(0, 'rgba(200,255,255,0.9)');
-    coreGrad.addColorStop(0.5, 'rgba(100,255,220,0.4)');
-    coreGrad.addColorStop(1, 'rgba(50,200,180,0)');
-    ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 20, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Outer glow
-    const outerGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 64);
-    outerGrad.addColorStop(0, 'rgba(100,200,255,0.2)');
-    outerGrad.addColorStop(0.5, 'rgba(180,100,255,0.1)');
-    outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = outerGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 64, 0, Math.PI * 2);
-    ctx.fill();
-
-    return new THREE.CanvasTexture(canvas);
-}
-
-// Possible companion stars for binary systems (must match star_system.html)
-const BINARY_COMPANIONS = [
-    { id: 'red_dwarf',    name: 'Red Dwarf',    frequency: 0.35, color: '#ff6644', radius: 0.5 },
-    { id: 'orange_dwarf', name: 'Orange Dwarf', frequency: 0.20, color: '#ffaa44', radius: 0.6 },
-    { id: 'yellow_sun',   name: 'Yellow Sun',   frequency: 0.20, color: '#ffdd44', radius: 0.7 },
-    { id: 'white_dwarf',  name: 'White Dwarf',  frequency: 0.15, color: '#eeeeff', radius: 0.3 },
-    { id: 'red_giant',    name: 'Red Giant',    frequency: 0.04, color: '#ff5533', radius: 1.2 },
-    { id: 'neutron_star', name: 'Neutron Star', frequency: 0.04, color: '#cc88ff', radius: 0.25 },
-    { id: 'black_hole',   name: 'Black Hole',   frequency: 0.02, color: '#220033', radius: 0.4 },
-];
-
-// Planet type definitions for RNG replay (must match star_system.html frequencies & orbital biases)
-const PLANET_TYPES_PEEK = [
-    { id: 'barren_rock', frequency: 0.25, orbitalBias: 'inner',    sizeN: [3,8],   moonRange: null },
-    { id: 'habitable',   frequency: 0.15, orbitalBias: 'hab_zone', sizeN: [20,100], moonRange: null },
-    { id: 'ocean_world', frequency: 0.10, orbitalBias: 'hab_zone', sizeN: [15,60],  moonRange: null },
-    { id: 'ice_world',   frequency: 0.15, orbitalBias: 'outer',   sizeN: [8,30],   moonRange: null },
-    { id: 'gas_giant',   frequency: 0.20, orbitalBias: 'outer',   sizeN: [30,80],  moonRange: [1,8], stationRange: [0,3] },
-    { id: 'volcanic',    frequency: 0.10, orbitalBias: 'inner',   sizeN: [5,20],   moonRange: null },
-    { id: 'anomalous',   frequency: 0.05, orbitalBias: 'any',     sizeN: [3,50],   moonRange: null },
-];
-const GAS_GIANT_SUBTYPES_PEEK = [
-    { id: 'jovian',    frequency: 0.35 },
-    { id: 'saturnian', frequency: 0.25 },
-    { id: 'neptunian', frequency: 0.20 },
-    { id: 'uranian',   frequency: 0.20 },
-];
-const MOON_TYPES_PEEK = [
-    { id: 'rocky_moon',     frequency: 0.35, sizeN: [2,5] },
-    { id: 'ice_moon',       frequency: 0.25, sizeN: [2,6] },
-    { id: 'volcanic_moon',  frequency: 0.15, sizeN: [2,4] },
-    { id: 'habitable_moon', frequency: 0.10, sizeN: [3,8] },
-    { id: 'barren_moon',    frequency: 0.15, sizeN: [2,3] },
-];
-
-// Ring chance per body type (must match star_system.html RING_CHANCE)
-const RING_CHANCE_PEEK = {
-    gas_giant: 0.65, ice_world: 0.08, barren_rock: 0.03, habitable: 0.02,
-    ocean_world: 0.02, volcanic: 0.01, anomalous: 0.15,
-    rocky_moon: 0.01, ice_moon: 0.04, volcanic_moon: 0.01,
-    habitable_moon: 0.02, barren_moon: 0.01
-};
-// Burn the same RNG calls that generateRings() makes in star_system.html
-function burnRingRng(rng, bodyTypeId) {
-    const chance = RING_CHANCE_PEEK[bodyTypeId] || 0.02;
-    if (rng.next() > chance) return; // 1 call if no rings
-    rng.next(); // composition
-    rng.next(); // innerRatio
-    rng.next(); // outerRatio
-    const bandCount = 1 + Math.floor(rng.next() * 4);
-    for (let b = 0; b < bandCount; b++) {
-        rng.next(); // bandWidth
-        rng.next(); // gapWidth
-        rng.next(); // colorIdx
-        rng.next(); // opacity
-    }
-    rng.next(); // tilt
-    rng.next(); // tiltPhase
-}
-
-// habZone lookup keyed by star type id (must match star_system.html)
-const HAB_ZONES = {
-    red_dwarf: [1,2], orange_dwarf: [1,3], yellow_sun: [2,5], blue_giant: [4,7], red_giant: [5,8],
-    white_dwarf: [1,1], brown_dwarf: [], binary: [3,5],
-    neutron_star: [], pulsar: [], black_hole: [], protostar: []
-};
-
-// Peek at system details by replaying the exact RNG sequence from star_system.html's generateSystem()
-// Returns { starName, binaryCompanion, planetCount, hasHabitable, hasWormhole }
-function peekSystemDetails(systemSeed, starTypeId) {
-    const rng = new SeededRandom(systemSeed);
-    // Replicate generateSystem() RNG calls with forcedStarTypeId:
-    // 1. starDef found via Array.find() (no RNG), then one burn weightedPick to keep sequence
-    const starDef = STAR_TYPES.find(t => t.id === starTypeId);
-    rng.weightedPick(STAR_TYPES); // burn call to keep sequence consistent
-    // 2. Star name (positions 2-3 in sequence)
-    const starName = rng.pick(STAR_NAMES_PREFIX) + ' ' + rng.pick(STAR_NAMES_SUFFIX);
-    // 3. Binary companion (only if binary — consumes one weightedPick)
-    let binaryCompanion = null;
-    if (starTypeId === 'binary') {
-        binaryCompanion = rng.weightedPick(BINARY_COMPANIONS);
-    }
-    // 4. Planet count (uses starDef.planetCount in star_system.html, same values as planetRange here)
-    const planetCount = rng.nextInt(starDef.planetRange[0], starDef.planetRange[1]);
-
-    // 5. Replay planet generation loop to determine actual habitability
-    const habZone = HAB_ZONES[starTypeId] || [];
-    let hasHabitable = false;
-    for (let i = 0; i < planetCount; i++) {
-        const orbit = i + 1;
-        const inHabZone = habZone.length >= 2 && orbit >= habZone[0] && orbit <= habZone[1];
-
-        // Weight planet type by orbital position (must match star_system.html logic exactly)
-        const weightedTypes = PLANET_TYPES_PEEK.map(pt => {
-            let freq = pt.frequency;
-            if (pt.orbitalBias === 'inner' && orbit <= 2) freq *= 2;
-            else if (pt.orbitalBias === 'inner' && orbit > 3) freq *= 0.3;
-            if (pt.orbitalBias === 'outer' && orbit > 3) freq *= 2;
-            else if (pt.orbitalBias === 'outer' && orbit <= 2) freq *= 0.2;
-            if (pt.orbitalBias === 'hab_zone' && inHabZone) freq *= 3;
-            else if (pt.orbitalBias === 'hab_zone' && !inHabZone) freq *= 0.3;
-            return { ...pt, frequency: freq };
-        });
-        const typeDef = rng.weightedPick(weightedTypes);
-
-        // Gas giant subtype (conditional RNG call)
-        if (typeDef.id === 'gas_giant') {
-            rng.weightedPick(GAS_GIANT_SUBTYPES_PEEK);
-        }
-
-        // sizeN
-        const sizeN = rng.nextInt(typeDef.sizeN[0], typeDef.sizeN[1]);
-
-        // Life classification roll
-        rng.next(); // lifeRoll — consumed but we don't need the result for habitability check
-
-        // Check habitability: habitable or ocean_world in the hab zone counts
-        if ((typeDef.id === 'habitable' || typeDef.id === 'ocean_world') && inHabZone) {
-            hasHabitable = true;
-        }
-
-        // Moon count (must replay to keep RNG in sync)
-        let moonCount = 0;
-        if (typeDef.moonRange) {
-            moonCount = rng.nextInt(typeDef.moonRange[0], typeDef.moonRange[1]);
-        } else if (sizeN > 15 && rng.next() > 0.5) {
-            moonCount = rng.nextInt(0, 3);
-        }
-
-        // Replay moon generation RNG calls
-        for (let mi = 0; mi < moonCount; mi++) {
-            rng.weightedPick(MOON_TYPES_PEEK);   // moonTypeDef
-            rng.nextInt(2, 8);                     // moonSizeN (approximate — range varies by type but we need the RNG burn)
-            rng.next();                            // moonLifeRoll
-        }
-
-        // Stations (gas giants only — must replay to keep RNG in sync)
-        if (typeDef.stationRange) {
-            rng.nextInt(typeDef.stationRange[0], typeDef.stationRange[1]);
-        }
-
-        // Planetary ring generation RNG burn (must match generateRings in star_system.html)
-        burnRingRng(rng, typeDef.id);
-
-        // Moon rings use separate SeededRandom(moon.seed+888), no main RNG burn needed
-    }
-
-    // 6. Peek at wormhole presence (separate RNG, seed + 9999, 3 burns, 5% threshold)
-    const whRng = new SeededRandom(systemSeed + 9999);
-    whRng.next(); whRng.next(); whRng.next(); // burn to avoid LCG first-call bias
-    const hasWormhole = whRng.next() < 0.05;
-
-    return { starName, binaryCompanion, planetCount, hasHabitable, hasWormhole };
-}
 
 function generateGalaxy(seed) {
     const rng = new SeededRandom(seed);
@@ -648,17 +437,15 @@ function generateGalaxy(seed) {
         }
 
         const starDef = rng.weightedPick(STAR_TYPES);
-        // Burn the same RNG calls the old code used, to preserve galaxy layout determinism
-        const _oldPlanetCount = rng.nextInt(starDef.planetRange[0], starDef.planetRange[1]);
-        let _oldHasHab = false;
-        for (let p = 0; p < _oldPlanetCount; p++) {
-            if (rng.next() < 0.18) { _oldHasHab = true; break; }
+        const planetCount = rng.nextInt(starDef.planetRange[0], starDef.planetRange[1]);
+        let hasHabitable = false;
+        for (let p = 0; p < planetCount; p++) {
+            if (rng.next() < 0.18) { hasHabitable = true; break; }
         }
-        rng.pick(NOTABLE_FEATURES); // burn — notable features removed but RNG sequence preserved
+        const notable = rng.pick(NOTABLE_FEATURES);
         const systemSeed = Math.abs(seed * 1000 + i * 7 + 13) % 2147483647;
-
-        // Peek at the actual system to get correct name, companion, planet count, habitability, wormhole
-        const peeked = peekSystemDetails(systemSeed, starDef.id);
+        const nameRng = new SeededRandom(systemSeed);
+        const starName = nameRng.pick(STAR_NAMES_PREFIX) + ' ' + nameRng.pick(STAR_NAMES_SUFFIX);
 
         const sectorX = Math.floor((x + galaxyRadius) / (galaxyRadius * 2 / 8));
         const sectorZ = Math.floor((z + galaxyRadius) / (galaxyRadius * 2 / 8));
@@ -666,38 +453,15 @@ function generateGalaxy(seed) {
         const systemId = `${galaxyId}:${sector}-${String(i).padStart(3,'0')}`;
 
         systems.push({
-            name: peeked.starName, id: systemId,
+            name: starName, id: systemId,
             x: x, y: y, z: z,
-            starType: starDef, planetCount: peeked.planetCount,
-            hasHabitable: peeked.hasHabitable, hasWormhole: peeked.hasWormhole,
+            starType: starDef, planetCount, hasHabitable, notable,
             armIndex, armName: armIndex >= 0 ? ARM_NAMES[armIndex % ARM_NAMES.length] : 'Core',
-            sector, seed: systemSeed, index: i,
-            binaryCompanion: peeked.binaryCompanion
+            sector, seed: systemSeed, index: i
         });
     }
 
-    // ---- Galaxy wormholes (separate RNG) ----
-    const whRng = new SeededRandom(seed * 23 + 11);
-    const galaxyWormholes = [];
-    const whCount = whRng.nextInt(1, 3);
-    for (let wi = 0; wi < whCount; wi++) {
-        const angle = whRng.nextFloat(0, Math.PI * 2);
-        const dist = whRng.nextFloat(0.2, 0.8) * galaxyRadius;
-        const wx = Math.cos(angle) * dist;
-        const wz = Math.sin(angle) * dist;
-        const wy = whRng.nextFloat(-10, 10);
-        const destGalaxySeed = whRng.nextInt(1, 999999);
-        galaxyWormholes.push({
-            x: wx, y: wy, z: wz,
-            seed: whRng.nextInt(1, 999999),
-            destGalaxySeed: destGalaxySeed,
-            destGalaxyName: generateWormholeDestName(destGalaxySeed),
-            id: 'WH-' + wi,
-            size: whRng.nextFloat(0.8, 1.5)
-        });
-    }
-
-    return { galaxy, systems, galaxyRadius, coreRadius, armAngles, armRotation, armSpread, discHeight, ellipsoidHeight, irregularPosition, clumps, galaxyWormholes };
+    return { galaxy, systems, galaxyRadius, coreRadius, armAngles, armRotation, armSpread, discHeight, ellipsoidHeight, irregularPosition, clumps };
 }
 
 // ============================================================
@@ -714,16 +478,11 @@ let selectionRing = null, hoverRing = null;
 let selectedSystemIndex = -1, hoveredSystemIndex = -1;
 let selectedSMBH = false, hoveredSMBH = false;
 let smbhMesh = null;
-let wormholeSprites = []; // galaxy-level wormhole sprites
 
 // Camera orbit
 let camTheta = 0.3, camPhi = Math.PI / 3.5, camDist = 500;
 let isDragging = false, dragStartX = 0, dragStartY = 0;
 let autoRotate = true, autoRotateTimer = null;
-
-// Smooth camera animation state
-let camThetaTarget = 0.3, camPhiTarget = Math.PI / 3.5, camDistTarget = 500;
-let isCamAnimating = false;
 
 function initThree() {
     const container = document.getElementById('canvas-container');
@@ -821,7 +580,6 @@ function clearGalaxyScene() {
     ambientPoints = null;
     dustPoints = null;
     smbhMesh = null;
-    wormholeSprites = [];
     selectionRing.visible = false;
     hoverRing.visible = false;
 }
@@ -1162,27 +920,6 @@ function buildGalaxyScene() {
         galaxyGroup.add(dustPoints);
     }
 
-    // ---- Galaxy wormhole sprites ----
-    if (galaxyData.galaxyWormholes && galaxyData.galaxyWormholes.length > 0) {
-        const whTex = createWormholeTexture();
-        for (let wi = 0; wi < galaxyData.galaxyWormholes.length; wi++) {
-            const wh = galaxyData.galaxyWormholes[wi];
-            const whMat = new THREE.SpriteMaterial({
-                map: whTex,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-            const whSprite = new THREE.Sprite(whMat);
-            const s = 20 * wh.size;
-            whSprite.scale.set(s, s, 1);
-            whSprite.position.set(wh.x, wh.y, wh.z);
-            whSprite.userData = { type: 'wormhole', whIndex: wi };
-            galaxyGroup.add(whSprite);
-            wormholeSprites.push(whSprite);
-        }
-    }
-
     // Apply current toggle state
     const ambOn = document.getElementById('ambient-cb').checked;
     if (ambientPoints) ambientPoints.visible = ambOn;
@@ -1197,7 +934,6 @@ function onMouseDown(e) {
     dragStartX = e.clientX;
     dragStartY = e.clientY;
     autoRotate = false;
-    isCamAnimating = false; // cancel pan animation on manual drag
     clearTimeout(autoRotateTimer);
     renderer.domElement.style.cursor = 'grabbing';
 }
@@ -1222,20 +958,6 @@ function onMouseMove(e) {
         hoveredSystemIndex = -1;
         hoveredSMBH = false;
         hoverRing.visible = false;
-
-        // Check wormholes first
-        if (wormholeSprites.length > 0) {
-            const whHits = raycaster.intersectObjects(wormholeSprites);
-            if (whHits.length > 0) {
-                const wh = galaxyData.galaxyWormholes[whHits[0].object.userData.whIndex];
-                hoverRing.position.set(wh.x, wh.y, wh.z);
-                hoverRing.scale.setScalar(15 * wh.size);
-                hoverRing.lookAt(camera.position);
-                hoverRing.visible = true;
-                renderer.domElement.style.cursor = 'pointer';
-                return;
-            }
-        }
 
         // Check SMBH
         if (smbhMesh) {
@@ -1299,15 +1021,6 @@ function onClick(e) {
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
 
-    // Check wormholes first
-    if (wormholeSprites.length > 0) {
-        const whHits = raycaster.intersectObjects(wormholeSprites);
-        if (whHits.length > 0) {
-            selectGalaxyWormhole(whHits[0].object.userData.whIndex);
-            return;
-        }
-    }
-
     // Check SMBH
     if (smbhMesh) {
         const smbhHits = raycaster.intersectObject(smbhMesh);
@@ -1330,15 +1043,6 @@ function onDblClick(e) {
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-
-    // Check wormholes
-    if (wormholeSprites.length > 0) {
-        const whHits = raycaster.intersectObjects(wormholeSprites);
-        if (whHits.length > 0) {
-            enterGalaxyWormhole(whHits[0].object.userData.whIndex);
-            return;
-        }
-    }
 
     if (systemPoints) {
         const hits = raycaster.intersectObject(systemPoints);
@@ -1387,15 +1091,6 @@ function selectSystem(index) {
     selectionRing.lookAt(camera.position);
     selectionRing.visible = true;
 
-    // Smooth pan camera to center on this star system
-    const sysDist = Math.sqrt(sys.x * sys.x + sys.y * sys.y + sys.z * sys.z) || 1;
-    camPhiTarget = Math.acos(Math.max(-1, Math.min(1, sys.y / sysDist)));
-    camThetaTarget = Math.atan2(sys.z, sys.x);
-    camDistTarget = Math.max(sysDist * 2.5, 80);
-    isCamAnimating = true;
-    autoRotate = false;
-    clearTimeout(autoRotateTimer);
-
     document.querySelectorAll('.system-list-item').forEach(el => {
         el.classList.toggle('selected', parseInt(el.dataset.index) === index);
     });
@@ -1404,59 +1099,14 @@ function selectSystem(index) {
     detail.classList.add('active');
     document.getElementById('sd-name').textContent = sys.name;
     document.getElementById('sd-id').textContent = sys.id;
-    if (sys.binaryCompanion) {
-        document.getElementById('sd-type').innerHTML = `<span style="color:${sys.starType.color}">Binary System</span> · Companion: <span style="color:${sys.binaryCompanion.color}">${sys.binaryCompanion.name}</span>`;
-    } else {
-        document.getElementById('sd-type').innerHTML = `<span style="color:${sys.starType.color}">${sys.starType.name}</span>`;
-    }
+    document.getElementById('sd-type').innerHTML = `<span style="color:${sys.starType.color}">${sys.starType.name}</span>`;
     document.getElementById('sd-luminosity').textContent = sys.starType.luminosity;
     document.getElementById('sd-planets').textContent = `${sys.planetCount}${sys.hasHabitable ? ' (habitable detected)' : ''}`;
     document.getElementById('sd-sector').textContent = sys.sector;
     document.getElementById('sd-arm').textContent = sys.armName + ' Arm';
-    document.getElementById('sd-notable').innerHTML = sys.hasWormhole
-        ? '<span style="color:#44ffdd">Wormhole detected</span>'
-        : 'None';
+    document.getElementById('sd-notable').textContent = sys.notable || 'None';
     document.getElementById('sd-enter-container').innerHTML =
         `<button class="btn primary" onclick="enterSystem(${index})">Enter ${sys.name}</button>`;
-}
-
-function selectGalaxyWormhole(whIndex) {
-    const wh = galaxyData.galaxyWormholes[whIndex];
-    selectedSystemIndex = -1;
-    selectedSMBH = false;
-    document.querySelectorAll('.system-list-item').forEach(el => el.classList.remove('selected'));
-
-    selectionRing.position.set(wh.x, wh.y, wh.z);
-    selectionRing.scale.setScalar(15 * wh.size);
-    selectionRing.lookAt(camera.position);
-    selectionRing.visible = true;
-
-    const detail = document.getElementById('system-detail');
-    detail.classList.add('active');
-    document.getElementById('sd-name').innerHTML = `<span style="color:#44ffdd">Wormhole ${wh.id}</span>`;
-    document.getElementById('sd-id').textContent = `${galaxyData.galaxy.id}:${wh.id}`;
-    document.getElementById('sd-type').innerHTML = '<span style="color:#44ffdd">Spatial Wormhole</span>';
-    document.getElementById('sd-luminosity').textContent = 'N/A';
-    document.getElementById('sd-planets').textContent = '—';
-    document.getElementById('sd-sector').textContent = '—';
-    document.getElementById('sd-arm').textContent = '—';
-    document.getElementById('sd-notable').innerHTML = `Destination: <span style="color:#44ffdd">${wh.destGalaxyName}</span>`;
-    document.getElementById('sd-enter-container').innerHTML =
-        `<div class="stat" style="color:#44ffdd;">Status: Stable / Active</div>
-         <button class="btn primary" style="border-color:#44ffdd; color:#44ffdd;" onclick="enterGalaxyWormhole(${whIndex})">Enter Wormhole</button>`;
-}
-
-function enterGalaxyWormhole(whIndex) {
-    const wh = galaxyData.galaxyWormholes[whIndex];
-    const params = new URLSearchParams({
-        seed: wh.destGalaxySeed
-    });
-    // Preserve universe context
-    if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
-    if (urlUniverse) params.set('universe', urlUniverse);
-    if (urlUniverseId) params.set('universeId', urlUniverseId);
-    if (urlDensity) params.set('density', urlDensity);
-    window.location.href = `galaxy_view.html?${params.toString()}`;
 }
 
 function enterSystem(index) {
@@ -1466,8 +1116,7 @@ function enterSystem(index) {
         galaxy: galaxyData.galaxy.name,
         galaxyId: galaxyData.galaxy.id,
         systemId: sys.id,
-        returnGalaxySeed: galaxyData.galaxy.seed,
-        starTypeId: sys.starType.id
+        returnGalaxySeed: galaxyData.galaxy.seed
     });
     if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
     if (urlUniverse) params.set('universe', urlUniverse);
@@ -1514,31 +1163,13 @@ function buildSystemList() {
         dot.style.height = (sys.starType.radius * 2 + 4) + 'px';
         dot.style.background = sys.starType.color;
 
-        // For binary systems: show a smaller companion dot overlapping the primary
-        if (sys.binaryCompanion) {
-            dot.style.position = 'relative';
-            const compDot = document.createElement('div');
-            compDot.style.position = 'absolute';
-            compDot.style.bottom = '-2px';
-            compDot.style.right = '-2px';
-            compDot.style.width = Math.max(4, sys.starType.radius + 2) + 'px';
-            compDot.style.height = Math.max(4, sys.starType.radius + 2) + 'px';
-            compDot.style.borderRadius = '50%';
-            compDot.style.background = sys.binaryCompanion.color;
-            compDot.style.border = '1px solid #111122';
-            dot.appendChild(compDot);
-        }
-
         const info = document.createElement('div');
         info.className = 'system-info-text';
         let tags = '';
         if (sys.hasHabitable) tags += '<span class="tag tag-hab">Habitable</span>';
-        if (sys.hasWormhole) tags += '<span class="tag" style="background:#0a2a2a;color:#44ffdd">Wormhole</span>';
-        const starLabel = sys.binaryCompanion
-            ? `Binary: <span style="color:${sys.starType.color}">●</span> + <span style="color:${sys.binaryCompanion.color}">●</span> ${sys.binaryCompanion.name}`
-            : sys.starType.name;
+        if (sys.notable) tags += `<span class="tag tag-life-extinct">${sys.notable.split(' ')[0]}</span>`;
         info.innerHTML = `<div class="name">${sys.name}</div>
-            <div class="type">${starLabel} · ${sys.planetCount} planets · ${sys.sector}${tags}</div>`;
+            <div class="type">${sys.starType.name} · ${sys.planetCount} planets · ${sys.sector}${tags}</div>`;
 
         item.appendChild(dot);
         item.appendChild(info);
@@ -1584,41 +1215,13 @@ function updateHUD() {
 function animate() {
     requestAnimationFrame(animate);
 
-    // Smooth camera pan-to-target animation
-    if (isCamAnimating) {
-        const speed = 0.06;
-        // Handle theta wrapping (shortest angular path)
-        let dTheta = camThetaTarget - camTheta;
-        while (dTheta > Math.PI) dTheta -= 2 * Math.PI;
-        while (dTheta < -Math.PI) dTheta += 2 * Math.PI;
-        camTheta += dTheta * speed;
-        camPhi += (camPhiTarget - camPhi) * speed;
-        camDist += (camDistTarget - camDist) * speed;
-        updateCamera();
-        if (Math.abs(dTheta) < 0.001 && Math.abs(camPhi - camPhiTarget) < 0.001 && Math.abs(camDist - camDistTarget) < 1) {
-            camTheta = camThetaTarget;
-            camPhi = camPhiTarget;
-            camDist = camDistTarget;
-            isCamAnimating = false;
-        }
-    } else if (autoRotate && !isDragging) {
+    if (autoRotate && !isDragging) {
         camTheta += 0.0005;
         updateCamera();
     }
 
     if (selectionRing.visible) selectionRing.lookAt(camera.position);
     if (hoverRing.visible) hoverRing.lookAt(camera.position);
-
-    // Pulse wormhole sprites
-    if (wormholeSprites.length > 0 && galaxyData && galaxyData.galaxyWormholes) {
-        const t = performance.now();
-        for (let wi = 0; wi < wormholeSprites.length; wi++) {
-            const wh = galaxyData.galaxyWormholes[wi];
-            const baseSize = 20 * wh.size;
-            const pulse = baseSize + 3 * Math.sin(t * 0.003 + wi * 2);
-            wormholeSprites[wi].scale.set(pulse, pulse, 1);
-        }
-    }
 
     renderer.render(scene, camera);
 }

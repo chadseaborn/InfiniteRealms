@@ -155,6 +155,7 @@ canvas { display: block; }
         <div class="stat">Mass: <span id="stat-mass">—</span></div>
         <div class="stat">Density: <span id="stat-density">—</span></div>
         <div class="stat">Gravity: <span id="stat-gravity">—</span></div>
+        <div class="stat">Rings: <span id="stat-rings">—</span></div>
     </div>
 
     <div id="globe-stats">
@@ -1639,6 +1640,30 @@ function buildGlobeMesh(tiles) {
     const innerMat = new THREE.MeshLambertMaterial({ color: innerColor });
     const innerSphere = new THREE.Mesh(innerGeom, innerMat);
     globeGroup.add(innerSphere);
+
+    // ---- Planetary rings (if present from URL params) ----
+    const rings = urlParams.rings;
+    if (rings && rings.bands) {
+        const tiltRad = (rings.tilt || 0) * Math.PI / 180;
+        const tiltPhase = rings.tiltPhase || 0;
+        for (const band of rings.bands) {
+            const innerR = baseR * band.inner;
+            const outerR = baseR * band.outer;
+            const ringGeom = new THREE.RingGeometry(innerR, outerR, 128);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: band.color,
+                transparent: true,
+                opacity: band.opacity * 0.8, // slightly more subtle on the globe view
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+            // RingGeometry is flat in XY. Rotate to XZ (equatorial) then apply axial tilt.
+            ringMesh.rotation.x = -Math.PI / 2 + tiltRad * Math.cos(tiltPhase);
+            ringMesh.rotation.z = tiltRad * Math.sin(tiltPhase);
+            globeGroup.add(ringMesh);
+        }
+    }
 }
 
 function selectTile(tileIndex) {
@@ -1789,6 +1814,14 @@ function generateAndRender(subdivLevel) {
     document.getElementById('stat-mass').textContent = formatMassKg(massKg);
     document.getElementById('stat-density').textContent = `${Math.round(densKgM3).toLocaleString()} kg/m\u00B3`;
     document.getElementById('stat-gravity').textContent = `${grav.toFixed(2)}g (${bodySurfaceGravityMs2().toFixed(2)} m/s\u00B2)`;
+    // Rings info
+    const rings = urlParams.rings;
+    if (rings && rings.composition) {
+        const bandStr = rings.bands.length === 1 ? '1 band' : `${rings.bands.length} bands`;
+        document.getElementById('stat-rings').innerHTML = `<span style="color:#ddc">${rings.composition.name}</span> — ${bandStr}`;
+    } else {
+        document.getElementById('stat-rings').textContent = 'None';
+    }
     // Show biome count
     const biomeSet = new Set(tiles.map(t => t.biome));
     document.getElementById('stat-pentas').parentNode.insertAdjacentHTML('afterend',
@@ -1866,7 +1899,8 @@ function getUrlParams() {
         universeId: params.get('universeId') || null,
         returnUniverseSeed: params.get('returnUniverseSeed') || null,
         galaxyCatalogId: params.get('galaxyCatalogId') || null,
-        density: params.get('density') || null
+        density: params.get('density') || null,
+        rings: params.get('rings') ? JSON.parse(params.get('rings')) : null
     };
 }
 

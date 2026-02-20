@@ -244,6 +244,7 @@ canvas { display: block; cursor: crosshair; }
         <div class="stat">Life: <span id="pd-life">—</span></div>
         <div class="stat">Biomes: <span id="pd-biomes">—</span></div>
         <div class="stat">Moons: <span id="pd-moons">—</span></div>
+        <div class="stat">Rings: <span id="pd-rings">—</span></div>
         <div id="pd-land-btn-container"></div>
     </div>
 
@@ -294,28 +295,33 @@ class SeededRandom {
 // ============================================================
 // STAR SYSTEM GENERATION
 // ============================================================
+// Frequencies tuned to approximate real stellar population (with gameplay boost for rare types)
+// Real universe: ~75% red dwarf, ~12% orange, ~7% yellow, exotics <1%. We compress the
+// distribution so players still encounter exotic systems at enjoyable rates.
 const STAR_TYPES = [
-    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.30, luminosity: 'Low',      color: '#ff6644', radius: 20, planetCount: [1,6],  habZone: [1,2] },
-    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.22, luminosity: 'Medium',   color: '#ffdd44', radius: 30, planetCount: [3,14], habZone: [2,5] },
-    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.06, luminosity: 'High',     color: '#6688ff', radius: 45, planetCount: [2,10], habZone: [4,7] },
-    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.06, luminosity: 'High',     color: '#ff5533', radius: 50, planetCount: [1,8],  habZone: [5,8], engulfZone: 2 },
-    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.08, luminosity: 'Low',      color: '#eeeeff', radius: 10, planetCount: [0,5],  habZone: [1,1] },
-    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.06, luminosity: 'Very Low', color: '#884422', radius: 15, planetCount: [0,4],  habZone: [] },
-    { id: 'binary',       name: 'Binary System', frequency: 0.10, luminosity: 'Variable', color: '#ffaa44', radius: 25, planetCount: [1,8],  habZone: [3,5] },
-    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.04, luminosity: 'Extreme',  color: '#cc88ff', radius: 8,  planetCount: [0,3],  habZone: [] },
-    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.03, luminosity: 'Extreme',  color: '#dd99ff', radius: 8,  planetCount: [0,2],  habZone: [] },
-    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.03, luminosity: 'None',     color: '#441155', radius: 18, planetCount: [0,4],  habZone: [], accretionColor: '#ff6622' },
-    { id: 'protostar',    name: 'Protostar',     frequency: 0.02, luminosity: 'Variable', color: '#ffaa66', radius: 35, planetCount: [0,3],  habZone: [], diskColor: '#886633' },
+    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.40, luminosity: 'Low',      color: '#ff6644', radius: 20, planetCount: [1,6],  habZone: [1,2] },
+    { id: 'orange_dwarf', name: 'Orange Dwarf',  frequency: 0.15, luminosity: 'Low-Med',  color: '#ffaa44', radius: 24, planetCount: [2,8],  habZone: [1,3] },
+    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.12, luminosity: 'Medium',   color: '#ffdd44', radius: 30, planetCount: [3,14], habZone: [2,5] },
+    { id: 'binary',       name: 'Binary System', frequency: 0.12, luminosity: 'Variable', color: '#ffaa44', radius: 25, planetCount: [1,8],  habZone: [3,5] },
+    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.05, luminosity: 'Low',      color: '#eeeeff', radius: 10, planetCount: [0,5],  habZone: [1,1] },
+    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.05, luminosity: 'Very Low', color: '#884422', radius: 15, planetCount: [0,4],  habZone: [] },
+    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.03, luminosity: 'High',     color: '#6688ff', radius: 45, planetCount: [2,10], habZone: [4,7] },
+    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.03, luminosity: 'High',     color: '#ff5533', radius: 50, planetCount: [1,8],  habZone: [5,8], engulfZone: 2 },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.02, luminosity: 'Extreme',  color: '#cc88ff', radius: 8,  planetCount: [0,3],  habZone: [] },
+    { id: 'protostar',    name: 'Protostar',     frequency: 0.01, luminosity: 'Variable', color: '#ffaa66', radius: 35, planetCount: [0,3],  habZone: [], diskColor: '#886633' },
+    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.01, luminosity: 'Extreme',  color: '#dd99ff', radius: 8,  planetCount: [0,2],  habZone: [] },
+    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.007,luminosity: 'None',     color: '#441155', radius: 18, planetCount: [0,4],  habZone: [], accretionColor: '#ff6622' },
 ];
 
 // Possible companion stars for binary systems
 const BINARY_COMPANIONS = [
-    { id: 'red_dwarf',   name: 'Red Dwarf',   frequency: 0.40, color: '#ff6644', radius: 0.5 },
-    { id: 'yellow_sun',  name: 'Yellow Sun',   frequency: 0.25, color: '#ffdd44', radius: 0.7 },
-    { id: 'white_dwarf', name: 'White Dwarf',  frequency: 0.20, color: '#eeeeff', radius: 0.3 },
-    { id: 'red_giant',   name: 'Red Giant',    frequency: 0.05, color: '#ff5533', radius: 1.2 },
-    { id: 'neutron_star',name: 'Neutron Star',  frequency: 0.07, color: '#cc88ff', radius: 0.25 },
-    { id: 'black_hole',  name: 'Black Hole',   frequency: 0.03, color: '#220033', radius: 0.4 },
+    { id: 'red_dwarf',    name: 'Red Dwarf',    frequency: 0.35, color: '#ff6644', radius: 0.5 },
+    { id: 'orange_dwarf', name: 'Orange Dwarf', frequency: 0.20, color: '#ffaa44', radius: 0.6 },
+    { id: 'yellow_sun',   name: 'Yellow Sun',   frequency: 0.20, color: '#ffdd44', radius: 0.7 },
+    { id: 'white_dwarf',  name: 'White Dwarf',  frequency: 0.15, color: '#eeeeff', radius: 0.3 },
+    { id: 'red_giant',    name: 'Red Giant',    frequency: 0.04, color: '#ff5533', radius: 1.2 },
+    { id: 'neutron_star', name: 'Neutron Star', frequency: 0.04, color: '#cc88ff', radius: 0.25 },
+    { id: 'black_hole',   name: 'Black Hole',   frequency: 0.02, color: '#220033', radius: 0.4 },
 ];
 
 const PLANET_TYPES = [
@@ -424,6 +430,70 @@ function createWormholeTexture() {
 }
 const STAR_NAMES_PREFIX = ['Aldara','Borea','Cytha','Draven','Elys','Fenn','Galith','Hyra','Ixen','Jorath','Kael','Lyren','Mytha','Nyx','Orin','Pyra','Quell','Riven','Solen','Tyra','Ulren','Vyss','Wyren','Xael','Yren','Zeph'];
 const STAR_NAMES_SUFFIX = ['Prime','Major','Minor','Reach','Deep','Veil','Gate','Rift','Core','Edge'];
+
+// ============================================================
+// PLANETARY RING GENERATION
+// ============================================================
+// Ring chance by body type — gas giants are very likely, others rare
+const RING_CHANCE = {
+    gas_giant: 0.65, ice_world: 0.08, barren_rock: 0.03, habitable: 0.02,
+    ocean_world: 0.02, volcanic: 0.01, anomalous: 0.15,
+    rocky_moon: 0.01, ice_moon: 0.04, volcanic_moon: 0.01,
+    habitable_moon: 0.02, barren_moon: 0.01
+};
+
+// Ring color palettes by composition type
+const RING_COMPOSITIONS = [
+    { id: 'ice',    name: 'Ice particles',       colors: ['#c8d8e8','#a0b8cc','#e0ecf4'] },
+    { id: 'rock',   name: 'Rocky debris',         colors: ['#8a7a65','#6a5a48','#a09080'] },
+    { id: 'dust',   name: 'Fine dust',            colors: ['#b8a890','#c8b8a0','#988870'] },
+    { id: 'metal',  name: 'Metallic fragments',   colors: ['#90908a','#a8a8a0','#707068'] },
+    { id: 'mixed',  name: 'Mixed composition',    colors: ['#b0a898','#88a0b0','#c0b0a0'] },
+];
+
+function generateRings(rng, bodyTypeId, sizeN) {
+    const chance = RING_CHANCE[bodyTypeId] || 0.02;
+    if (rng.next() > chance) return null;
+
+    const composition = RING_COMPOSITIONS[Math.floor(rng.next() * RING_COMPOSITIONS.length)];
+
+    // Inner radius: 1.3–1.8× body radius; outer: 1.8–3.0× body radius
+    const innerRatio = 1.3 + rng.next() * 0.5;
+    const outerRatio = innerRatio + 0.5 + rng.next() * 1.2;
+
+    // Number of visible bands (1–4), with gaps between them
+    const bandCount = 1 + Math.floor(rng.next() * 4);
+    const bands = [];
+    const totalRange = outerRatio - innerRatio;
+    let cursor = innerRatio;
+    for (let b = 0; b < bandCount; b++) {
+        const bandWidth = (totalRange / bandCount) * (0.5 + rng.next() * 0.5);
+        const gapWidth = (totalRange / bandCount) * (0.05 + rng.next() * 0.2);
+        const colorIdx = Math.floor(rng.next() * composition.colors.length);
+        const opacity = 0.25 + rng.next() * 0.45;
+        bands.push({
+            inner: cursor,
+            outer: Math.min(cursor + bandWidth, outerRatio),
+            color: composition.colors[colorIdx],
+            opacity: opacity
+        });
+        cursor += bandWidth + gapWidth;
+        if (cursor >= outerRatio) break;
+    }
+
+    // Axial tilt (degrees) — how much the ring plane tilts from the orbital plane
+    const tilt = 5 + rng.next() * 30; // 5°–35°
+    const tiltPhase = rng.next() * Math.PI * 2; // random rotation of the tilt axis
+
+    return {
+        composition: composition,
+        innerRatio: innerRatio,
+        outerRatio: outerRatio,
+        bands: bands,
+        tilt: tilt,
+        tiltPhase: tiltPhase
+    };
+}
 
 function generateSystem(seed, parentSystemId, forcedStarTypeId) {
     const rng = new SeededRandom(seed);
@@ -550,6 +620,14 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
             stations = rng.nextInt(typeDef.stationRange[0], typeDef.stationRange[1]);
         }
 
+        // Planetary rings — gas giants very likely, others rare
+        const rings = generateRings(rng, typeDef.id, sizeN);
+
+        // Moon rings (rare — only large moons)
+        for (const moon of moonObjects) {
+            moon.rings = generateRings(new SeededRandom(moon.seed + 888), moon.type.id, moon.sizeN);
+        }
+
         planets.push({
             name: planetName,
             id: planetId,
@@ -564,7 +642,8 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
             stations: stations,
             inHabZone: inHabZone,
             seed: seed * 1000 + orbit,
-            orbitAngle: rng.nextFloat(0, Math.PI * 2)
+            orbitAngle: rng.nextFloat(0, Math.PI * 2),
+            rings: rings
         });
     }
 
@@ -629,6 +708,7 @@ const autoResumeDelay = 4000;
 // 3D Object references
 let planetMeshes = [];
 let moonMeshes = [];
+let ringMeshes = [];   // { mesh, parentType: 'planet'|'moon', planetIndex, moonIndex? }
 let orbitLines = [];
 let starSprite = null;
 let binaryCompanionSprite = null;
@@ -922,6 +1002,7 @@ const SimplexNoise2D = (function() {
 // spectralClass: stellar classification
 const STAR_PHYSICS = {
     red_dwarf:    { diameterSol: 0.45,  massSol: 0.35,   tempK: 3400,   luminositySol: 0.04,    densityKgM3: 10000,  spectralClass: 'M-type',   ageDesc: 'Main sequence, 10+ Gyr lifespan' },
+    orange_dwarf: { diameterSol: 0.75,  massSol: 0.7,    tempK: 4800,   luminositySol: 0.3,     densityKgM3: 3500,   spectralClass: 'K-type',   ageDesc: 'Main sequence, 15–30 Gyr lifespan' },
     yellow_sun:   { diameterSol: 1.0,   massSol: 1.0,    tempK: 5778,   luminositySol: 1.0,     densityKgM3: 1408,   spectralClass: 'G2V',      ageDesc: 'Main sequence, ~10 Gyr lifespan' },
     blue_giant:   { diameterSol: 8.0,   massSol: 12.0,   tempK: 22000,  luminositySol: 10000,   densityKgM3: 35,     spectralClass: 'O/B-type', ageDesc: 'Short-lived, < 100 Myr' },
     red_giant:    { diameterSol: 50.0,  massSol: 1.5,    tempK: 3500,   luminositySol: 1500,    densityKgM3: 0.02,   spectralClass: 'M-type',   ageDesc: 'Post main-sequence, expanding' },
@@ -941,6 +1022,11 @@ const STAR_SURFACE_DESC = {
         'Coarse convection cells dominate the photosphere. Occasional powerful flares erupt near the equatorial band, briefly outshining the entire star.',
         'Large, slowly churning granules cover the surface. Starspot clusters persist for months near mid-latitudes, with intermittent magnetic flare activity.',
         'Dim, irregular convection patterns with a few enormous starspots. Flare events are rare but intense, releasing bursts of UV radiation.',
+    ],
+    orange_dwarf: [
+        'Stable, warm photosphere with moderate granulation. Fewer and smaller starspots than solar-type stars. The long main-sequence lifetime allows extremely steady luminosity over tens of billions of years.',
+        'Gentle convection cells cover the surface with warm amber hues. Magnetic activity is subdued but persistent, with small spot groups cycling over multi-year periods. Considered ideal for hosting habitable worlds.',
+        'A tranquil surface between the turbulent red dwarfs and active yellow suns. Faculae brighten the equatorial regions while small, scattered spots drift slowly across higher latitudes.',
     ],
     yellow_sun: [
         'Classic solar-type granulation with well-defined convection cells. Sunspot pairs track across the surface following an 11-year magnetic cycle. Bright faculae cluster near active regions.',
@@ -991,6 +1077,7 @@ const STAR_SURFACE_DESC = {
 // Per-star-type surface profiles
 const STAR_SURFACE_PROFILES = {
     red_dwarf:    { granScale: 3.0,  granContrast: 0.15, spotCount: [2,4],  spotSize: [4,10],  spotDark: 0.55, bandCount: 0, driftSpeed: 0.00004, flareChance: 0.003 },
+    orange_dwarf: { granScale: 4.0,  granContrast: 0.15, spotCount: [2,6],  spotSize: [2,6],   spotDark: 0.50, bandCount: 0, driftSpeed: 0.00005, flareChance: 0.0005 },
     yellow_sun:   { granScale: 5.0,  granContrast: 0.20, spotCount: [5,10], spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
     blue_giant:   { granScale: 7.0,  granContrast: 0.25, spotCount: [6,12], spotSize: [2,5],   spotDark: 0.50, bandCount: 0, driftSpeed: 0.00008, flareChance: 0.002 },
     red_giant:    { granScale: 2.0,  granContrast: 0.30, spotCount: [3,6],  spotSize: [6,14],  spotDark: 0.40, bandCount: 0, driftSpeed: 0.00002, flareChance: 0.001 },
@@ -1045,7 +1132,6 @@ function paintStarSurface(state, time) {
     if (!state) return;
     const { canvas, ctx, spots, profile, baseRGB, starType } = state;
     const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2, maxR = W / 2;
 
     // Drift noise offset for rotation effect
     const drift = time * profile.driftSpeed;
@@ -1059,103 +1145,100 @@ function paintStarSurface(state, time) {
     const gs = profile.granScale;
     const gc = profile.granContrast;
 
+    // Full equirectangular projection — every pixel maps to a point on the sphere.
+    // No circle mask needed since the texture wraps a SphereGeometry.
     for (let py = 0; py < H; py++) {
+        // Spherical latitude: theta=0 at north pole, PI at south
+        const v = py / H;
+        const theta = v * Math.PI;
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
         for (let px = 0; px < W; px++) {
-            const dx = px - cx, dy = py - cy;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-
-            if (dist > maxR) {
-                // Outside circle — solid black (not transparent, to avoid inner sphere bleed-through)
-                const idx = (py * W + px) * 4;
-                data[idx] = data[idx+1] = data[idx+2] = 0;
-                data[idx+3] = 255;
-                continue;
-            }
-
-            // UV coordinates (0-1)
             const u = px / W;
-            const v = py / H;
+            const phi = u * Math.PI * 2;
 
-            // Base brightness from granulation noise
+            // 3D point on unit sphere (for spherically-correct distances & noise)
+            const sx = sinTheta * Math.cos(phi);
+            const sy = sinTheta * Math.sin(phi);
+            const sz = cosTheta;
+
+            // Base brightness from granulation noise (spherical coords)
             let brightness = 1.0;
             if (gs > 0) {
-                const nx = (u + state.noiseOffsetX) * gs;
-                const ny = v * gs;
-                // Two octaves of noise
-                const n1 = SimplexNoise2D.noise(nx, ny);
-                const n2 = SimplexNoise2D.noise(nx * 2.3 + 100, ny * 2.3 + 100) * 0.5;
+                const nx = (sx + state.noiseOffsetX) * gs;
+                const ny = sy * gs;
+                const nz = sz * gs;
+                const n1 = SimplexNoise2D.noise(nx + nz * 0.7, ny + nz * 0.3);
+                const n2 = SimplexNoise2D.noise((nx + nz * 0.7) * 2.3 + 100, (ny + nz * 0.3) * 2.3 + 100) * 0.5;
                 brightness = 1.0 + (n1 + n2) * gc;
             }
 
             // Brown dwarf banding (latitude-based, like gas giant)
             if (profile.bandCount > 0) {
-                const lat = (v - 0.5) * Math.PI;
+                const lat = theta - Math.PI * 0.5; // -PI/2..PI/2
                 const band = Math.sin(lat * profile.bandCount + state.noiseOffsetX * 3);
-                const bandNoise = SimplexNoise2D.noise((u + drift) * 8, v * 8) * 0.15;
+                const bandNoise = SimplexNoise2D.noise((sx + drift) * 8, sy * 8) * 0.15;
                 brightness = 0.85 + (band + bandNoise) * 0.15;
             }
 
-            // Sunspot darkening
+            // Sunspot darkening (great-circle distance on the sphere)
             for (const spot of spots) {
-                // Drift spots (differential rotation — equatorial faster)
                 const latFactor = 1.0 + (0.5 - spot.v) * (0.5 - spot.v) * 2;
                 const su = ((spot.baseU + drift * latFactor * 0.3) % 1 + 1) % 1;
                 spot.u = su;
 
-                // Distance in UV space (wrapping)
-                let du = Math.abs(u - su);
-                if (du > 0.5) du = 1.0 - du;
-                const dv = v - spot.v;
-                const spotDist = Math.sqrt(du*du + dv*dv) * W; // in pixels
+                const sTheta = spot.v * Math.PI;
+                const sPhi = su * Math.PI * 2;
+                const sSinT = Math.sin(sTheta);
+                const spotX = sSinT * Math.cos(sPhi);
+                const spotY = sSinT * Math.sin(sPhi);
+                const spotZ = Math.cos(sTheta);
+                const dotP = sx * spotX + sy * spotY + sz * spotZ;
+                const angDist = Math.acos(Math.min(1, Math.max(-1, dotP)));
+                const spotDist = (angDist / Math.PI) * W;
 
                 if (spotDist < spot.penumbra) {
-                    const t = spotDist / spot.penumbra;
                     if (spotDist < spot.size) {
-                        // Umbra (dark core)
                         brightness *= profile.spotDark;
                     } else {
-                        // Penumbra (gradual transition)
                         const penT = (spotDist - spot.size) / (spot.penumbra - spot.size);
                         brightness *= profile.spotDark + (1.0 - profile.spotDark) * penT;
                     }
                 }
             }
 
-            // Flare (random bright spot near spots)
+            // Flare (spherical distance)
             if (profile.flareChance > 0 && spots.length > 0) {
-                // Deterministic flare position cycles slowly
                 const flareCycle = Math.floor(time * 0.0002);
                 const flarePhase = (time * 0.0002) % 1;
-                if (flarePhase < 0.15) { // flare visible for 15% of cycle
+                if (flarePhase < 0.15) {
                     const flareSpot = spots[flareCycle % spots.length];
-                    let fdu = Math.abs(u - flareSpot.u);
-                    if (fdu > 0.5) fdu = 1.0 - fdu;
-                    const fdv = v - flareSpot.v;
-                    const flareDist = Math.sqrt(fdu*fdu + fdv*fdv) * W;
+                    const fTheta = flareSpot.v * Math.PI;
+                    const fPhi = flareSpot.u * Math.PI * 2;
+                    const fSinT = Math.sin(fTheta);
+                    const fDot = sx * fSinT * Math.cos(fPhi) + sy * fSinT * Math.sin(fPhi) + sz * Math.cos(fTheta);
+                    const fAngDist = Math.acos(Math.min(1, Math.max(-1, fDot)));
+                    const flareDist = (fAngDist / Math.PI) * W;
                     if (flareDist < 12) {
                         brightness += (1.0 - flareDist / 12) * 0.6;
                     }
                 }
             }
 
-            // Limb darkening — darkens toward edges of the disk
-            const limbFactor = 1.0 - (dist / maxR);
-            const limb = 0.4 + 0.6 * Math.pow(limbFactor, 0.6);
-            brightness *= limb;
-
             // Neutron star / pulsar: rapid intensity pulse
             if (starType.id === 'neutron_star') {
-                brightness = 0.6 + 0.4 * Math.sin(time * 0.008 + v * 10);
+                brightness = 0.6 + 0.4 * Math.sin(time * 0.008 + theta * 3);
             }
 
             // White dwarf: gentle shimmer
             if (starType.id === 'white_dwarf') {
-                brightness += Math.sin(time * 0.002 + u * 20 + v * 20) * 0.04;
+                brightness += Math.sin(time * 0.002 + phi * 3 + theta * 3) * 0.04;
             }
 
             // Protostar: chaotic bright eruptions
             if (starType.id === 'protostar') {
-                const eruptNoise = SimplexNoise2D.noise((u + drift * 2) * 3, v * 3);
+                const eruptNoise = SimplexNoise2D.noise((sx + drift * 2) * 3, sy * 3);
                 if (eruptNoise > 0.5) brightness += (eruptNoise - 0.5) * 0.8;
             }
 
@@ -1276,6 +1359,29 @@ function createStarTexture(starType) {
     return new THREE.CanvasTexture(canvas);
 }
 
+// Create ring meshes for a body and add to scene + ringMeshes array
+function createRingMeshes(rings, bodyVisualR, parentType, planetIndex, moonIndex) {
+    const tiltRad = rings.tilt * Math.PI / 180;
+    for (const band of rings.bands) {
+        const innerR = bodyVisualR * band.inner;
+        const outerR = bodyVisualR * band.outer;
+        const ringGeom = new THREE.RingGeometry(innerR, outerR, 64);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: band.color,
+            transparent: true,
+            opacity: band.opacity,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+        // Tilt ring plane: start flat in XY, rotate to XZ (−90°), then apply axial tilt
+        ringMesh.rotation.x = -Math.PI / 2 + tiltRad * Math.cos(rings.tiltPhase);
+        ringMesh.rotation.z = tiltRad * Math.sin(rings.tiltPhase);
+        scene.add(ringMesh);
+        ringMeshes.push({ mesh: ringMesh, parentType, planetIndex, moonIndex });
+    }
+}
+
 function renderSystem() {
     if (!systemData) return;
 
@@ -1300,6 +1406,7 @@ function renderSystem() {
     // Clear previous meshes
     planetMeshes.forEach(m => scene.remove(m));
     moonMeshes.forEach(m => scene.remove(m));
+    ringMeshes.forEach(r => scene.remove(r.mesh));
     orbitLines.forEach(l => scene.remove(l));
     if (starSprite) scene.remove(starSprite);
     if (starGlowSprite) scene.remove(starGlowSprite);
@@ -1320,6 +1427,7 @@ function renderSystem() {
     surfaceFrameCounter = 0;
     planetMeshes = [];
     moonMeshes = [];
+    ringMeshes = [];
     orbitLines = [];
     pulsarBeamSprites = [];
     if (labelContainer) labelContainer.innerHTML = '';
@@ -1362,6 +1470,11 @@ function renderSystem() {
         planetMeshes.push(mesh);
         scene.add(mesh);
 
+        // Planet rings
+        if (planet.rings) {
+            createRingMeshes(planet.rings, r, 'planet', pi, -1);
+        }
+
         // Planet moons
         if (planet.moonData && planet.moonData.length > 0) {
             for (let mi = 0; mi < planet.moonData.length; mi++) {
@@ -1373,6 +1486,11 @@ function renderSystem() {
                 moonMesh.userData = { type: 'moon', planetIndex: pi, moonIndex: mi };
                 moonMeshes.push(moonMesh);
                 scene.add(moonMesh);
+
+                // Moon rings
+                if (moon.rings) {
+                    createRingMeshes(moon.rings, moonR, 'moon', pi, mi);
+                }
             }
         }
     }
@@ -1660,6 +1778,12 @@ function getZoneRadius(orbit, totalOrbits) {
     return getOrbitRadius(orbit, effectiveOrbits);
 }
 
+function formatRingsInfo(rings) {
+    if (!rings) return 'None';
+    const bandStr = rings.bands.length === 1 ? '1 band' : `${rings.bands.length} bands`;
+    return `<span style="color:#ddc">${rings.composition.name}</span> — ${bandStr}, ${rings.tilt.toFixed(0)}° tilt`;
+}
+
 function getPlanetVisualRadius(planet) {
     return Math.max(1.5, Math.log2(planet.sizeN + 1) * 0.8);
 }
@@ -1711,6 +1835,20 @@ function animate(time) {
                             moonMesh.position.set(mx, 0, mz);
                         }
                     }
+
+                    // Position moon ring meshes
+                    for (const rm of ringMeshes) {
+                        if (rm.parentType === 'moon' && rm.planetIndex === pi && rm.moonIndex === mi) {
+                            rm.mesh.position.set(mx, 0, mz);
+                        }
+                    }
+                }
+            }
+
+            // Position planet ring meshes
+            for (const rm of ringMeshes) {
+                if (rm.parentType === 'planet' && rm.planetIndex === pi) {
+                    rm.mesh.position.set(x, 0, z);
                 }
             }
         }
@@ -2006,10 +2144,10 @@ function selectPlanet(index) {
         focusTarget = planetMeshes[index];
     }
 
-    // Highlight in list
-    document.querySelectorAll('.planet-list-item').forEach((el, i) => {
-        el.classList.toggle('selected', i === index);
-    });
+    // Highlight in list — use body-item class to skip star entries
+    document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+    const bodyItems = document.querySelectorAll('.planet-list-item.body-planet');
+    if (index >= 0 && index < bodyItems.length) bodyItems[index].classList.add('selected');
 
     // Update detail panel
     const detail = document.getElementById('planet-detail');
@@ -2026,6 +2164,7 @@ function selectPlanet(index) {
     document.getElementById('pd-life').innerHTML = `<span style="color:${planet.life.color}">${planet.life.name}</span>`;
     document.getElementById('pd-biomes').textContent = planet.type.biomes.join(', ');
     document.getElementById('pd-moons').textContent = planet.moons + (planet.stations ? ` (+${planet.stations} stations)` : '');
+    document.getElementById('pd-rings').innerHTML = formatRingsInfo(planet.rings);
 
     const btnContainer = document.getElementById('pd-land-btn-container');
     if (planet.type.diveable) {
@@ -2066,6 +2205,7 @@ function selectMoon(planetIndex, moonIndex) {
     document.getElementById('pd-life').innerHTML = `<span style="color:${moon.life.color}">${moon.life.name}</span>`;
     document.getElementById('pd-biomes').textContent = moon.type.biomes.join(', ');
     document.getElementById('pd-moons').textContent = '—';
+    document.getElementById('pd-rings').innerHTML = formatRingsInfo(moon.rings);
 
     const btnContainer = document.getElementById('pd-land-btn-container');
     btnContainer.innerHTML = `<button class="btn primary" onclick="landOnBody(systemData.planets[${planetIndex}].moonData[${moonIndex}])">Land on ${moon.name}</button>`;
@@ -2099,6 +2239,7 @@ function selectWormhole() {
     document.getElementById('pd-life').innerHTML = '<span style="color:#44ffdd">Unknown</span>';
     document.getElementById('pd-biomes').textContent = '—';
     document.getElementById('pd-moons').textContent = '—';
+    document.getElementById('pd-rings').textContent = '—';
 
     const btnContainer = document.getElementById('pd-land-btn-container');
     btnContainer.innerHTML = `
@@ -2200,6 +2341,7 @@ function selectStar(companionIndex) {
     document.getElementById('pd-moons').textContent = isCompanion
         ? `Companion to ${star.name}`
         : `${systemData.planets.length} planet${systemData.planets.length !== 1 ? 's' : ''}`;
+    document.getElementById('pd-rings').textContent = '—';
 
     // Temporarily relabel the panel fields for star context
     setDetailLabels({
@@ -2224,10 +2366,10 @@ function selectStar(companionIndex) {
 }
 
 // Temporarily change detail panel labels (for star view vs planet view)
-const defaultDetailLabels = { name:'Name', type:'Type', orbit:'Orbit', size:'Size (n)', tiles:'Tiles', atmo:'Atmosphere', life:'Life', biomes:'Biomes', moons:'Moons' };
+const defaultDetailLabels = { name:'Name', type:'Type', orbit:'Orbit', size:'Size (n)', tiles:'Tiles', atmo:'Atmosphere', life:'Life', biomes:'Biomes', moons:'Moons', rings:'Rings' };
 function setDetailLabels(labels) {
-    const fields = ['name','type','orbit','size','tiles','atmo','life','biomes','moons'];
-    const ids = ['pd-name','pd-type','pd-orbit','pd-size','pd-tiles','pd-atmo','pd-life','pd-biomes','pd-moons'];
+    const fields = ['name','type','orbit','size','tiles','atmo','life','biomes','moons','rings'];
+    const ids = ['pd-name','pd-type','pd-orbit','pd-size','pd-tiles','pd-atmo','pd-life','pd-biomes','pd-moons','pd-rings'];
     for (let i = 0; i < fields.length; i++) {
         const span = document.getElementById(ids[i]);
         if (span && span.parentNode) {
@@ -2281,6 +2423,8 @@ function landOnBody(body) {
     });
     // Pass gas giant subtype for atmospheric color tinting
     if (body.gasSubtype) params.set('gasSubtype', body.gasSubtype.id);
+    // Pass ring data as compact JSON
+    if (body.rings) params.set('rings', JSON.stringify(body.rings));
     // Pass galaxy/system navigation context through to planet view
     if (urlReturnGalaxySeed) params.set('returnGalaxySeed', urlReturnGalaxySeed);
     if (urlGalaxy) params.set('galaxy', urlGalaxy);
@@ -2367,7 +2511,7 @@ function buildPlanetList() {
         const r = getPlanetVisualRadius(planet);
 
         const item = document.createElement('div');
-        item.className = 'planet-list-item';
+        item.className = 'planet-list-item body-planet';
         item.onclick = () => selectPlanet(pi);
         item.ondblclick = () => { selectPlanet(pi); landOnPlanet(pi); };
 
@@ -2377,11 +2521,17 @@ function buildPlanetList() {
         dot.style.width = dotSize + 'px';
         dot.style.height = dotSize + 'px';
         dot.style.background = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
+        if (planet.rings) {
+            dot.style.boxShadow = `0 0 0 2px #0a0a1a, 0 0 0 3px ${planet.rings.bands[0].color}`;
+        }
 
         const info = document.createElement('div');
         info.className = 'planet-info-text';
 
         let tags = '';
+        if (planet.rings) {
+            tags += '<span class="tag" style="background:#55504a;color:#ddc">Ringed</span>';
+        }
         if (planet.type.diveable) {
             tags += '<span class="tag tag-diveable">Diveable</span>';
         } else if (planet.type.landable) {
@@ -2408,7 +2558,7 @@ function buildPlanetList() {
             for (let mi = 0; mi < planet.moonData.length; mi++) {
                 const moon = planet.moonData[mi];
                 const moonItem = document.createElement('div');
-                moonItem.className = 'planet-list-item';
+                moonItem.className = 'planet-list-item body-moon';
                 moonItem.style.paddingLeft = '30px';
                 moonItem.style.fontSize = '11px';
                 moonItem.onclick = () => selectMoon(pi, mi);
@@ -2420,11 +2570,16 @@ function buildPlanetList() {
                 moonDot.style.width = moonDotSize + 'px';
                 moonDot.style.height = moonDotSize + 'px';
                 moonDot.style.background = moon.type.color;
+                if (moon.rings) {
+                    moonDot.style.boxShadow = `0 0 0 1px #0a0a1a, 0 0 0 2px ${moon.rings.bands[0].color}`;
+                }
 
                 const moonInfo = document.createElement('div');
                 moonInfo.className = 'planet-info-text';
 
-                let moonTags = '<span class="tag tag-landable">Landable</span>';
+                let moonTags = '';
+                if (moon.rings) moonTags += '<span class="tag" style="background:#55504a;color:#ddc;font-size:9px">Ringed</span>';
+                moonTags += '<span class="tag tag-landable">Landable</span>';
                 if (moon.life.id !== 'none') {
                     moonTags += `<span class="tag tag-life-${moon.life.id}">${moon.life.name}</span>`;
                 }

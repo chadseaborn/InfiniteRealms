@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite Realms — Galaxy View</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    display: flex;
+}
+#canvas-container {
+    flex: 1;
+    position: relative;
+}
+canvas { display: block; cursor: crosshair; }
+#info-panel {
+    width: 340px;
+    background: #111122;
+    border-left: 1px solid #333;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100vh;
+}
+#info-panel h1 {
+    font-size: 16px;
+    color: #ffcc00;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+#info-panel h2 {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.stat {
+    font-size: 13px;
+    margin: 3px 0;
+    color: #ccc;
+}
+.stat span {
+    color: #fff;
+    font-weight: bold;
+}
+.system-list-item {
+    padding: 8px 10px;
+    margin: 4px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.system-list-item:hover {
+    background: #1a1a2e;
+    border-color: #444;
+}
+.system-list-item.selected {
+    background: #1a1a3e;
+    border-color: #ffcc00;
+}
+.star-dot {
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.system-info-text {
+    flex: 1;
+    font-size: 12px;
+}
+.system-info-text .name {
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+}
+.system-info-text .type {
+    color: #888;
+}
+#system-detail {
+    margin-top: 15px;
+    padding: 12px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    border: 1px solid #333;
+    display: none;
+}
+#system-detail.active { display: block; }
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    font-size: 12px;
+    color: #666;
+}
+.btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    margin-top: 10px;
+    transition: all 0.15s;
+}
+.btn:hover { background: #3a3a5a; border-color: #ffcc00; color: #fff; }
+.btn.primary { border-color: #ffcc00; color: #ffcc00; }
+#seed-control {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+}
+#seed-control input {
+    width: 100%;
+    padding: 6px 10px;
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    margin-top: 5px;
+}
+.tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-left: 4px;
+}
+.tag-life-none { background: #333; color: #888; }
+.tag-life-primitive { background: #2a3a1a; color: #8b8; }
+.tag-life-civilized { background: #1a2a3a; color: #8bf; }
+.tag-life-extinct { background: #3a2a1a; color: #b98; }
+.tag-life-advanced { background: #2a1a3a; color: #b8f; }
+.tag-hab { background: #1a3a2a; color: #8db; }
+#minimap {
+    position: absolute;
+    bottom: 50px;
+    right: 360px;
+    width: 150px;
+    height: 150px;
+    background: rgba(10,10,26,0.8);
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+#zoom-controls {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+#zoom-controls button {
+    width: 32px;
+    height: 32px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+#zoom-controls button:hover { background: #3a3a5a; border-color: #ffcc00; }
+#search-box {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+}
+#search-box input {
+    width: 100%;
+    padding: 6px 10px;
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+#search-box input::placeholder { color: #555; }
+.scroll-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+.scroll-list::-webkit-scrollbar { width: 6px; }
+.scroll-list::-webkit-scrollbar-track { background: transparent; }
+.scroll-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="galaxyCanvas"></canvas>
+    <div id="zoom-controls">
+        <button onclick="zoomIn()">+</button>
+        <button onclick="zoomOut()">−</button>
+        <button onclick="resetView()">⊙</button>
+    </div>
+    <div id="controls">
+        <div>Click star for details | Double-click to enter system</div>
+        <div>Drag to pan | Scroll to zoom</div>
+    </div>
+    <canvas id="minimap"></canvas>
+</div>
+
+<div id="info-panel">
+    <h1>Galaxy View</h1>
+
+    <div id="back-btn" style="display:none; margin-bottom:10px;">
+        <button class="btn" onclick="returnToUniverse()">← Return to Universe</button>
+    </div>
+
+    <div id="galaxy-info">
+        <h2>Galaxy</h2>
+        <div class="stat">Name: <span id="galaxy-name">—</span></div>
+        <div class="stat">ID: <span id="galaxy-id" style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Type: <span id="galaxy-type">—</span></div>
+        <div class="stat">Star Systems: <span id="galaxy-count">—</span></div>
+        <div class="stat">Spiral Arms: <span id="galaxy-arms">—</span></div>
+        <div class="stat">Habitable Systems: <span id="galaxy-hab">—</span></div>
+        <div class="stat">Core: <span id="galaxy-smbh">—</span></div>
+    </div>
+
+    <div id="search-box">
+        <input type="text" id="search-input" placeholder="Search star systems..." oninput="filterSystems()">
+    </div>
+
+    <h2>Star Systems</h2>
+    <div id="system-list" class="scroll-list"></div>
+
+    <div id="system-detail">
+        <h2>Selected System</h2>
+        <div class="stat">Name: <span id="sd-name">—</span></div>
+        <div class="stat">ID: <span id="sd-id" style="color:#ffcc00;font-size:11px;letter-spacing:0.5px">—</span></div>
+        <div class="stat">Star Type: <span id="sd-type">—</span></div>
+        <div class="stat">Luminosity: <span id="sd-luminosity">—</span></div>
+        <div class="stat">Planets: <span id="sd-planets">—</span></div>
+        <div class="stat">Sector: <span id="sd-sector">—</span></div>
+        <div class="stat">Arm: <span id="sd-arm">—</span></div>
+        <div class="stat">Notable: <span id="sd-notable">—</span></div>
+        <div id="sd-enter-container"></div>
+    </div>
+
+    <div id="seed-control">
+        <label class="stat">Galaxy Seed</label>
+        <input type="text" id="seed-input" value="42">
+        <button class="btn" onclick="regenerateGalaxy()">Generate</button>
+        <button class="btn" onclick="randomSeed()">Random</button>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// SEEDED RANDOM
+// ============================================================
+class SeededRandom {
+    constructor(seed) {
+        this.seed = seed % 2147483647;
+        if (this.seed <= 0) this.seed += 2147483646;
+    }
+    next() {
+        this.seed = (this.seed * 16807) % 2147483647;
+        return (this.seed - 1) / 2147483646;
+    }
+    nextInt(min, max) {
+        return Math.floor(this.next() * (max - min + 1)) + min;
+    }
+    nextFloat(min, max) {
+        return this.next() * (max - min) + min;
+    }
+    pick(arr) {
+        return arr[Math.floor(this.next() * arr.length)];
+    }
+    weightedPick(items) {
+        const total = items.reduce((s, i) => s + i.frequency, 0);
+        let r = this.next() * total;
+        for (const item of items) {
+            r -= item.frequency;
+            if (r <= 0) return item;
+        }
+        return items[items.length - 1];
+    }
+    gaussian() {
+        // Box-Muller transform for gaussian distribution
+        const u1 = this.next();
+        const u2 = this.next();
+        return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+}
+
+// ============================================================
+// GALAXY GENERATION
+// ============================================================
+const STAR_TYPES = [
+    { id: 'red_dwarf',    name: 'Red Dwarf',     frequency: 0.30, luminosity: 'Low',      color: '#ff6644', radius: 3,   planetRange: [1,6] },
+    { id: 'yellow_sun',   name: 'Yellow Sun',    frequency: 0.22, luminosity: 'Medium',   color: '#ffdd44', radius: 4,   planetRange: [3,14] },
+    { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.06, luminosity: 'High',     color: '#6688ff', radius: 6,   planetRange: [2,10] },
+    { id: 'red_giant',    name: 'Red Giant',     frequency: 0.06, luminosity: 'High',     color: '#ff5533', radius: 5.5, planetRange: [1,8] },
+    { id: 'white_dwarf',  name: 'White Dwarf',   frequency: 0.08, luminosity: 'Low',      color: '#eeeeff', radius: 2.5, planetRange: [0,5] },
+    { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.06, luminosity: 'Very Low', color: '#884422', radius: 2,   planetRange: [0,4] },
+    { id: 'binary',       name: 'Binary System', frequency: 0.10, luminosity: 'Variable', color: '#ffaa44', radius: 4,   planetRange: [1,8] },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.04, luminosity: 'Extreme',  color: '#cc88ff', radius: 2,   planetRange: [0,3] },
+    { id: 'pulsar',       name: 'Pulsar',        frequency: 0.03, luminosity: 'Extreme',  color: '#dd99ff', radius: 2,   planetRange: [0,2] },
+    { id: 'black_hole',   name: 'Black Hole',    frequency: 0.03, luminosity: 'None',     color: '#441155', radius: 3,   planetRange: [0,4] },
+    { id: 'protostar',    name: 'Protostar',     frequency: 0.02, luminosity: 'Variable', color: '#ffaa66', radius: 4.5, planetRange: [0,3] },
+];
+
+const GALAXY_TYPES = [
+    { id: 'spiral',     name: 'Spiral Galaxy',    arms: [2,6],  systemCount: [200,500] },
+    { id: 'barred',     name: 'Barred Spiral',    arms: [2,4],  systemCount: [300,600] },
+    { id: 'elliptical', name: 'Elliptical Galaxy', arms: [0,0],  systemCount: [150,400] },
+    { id: 'irregular',  name: 'Irregular Galaxy',  arms: [0,0],  systemCount: [80,200] },
+];
+
+const GALAXY_NAMES_PREFIX = ['Andromeda','Celestia','Draconis','Elysia','Fornax','Galactica','Helios','Icarus','Jotunheim','Kronos','Lyra','Mithras','Nebula','Orion','Pandora','Quasar','Regulus','Solara','Tethys','Umbra','Valhalla','Wyrm','Xanadu','Yggdrasil','Zenith'];
+const GALAXY_NAMES_SUFFIX = ['Expanse','Cluster','Nexus','Void','Reach','Dominion','Sector','Spiral','Drift','Wake'];
+
+const ARM_NAMES = ['Perseus','Sagittarius','Cygnus','Centaurus','Norma','Scutum','Carina','Outer'];
+
+const STAR_NAMES_PREFIX = ['Aldara','Borea','Cytha','Draven','Elys','Fenn','Galith','Hyra','Ixen','Jorath','Kael','Lyren','Mytha','Nyx','Orin','Pyra','Quell','Riven','Solen','Tyra','Ulren','Vyss','Wyren','Xael','Yren','Zeph'];
+const STAR_NAMES_SUFFIX = ['Prime','Major','Minor','Reach','Deep','Veil','Gate','Rift','Core','Edge'];
+
+const NOTABLE_FEATURES = [
+    null, null, null, null, null, // most systems are unremarkable
+    'Ancient ruins detected',
+    'Wormhole proximity',
+    'Dense asteroid field',
+    'Nebula cluster',
+    'Derelict fleet wreckage',
+    'Active trading hub',
+    'Anomalous energy readings',
+    'Dyson sphere remnants',
+    'Pirate stronghold',
+    'Research outpost',
+];
+
+function generateGalaxy(seed) {
+    const rng = new SeededRandom(seed);
+
+    // Galaxy properties
+    const galaxyType = GALAXY_TYPES[rng.nextInt(0, GALAXY_TYPES.length - 1)];
+    const galaxyName = rng.pick(GALAXY_NAMES_PREFIX) + ' ' + rng.pick(GALAXY_NAMES_SUFFIX);
+    const armCount = galaxyType.arms[0] === 0 ? 0 : rng.nextInt(galaxyType.arms[0], galaxyType.arms[1]);
+    const systemCount = rng.nextInt(galaxyType.systemCount[0], galaxyType.systemCount[1]);
+
+    // Supermassive black hole properties
+    const smbhMass = rng.nextFloat(1, 40); // billions of solar masses
+    const smbhName = galaxyName.split(' ')[0] + ' Singularity';
+    const smbhActive = rng.next() < 0.3; // 30% chance of active galactic nucleus / quasar
+
+    // Catalog IDs
+    const galaxyId = `GAL-${String(seed).padStart(4,'0')}`;
+    const smbhId = `${galaxyId}:CORE`;
+
+    const galaxy = {
+        name: galaxyName,
+        id: galaxyId,
+        type: galaxyType,
+        armCount: armCount,
+        seed: seed,
+        smbh: {
+            name: smbhName,
+            id: smbhId,
+            mass: smbhMass,
+            active: smbhActive
+        }
+    };
+
+    // Generate star systems
+    const systems = [];
+    const galaxyRadius = 400; // world-space radius
+    const coreRadius = galaxyRadius * 0.12;
+    const armSpread = 0.3; // how wide the arms are
+    const armRotation = Math.PI * 2.5; // total rotation of spiral arm from core to edge
+
+    // Arm starting angles
+    const armAngles = [];
+    for (let a = 0; a < armCount; a++) {
+        armAngles.push((Math.PI * 2 * a) / armCount + rng.nextFloat(-0.2, 0.2));
+    }
+
+    for (let i = 0; i < systemCount; i++) {
+        let x, y, armIndex = -1;
+
+        if (armCount > 0 && rng.next() < 0.75) {
+            // Place along a spiral arm
+            armIndex = rng.nextInt(0, armCount - 1);
+            const baseAngle = armAngles[armIndex];
+            const distFromCore = rng.nextFloat(0.05, 1.0);
+            const spiralAngle = baseAngle + distFromCore * armRotation;
+
+            // Add gaussian spread perpendicular to arm
+            const perpSpread = rng.gaussian() * armSpread * galaxyRadius * 0.15;
+            const radialDist = distFromCore * galaxyRadius + rng.gaussian() * galaxyRadius * 0.04;
+
+            x = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
+            y = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
+        } else if (rng.next() < 0.3) {
+            // Core cluster — dense center
+            const angle = rng.nextFloat(0, Math.PI * 2);
+            const dist = Math.abs(rng.gaussian()) * coreRadius;
+            x = Math.cos(angle) * dist;
+            y = Math.sin(angle) * dist;
+            armIndex = -1; // core
+        } else {
+            // Random scatter (field stars / halo)
+            const angle = rng.nextFloat(0, Math.PI * 2);
+            const dist = rng.nextFloat(0, galaxyRadius * 0.9);
+            x = Math.cos(angle) * dist;
+            y = Math.sin(angle) * dist;
+        }
+
+        // Star type
+        const starDef = rng.weightedPick(STAR_TYPES);
+        const planetCount = rng.nextInt(starDef.planetRange[0], starDef.planetRange[1]);
+
+        // Check for habitable planets (simplified — just a probability)
+        let hasHabitable = false;
+        for (let p = 0; p < planetCount; p++) {
+            if (rng.next() < 0.18) { hasHabitable = true; break; }
+        }
+
+        // Notable feature
+        const notable = rng.pick(NOTABLE_FEATURES);
+
+        // Star name (deterministic from seed chain)
+        const systemSeed = Math.abs(seed * 1000 + i * 7 + 13) % 2147483647;
+        const nameRng = new SeededRandom(systemSeed);
+        const starName = nameRng.pick(STAR_NAMES_PREFIX) + ' ' + nameRng.pick(STAR_NAMES_SUFFIX);
+
+        // Sector coordinates (grid overlay)
+        const sectorX = Math.floor((x + galaxyRadius) / (galaxyRadius * 2 / 8));
+        const sectorY = Math.floor((y + galaxyRadius) / (galaxyRadius * 2 / 8));
+        const sector = `${String.fromCharCode(65 + Math.max(0, Math.min(7, sectorX)))}-${Math.max(0, Math.min(7, sectorY)) + 1}`;
+
+        // Catalog ID: GAL-{seed}:{sector}-{index}
+        const systemId = `${galaxyId}:${sector}-${String(i).padStart(3,'0')}`;
+
+        systems.push({
+            name: starName,
+            id: systemId,
+            x: x,
+            y: y,
+            starType: starDef,
+            planetCount: planetCount,
+            hasHabitable: hasHabitable,
+            notable: notable,
+            armIndex: armIndex,
+            armName: armIndex >= 0 ? ARM_NAMES[armIndex % ARM_NAMES.length] : 'Core',
+            sector: sector,
+            seed: systemSeed,
+            index: i
+        });
+    }
+
+    return { galaxy, systems, galaxyRadius };
+}
+
+// ============================================================
+// CANVAS RENDERING
+// ============================================================
+let canvas, ctx, minimapCanvas, minimapCtx;
+let galaxyData = null;
+let selectedSystemIndex = -1;
+let hoveredSystemIndex = -1;
+let hoveredSMBH = false;
+let selectedSMBH = false;
+let canvasWidth, canvasHeight;
+
+// View transform (pan & zoom)
+let viewX = 0, viewY = 0; // center of view in world coordinates
+let viewScale = 1.0; // pixels per world unit
+
+function initCanvas() {
+    canvas = document.getElementById('galaxyCanvas');
+    ctx = canvas.getContext('2d');
+    minimapCanvas = document.getElementById('minimap');
+    minimapCtx = minimapCanvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('click', onClick);
+    canvas.addEventListener('dblclick', onDblClick);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+
+    // Drag to pan
+    let isDragging = false;
+    let dragStartX, dragStartY;
+    canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+    });
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        viewX -= dx / viewScale;
+        viewY -= dy / viewScale;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        drawGalaxy();
+        drawMinimap();
+    });
+    canvas.addEventListener('mouseup', () => {
+        isDragging = false;
+        canvas.style.cursor = 'crosshair';
+    });
+    canvas.addEventListener('mouseleave', () => {
+        isDragging = false;
+        canvas.style.cursor = 'crosshair';
+    });
+}
+
+function resizeCanvas() {
+    const container = document.getElementById('canvas-container');
+    canvasWidth = container.clientWidth;
+    canvasHeight = container.clientHeight;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    minimapCanvas.width = 150;
+    minimapCanvas.height = 150;
+    if (galaxyData) {
+        drawGalaxy();
+        drawMinimap();
+    }
+}
+
+function worldToScreen(wx, wy) {
+    return {
+        x: (wx - viewX) * viewScale + canvasWidth / 2,
+        y: (wy - viewY) * viewScale + canvasHeight / 2
+    };
+}
+
+function screenToWorld(sx, sy) {
+    return {
+        x: (sx - canvasWidth / 2) / viewScale + viewX,
+        y: (sy - canvasHeight / 2) / viewScale + viewY
+    };
+}
+
+function drawGalaxy() {
+    if (!galaxyData) return;
+    const { systems, galaxyRadius } = galaxyData;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Background starfield (distant stars, fixed)
+    const bgRng = new SeededRandom(99999);
+    for (let i = 0; i < 300; i++) {
+        const sx = bgRng.next() * canvasWidth;
+        const sy = bgRng.next() * canvasHeight;
+        const sr = bgRng.next() * 0.8;
+        ctx.globalAlpha = bgRng.nextFloat(0.1, 0.35);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Galaxy core glow
+    const coreScreen = worldToScreen(0, 0);
+    const coreGlowRadius = galaxyRadius * 0.25 * viewScale;
+    const smbh = galaxyData.galaxy.smbh;
+    const smbhHovered = hoveredSMBH;
+    const smbhSelected = selectedSMBH;
+
+    if (coreGlowRadius > 5) {
+        // Outer core glow (star density)
+        const coreGrad = ctx.createRadialGradient(coreScreen.x, coreScreen.y, 0, coreScreen.x, coreScreen.y, coreGlowRadius);
+        coreGrad.addColorStop(0, smbh.active ? 'rgba(255, 150, 80, 0.2)' : 'rgba(255, 220, 150, 0.15)');
+        coreGrad.addColorStop(0.3, 'rgba(255, 200, 100, 0.06)');
+        coreGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(coreScreen.x, coreScreen.y, coreGlowRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Supermassive Black Hole at center (visible when zoomed in enough)
+    const smbhVisualRadius = Math.max(4, 12 * viewScale);
+    if (viewScale > 0.3) {
+        // Accretion disk
+        if (smbh.active) {
+            const diskGrad = ctx.createRadialGradient(coreScreen.x, coreScreen.y, smbhVisualRadius, coreScreen.x, coreScreen.y, smbhVisualRadius * 4);
+            diskGrad.addColorStop(0, 'rgba(255,100,30,0.4)');
+            diskGrad.addColorStop(0.4, 'rgba(255,60,0,0.15)');
+            diskGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = diskGrad;
+            ctx.beginPath();
+            ctx.arc(coreScreen.x, coreScreen.y, smbhVisualRadius * 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Accretion ring
+            ctx.strokeStyle = 'rgba(255,120,40,0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(coreScreen.x, coreScreen.y, smbhVisualRadius * 3, smbhVisualRadius * 0.8, 0.3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Selection/hover ring
+        if (smbhSelected) {
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(coreScreen.x, coreScreen.y, smbhVisualRadius + 6, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (smbhHovered) {
+            ctx.strokeStyle = '#ffffff44';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(coreScreen.x, coreScreen.y, smbhVisualRadius + 5, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Event horizon (dark core)
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(coreScreen.x, coreScreen.y, smbhVisualRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Photon ring
+        ctx.strokeStyle = smbh.active ? 'rgba(255,150,50,0.5)' : 'rgba(200,180,255,0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(coreScreen.x, coreScreen.y, smbhVisualRadius * 1.15, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Label
+        if (viewScale > 0.6 || smbhSelected || smbhHovered) {
+            ctx.fillStyle = smbhSelected ? '#ffcc00' : (smbhHovered ? '#ddd' : '#887766');
+            ctx.font = smbhSelected ? 'bold 11px Courier New' : '10px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText(smbh.name, coreScreen.x, coreScreen.y + smbhVisualRadius + 14);
+            if (smbh.active) {
+                ctx.fillStyle = '#ff884488';
+                ctx.font = '9px Courier New';
+                ctx.fillText('Active Nucleus', coreScreen.x, coreScreen.y + smbhVisualRadius + 26);
+            }
+        }
+    }
+
+    // Sector grid
+    const gridSize = galaxyRadius * 2 / 8;
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+        const wx = -galaxyRadius + i * gridSize;
+        const p1 = worldToScreen(wx, -galaxyRadius);
+        const p2 = worldToScreen(wx, galaxyRadius);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        const wy = -galaxyRadius + i * gridSize;
+        const p3 = worldToScreen(-galaxyRadius, wy);
+        const p4 = worldToScreen(galaxyRadius, wy);
+        ctx.beginPath();
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.stroke();
+    }
+
+    // Sector labels
+    if (viewScale > 0.4) {
+        ctx.font = '10px Courier New';
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.textAlign = 'center';
+        for (let sx = 0; sx < 8; sx++) {
+            for (let sy = 0; sy < 8; sy++) {
+                const wx = -galaxyRadius + (sx + 0.5) * gridSize;
+                const wy = -galaxyRadius + (sy + 0.5) * gridSize;
+                const p = worldToScreen(wx, wy);
+                if (p.x > -50 && p.x < canvasWidth + 50 && p.y > -50 && p.y < canvasHeight + 50) {
+                    ctx.fillText(`${String.fromCharCode(65 + sx)}-${sy + 1}`, p.x, p.y);
+                }
+            }
+        }
+    }
+
+    // Draw star systems
+    for (let si = 0; si < systems.length; si++) {
+        const sys = systems[si];
+        const pos = worldToScreen(sys.x, sys.y);
+
+        // Skip if off-screen (with generous margin)
+        if (pos.x < -30 || pos.x > canvasWidth + 30 || pos.y < -30 || pos.y > canvasHeight + 30) continue;
+
+        const isSelected = si === selectedSystemIndex;
+        const isHovered = si === hoveredSystemIndex;
+        const baseRadius = sys.starType.radius * Math.max(0.7, Math.min(2, viewScale * 0.8));
+
+        // Glow for selected/hovered
+        if (isSelected) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius + 8, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            const selGlow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, baseRadius + 12);
+            selGlow.addColorStop(0, sys.starType.color + '44');
+            selGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = selGlow;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius + 12, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (isHovered) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius + 6, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ffffff44';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // Star glow
+        const glowR = baseRadius * 2.5;
+        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
+        glow.addColorStop(0, sys.starType.color + '66');
+        glow.addColorStop(0.5, sys.starType.color + '11');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Star body — special rendering for certain types
+        if (sys.starType.id === 'black_hole') {
+            // Dark core with faint ring
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,100,50,0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius * 1.3, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (sys.starType.id === 'pulsar') {
+            // White point with faint cross
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(200,150,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y - baseRadius * 2.5);
+            ctx.lineTo(pos.x, pos.y + baseRadius * 2.5);
+            ctx.stroke();
+        } else {
+            const bodyGrad = ctx.createRadialGradient(pos.x - baseRadius * 0.2, pos.y - baseRadius * 0.2, 0, pos.x, pos.y, baseRadius);
+            bodyGrad.addColorStop(0, '#ffffff');
+            bodyGrad.addColorStop(0.4, sys.starType.color);
+            bodyGrad.addColorStop(1, sys.starType.color);
+            ctx.fillStyle = bodyGrad;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Habitable indicator (green dot)
+        if (sys.hasHabitable) {
+            ctx.fillStyle = '#44dd66';
+            ctx.beginPath();
+            ctx.arc(pos.x + baseRadius + 2, pos.y - baseRadius - 2, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Notable indicator (yellow diamond)
+        if (sys.notable) {
+            ctx.fillStyle = '#ddaa44';
+            ctx.save();
+            ctx.translate(pos.x - baseRadius - 4, pos.y - baseRadius - 4);
+            ctx.rotate(Math.PI / 4);
+            ctx.fillRect(-1.5, -1.5, 3, 3);
+            ctx.restore();
+        }
+
+        // Name label (only at sufficient zoom)
+        if (viewScale > 0.8 || isSelected || isHovered) {
+            ctx.fillStyle = isSelected ? '#ffcc00' : (isHovered ? '#ddd' : '#666');
+            ctx.font = isSelected ? 'bold 11px Courier New' : '10px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText(sys.name, pos.x, pos.y + baseRadius + 14);
+        }
+    }
+
+    // Galaxy name in corner
+    ctx.fillStyle = 'rgba(255,204,0,0.3)';
+    ctx.font = 'bold 14px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillText(galaxyData.galaxy.name, 60, 30);
+    ctx.font = '11px Courier New';
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillText(`${systems.length} systems | zoom: ${viewScale.toFixed(1)}x`, 60, 46);
+}
+
+function drawMinimap() {
+    if (!galaxyData) return;
+    const { systems, galaxyRadius } = galaxyData;
+    const w = 150, h = 150;
+    const mmCtx = minimapCtx;
+
+    mmCtx.clearRect(0, 0, w, h);
+    mmCtx.fillStyle = 'rgba(10,10,26,0.9)';
+    mmCtx.fillRect(0, 0, w, h);
+
+    // Scale: map full galaxy to minimap
+    const scale = (w - 10) / (galaxyRadius * 2);
+
+    // SMBH at center
+    const smbhMx = galaxyRadius * scale + 5;
+    const smbhMy = galaxyRadius * scale + 5;
+    mmCtx.fillStyle = '#000000';
+    mmCtx.beginPath();
+    mmCtx.arc(smbhMx, smbhMy, 3, 0, Math.PI * 2);
+    mmCtx.fill();
+    mmCtx.strokeStyle = galaxyData.galaxy.smbh.active ? 'rgba(255,100,50,0.6)' : 'rgba(200,180,255,0.3)';
+    mmCtx.lineWidth = 1;
+    mmCtx.beginPath();
+    mmCtx.arc(smbhMx, smbhMy, 4, 0, Math.PI * 2);
+    mmCtx.stroke();
+
+    // Draw all systems as tiny dots
+    for (const sys of systems) {
+        const mx = (sys.x + galaxyRadius) * scale + 5;
+        const my = (sys.y + galaxyRadius) * scale + 5;
+        mmCtx.fillStyle = sys.starType.color + '88';
+        mmCtx.beginPath();
+        mmCtx.arc(mx, my, 1.2, 0, Math.PI * 2);
+        mmCtx.fill();
+    }
+
+    // Draw viewport rectangle
+    const topLeft = screenToWorld(0, 0);
+    const bottomRight = screenToWorld(canvasWidth, canvasHeight);
+    const vx1 = (topLeft.x + galaxyRadius) * scale + 5;
+    const vy1 = (topLeft.y + galaxyRadius) * scale + 5;
+    const vx2 = (bottomRight.x + galaxyRadius) * scale + 5;
+    const vy2 = (bottomRight.y + galaxyRadius) * scale + 5;
+
+    mmCtx.strokeStyle = '#ffcc00';
+    mmCtx.lineWidth = 1;
+    mmCtx.strokeRect(vx1, vy1, vx2 - vx1, vy2 - vy1);
+}
+
+// ============================================================
+// INTERACTION
+// ============================================================
+// Returns { type: 'system', index } or { type: 'smbh' } or null
+function hitTest(mx, my) {
+    if (!galaxyData) return null;
+    const world = screenToWorld(mx, my);
+
+    // Test SMBH first (center of galaxy)
+    const smbhDist = Math.sqrt(world.x * world.x + world.y * world.y);
+    const smbhHitR = Math.max(15, 20 / viewScale);
+    if (smbhDist < smbhHitR) {
+        return { type: 'smbh' };
+    }
+
+    // Test star systems
+    let closest = null;
+    let closestDist = Infinity;
+
+    for (let si = 0; si < galaxyData.systems.length; si++) {
+        const sys = galaxyData.systems[si];
+        const dx = world.x - sys.x;
+        const dy = world.y - sys.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const hitRadius = (sys.starType.radius + 4) / viewScale;
+        if (dist < hitRadius && dist < closestDist) {
+            closest = { type: 'system', index: si };
+            closestDist = dist;
+        }
+    }
+    return closest;
+}
+
+function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const hit = hitTest(mx, my);
+
+    hoveredSystemIndex = -1;
+    hoveredSMBH = false;
+
+    if (hit) {
+        if (hit.type === 'smbh') hoveredSMBH = true;
+        else if (hit.type === 'system') hoveredSystemIndex = hit.index;
+    }
+
+    canvas.style.cursor = hit ? 'pointer' : 'crosshair';
+    drawGalaxy();
+}
+
+function onClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const hit = hitTest(mx, my);
+
+    if (hit) {
+        if (hit.type === 'smbh') {
+            selectSMBH();
+        } else if (hit.type === 'system') {
+            selectedSMBH = false;
+            selectSystem(hit.index);
+        }
+    }
+}
+
+function onDblClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const hit = hitTest(mx, my);
+
+    if (hit && hit.type === 'system') {
+        enterSystem(hit.index);
+    }
+    // SMBH: could add a special "approach singularity" view later
+}
+
+function onWheel(e) {
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.15, Math.min(5, viewScale * zoomFactor));
+
+    // Zoom toward mouse position
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const worldBefore = screenToWorld(mx, my);
+
+    viewScale = newScale;
+
+    const worldAfter = screenToWorld(mx, my);
+    viewX -= (worldAfter.x - worldBefore.x);
+    viewY -= (worldAfter.y - worldBefore.y);
+
+    drawGalaxy();
+    drawMinimap();
+}
+
+function zoomIn() {
+    viewScale = Math.min(5, viewScale * 1.3);
+    drawGalaxy();
+    drawMinimap();
+}
+
+function zoomOut() {
+    viewScale = Math.max(0.15, viewScale * 0.7);
+    drawGalaxy();
+    drawMinimap();
+}
+
+function resetView() {
+    viewX = 0;
+    viewY = 0;
+    viewScale = 1.0;
+    drawGalaxy();
+    drawMinimap();
+}
+
+function selectSMBH() {
+    selectedSMBH = true;
+    selectedSystemIndex = -1;
+
+    // Clear system list selection
+    document.querySelectorAll('.system-list-item').forEach(el => el.classList.remove('selected'));
+
+    const smbh = galaxyData.galaxy.smbh;
+    const detail = document.getElementById('system-detail');
+    detail.classList.add('active');
+    document.getElementById('sd-name').innerHTML = `<span style="color:#ff8844">${smbh.name}</span>`;
+    document.getElementById('sd-id').textContent = smbh.id;
+    document.getElementById('sd-type').innerHTML = `<span style="color:#660033">Supermassive Black Hole</span>`;
+    document.getElementById('sd-luminosity').textContent = smbh.active ? 'Active Galactic Nucleus' : 'Quiescent';
+    document.getElementById('sd-planets').textContent = '—';
+    document.getElementById('sd-sector').textContent = 'Galactic Core';
+    document.getElementById('sd-arm').textContent = '—';
+    document.getElementById('sd-notable').textContent = `Mass: ~${smbh.mass.toFixed(1)} billion solar masses` + (smbh.active ? ' | Emitting relativistic jets' : '');
+
+    const btnContainer = document.getElementById('sd-enter-container');
+    btnContainer.innerHTML = `<span class="stat" style="color:#ff6622">⚠ Approach at extreme risk</span>`;
+
+    // Pan to center
+    viewX = 0;
+    viewY = 0;
+    drawGalaxy();
+    drawMinimap();
+}
+
+function selectSystem(index) {
+    selectedSystemIndex = index;
+    selectedSMBH = false;
+    const sys = galaxyData.systems[index];
+
+    // Highlight in list
+    document.querySelectorAll('.system-list-item').forEach((el, i) => {
+        el.classList.toggle('selected', parseInt(el.dataset.index) === index);
+    });
+
+    // Update detail panel
+    const detail = document.getElementById('system-detail');
+    detail.classList.add('active');
+    document.getElementById('sd-name').textContent = sys.name;
+    document.getElementById('sd-id').textContent = sys.id;
+    document.getElementById('sd-type').innerHTML = `<span style="color:${sys.starType.color}">${sys.starType.name}</span>`;
+    document.getElementById('sd-luminosity').textContent = sys.starType.luminosity;
+    document.getElementById('sd-planets').textContent = `${sys.planetCount}${sys.hasHabitable ? ' (habitable detected)' : ''}`;
+    document.getElementById('sd-sector').textContent = sys.sector;
+    document.getElementById('sd-arm').textContent = sys.armName + ' Arm';
+    document.getElementById('sd-notable').textContent = sys.notable || 'None';
+
+    const btnContainer = document.getElementById('sd-enter-container');
+    btnContainer.innerHTML = `<button class="btn primary" onclick="enterSystem(${index})">Enter ${sys.name}</button>`;
+
+    drawGalaxy();
+}
+
+function enterSystem(index) {
+    const sys = galaxyData.systems[index];
+    const params = new URLSearchParams({
+        seed: sys.seed,
+        galaxy: galaxyData.galaxy.name,
+        galaxyId: galaxyData.galaxy.id,
+        systemId: sys.id,
+        returnGalaxySeed: galaxyData.galaxy.seed
+    });
+    // Pass universe context through if present
+    if (urlReturnUniverseSeed) params.set('returnUniverseSeed', urlReturnUniverseSeed);
+    if (urlUniverse) params.set('universe', urlUniverse);
+    if (urlUniverseId) params.set('universeId', urlUniverseId);
+    if (urlGalaxyCatalogId) params.set('galaxyCatalogId', urlGalaxyCatalogId);
+    window.location.href = `star_system.html?${params.toString()}`;
+}
+
+function returnToUniverse() {
+    if (urlReturnUniverseSeed) {
+        window.location.href = `universe_view.html?seed=${urlReturnUniverseSeed}`;
+    }
+}
+
+// ============================================================
+// SYSTEM LIST
+// ============================================================
+let allListItems = [];
+
+function buildSystemList() {
+    const container = document.getElementById('system-list');
+    container.innerHTML = '';
+    allListItems = [];
+
+    // Sort by arm, then by name
+    const sorted = [...galaxyData.systems].sort((a, b) => {
+        if (a.armName !== b.armName) return a.armName.localeCompare(b.armName);
+        return a.name.localeCompare(b.name);
+    });
+
+    for (const sys of sorted) {
+        const item = document.createElement('div');
+        item.className = 'system-list-item';
+        item.dataset.index = sys.index;
+        item.dataset.name = sys.name.toLowerCase();
+        item.onclick = () => {
+            selectSystem(sys.index);
+            // Pan view to center on system
+            viewX = sys.x;
+            viewY = sys.y;
+            drawGalaxy();
+            drawMinimap();
+        };
+
+        const dot = document.createElement('div');
+        dot.className = 'star-dot';
+        dot.style.width = (sys.starType.radius * 2 + 4) + 'px';
+        dot.style.height = (sys.starType.radius * 2 + 4) + 'px';
+        dot.style.background = sys.starType.color;
+
+        const info = document.createElement('div');
+        info.className = 'system-info-text';
+
+        let tags = '';
+        if (sys.hasHabitable) tags += '<span class="tag tag-hab">Habitable</span>';
+        if (sys.notable) tags += `<span class="tag tag-life-extinct">${sys.notable.split(' ')[0]}</span>`;
+
+        info.innerHTML = `
+            <div class="name">${sys.name}</div>
+            <div class="type">${sys.starType.name} · ${sys.planetCount} planets · ${sys.sector}${tags}</div>
+        `;
+
+        item.appendChild(dot);
+        item.appendChild(info);
+        container.appendChild(item);
+        allListItems.push(item);
+    }
+}
+
+function filterSystems() {
+    const query = document.getElementById('search-input').value.toLowerCase();
+    for (const item of allListItems) {
+        const match = !query || item.dataset.name.includes(query);
+        item.style.display = match ? 'flex' : 'none';
+    }
+}
+
+// ============================================================
+// GALAXY INFO
+// ============================================================
+function updateGalaxyInfo() {
+    const { galaxy, systems } = galaxyData;
+    document.getElementById('galaxy-name').textContent = galaxy.name;
+    document.getElementById('galaxy-id').textContent = galaxy.id;
+    document.getElementById('galaxy-type').innerHTML = `<span style="color:#ffcc00">${galaxy.type.name}</span>`;
+    document.getElementById('galaxy-count').textContent = systems.length;
+    document.getElementById('galaxy-arms').textContent = galaxy.armCount > 0 ? galaxy.armCount : 'N/A';
+    document.getElementById('galaxy-hab').textContent = systems.filter(s => s.hasHabitable).length;
+    const smbh = galaxy.smbh;
+    document.getElementById('galaxy-smbh').innerHTML =
+        `<span style="color:#ff8844">${smbh.name}</span> (${smbh.mass.toFixed(1)}B M☉${smbh.active ? ', <span style="color:#ff6622">Active</span>' : ''})`;
+}
+
+// ============================================================
+// GENERATION CONTROLS
+// ============================================================
+function regenerateGalaxy() {
+    const seedInput = document.getElementById('seed-input');
+    const seed = parseInt(seedInput.value) || 42;
+    galaxyData = generateGalaxy(seed);
+    selectedSystemIndex = -1;
+    hoveredSystemIndex = -1;
+    selectedSMBH = false;
+    hoveredSMBH = false;
+    document.getElementById('system-detail').classList.remove('active');
+    document.getElementById('search-input').value = '';
+    viewX = 0;
+    viewY = 0;
+    viewScale = 1.0;
+    updateGalaxyInfo();
+    buildSystemList();
+    drawGalaxy();
+    drawMinimap();
+}
+
+function randomSeed() {
+    const seed = Math.floor(Math.random() * 999999) + 1;
+    document.getElementById('seed-input').value = seed;
+    regenerateGalaxy();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initCanvas();
+
+// Read URL params
+const urlParams = new URLSearchParams(window.location.search);
+const urlSeed = urlParams.get('seed');
+const urlUniverse = urlParams.get('universe');
+const urlUniverseId = urlParams.get('universeId');
+const urlGalaxyCatalogId = urlParams.get('galaxyCatalogId');
+const urlReturnUniverseSeed = urlParams.get('returnUniverseSeed');
+
+if (urlSeed) {
+    document.getElementById('seed-input').value = urlSeed;
+}
+
+regenerateGalaxy();
+
+// Override galaxy catalog ID with universe context if present
+if (urlGalaxyCatalogId && galaxyData) {
+    const oldId = galaxyData.galaxy.id;
+    galaxyData.galaxy.id = urlGalaxyCatalogId;
+    galaxyData.galaxy.smbh.id = `${urlGalaxyCatalogId}:CORE`;
+    for (const sys of galaxyData.systems) {
+        sys.id = sys.id.replace(oldId, urlGalaxyCatalogId);
+    }
+    updateGalaxyInfo();
+    buildSystemList();
+}
+
+// Show back button if navigated from universe view
+if (urlReturnUniverseSeed) {
+    document.getElementById('back-btn').style.display = 'block';
+}
+</script>
+</body>
+</html>
