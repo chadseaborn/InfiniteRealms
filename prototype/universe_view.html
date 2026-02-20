@@ -383,35 +383,55 @@ function createQuasarTexture(color) {
     const cx = 64, cy = 64;
     ctx.clearRect(0, 0, 128, 128);
 
-    // Accretion disk glow (elliptical ring)
-    for (let ring = 0; ring < 6; ring++) {
-        const r = 12 + ring * 8;
-        const alpha = Math.max(0, 0.5 - ring * 0.07);
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, r, r * 0.4, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = color.replace(')', `,${alpha})`).replace('rgb', 'rgba');
-        ctx.lineWidth = 4 - ring * 0.3;
-        ctx.stroke();
-    }
-
-    // Ultra-bright core
-    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
-    coreGrad.addColorStop(0, 'rgba(255,255,240,1.0)');
-    coreGrad.addColorStop(0.3, color.replace(')', ',0.9)').replace('rgb', 'rgba'));
-    coreGrad.addColorStop(0.7, color.replace(')', ',0.3)').replace('rgb', 'rgba'));
-    coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Outer halo
-    const outerGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 64);
-    outerGrad.addColorStop(0, color.replace(')', ',0.25)').replace('rgb', 'rgba'));
+    // Outer warm halo
+    const outerGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, 60);
+    outerGrad.addColorStop(0, color.replace(')', ',0.4)').replace('rgb', 'rgba'));
+    outerGrad.addColorStop(0.4, color.replace(')', ',0.12)').replace('rgb', 'rgba'));
     outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = outerGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 64, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Diffraction spikes (4-point starburst — distinctive from round galaxy sprites)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let spike = 0; spike < 4; spike++) {
+        const angle = spike * Math.PI / 2 + Math.PI / 4; // 45° offset for diamond pattern
+        const len = 52;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const spikeGrad = ctx.createLinearGradient(
+            cx, cy, cx + dx * len, cy + dy * len
+        );
+        spikeGrad.addColorStop(0, 'rgba(255,255,230,0.8)');
+        spikeGrad.addColorStop(0.3, color.replace(')', ',0.4)').replace('rgb', 'rgba'));
+        spikeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.strokeStyle = spikeGrad;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + dx * len, cy + dy * len);
+        ctx.stroke();
+        // Second thinner spike rotated slightly for sparkle
+        const angle2 = angle + 0.15;
+        const dx2 = Math.cos(angle2), dy2 = Math.sin(angle2);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + dx2 * len * 0.7, cy + dy2 * len * 0.7);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // Brilliant white-hot core
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14);
+    coreGrad.addColorStop(0, 'rgba(255,255,255,1.0)');
+    coreGrad.addColorStop(0.3, 'rgba(255,255,230,0.95)');
+    coreGrad.addColorStop(0.6, color.replace(')', ',0.6)').replace('rgb', 'rgba'));
+    coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
     ctx.fill();
 
     return new THREE.CanvasTexture(canvas);
@@ -608,8 +628,8 @@ function generateUniverse(seed) {
     const quasars = [];
     const agnGalaxies = galaxies.filter(g => g.props && g.props.smbhActive);
     for (let qi = 0; qi < agnGalaxies.length; qi++) {
-        // ~10% of AGN galaxies host a visible quasar (they're rare, extreme objects)
-        if (qRng.next() > 0.10) continue;
+        // ~25% of AGN galaxies host a visible quasar
+        if (qRng.next() > 0.25) continue;
         const hostGal = agnGalaxies[qi];
         const qType = qRng.weightedPick(QUASAR_TYPES);
         const designation = qRng.pick(QUASAR_PREFIX) + ' ' + qRng.pick(QUASAR_SUFFIX);
@@ -992,7 +1012,7 @@ function buildUniverseScene() {
             });
             const coreSprite = new THREE.Sprite(coreMat);
             coreSprite.position.set(q.x, q.y, q.z);
-            const coreSize = 8 + Math.min(q.luminosity / 200, 6);
+            const coreSize = 12 + Math.min(q.luminosity / 150, 8);
             coreSprite.scale.set(coreSize, coreSize, 1);
             coreSprite.userData = { type: 'quasar', quasarIndex: qi };
             universeGroup.add(coreSprite);
@@ -1011,10 +1031,10 @@ function buildUniverseScene() {
                 const jet2End = origin.clone().add(jetDir.clone().multiplyScalar(-q.jetLength));
 
                 const jetColor = new THREE.Color(q.type.jetColor);
-                const jetOpacity = q.type.id === 'blazar' ? 0.35 : 0.2;
+                const jetOpacity = q.type.id === 'blazar' ? 0.4 : 0.25;
                 const jetMat = new THREE.LineBasicMaterial({
                     color: jetColor, transparent: true, opacity: jetOpacity,
-                    depthWrite: false
+                    depthWrite: false, blending: THREE.AdditiveBlending
                 });
                 const jet1Geo = new THREE.BufferGeometry().setFromPoints([origin, jet1End]);
                 const jet2Geo = new THREE.BufferGeometry().setFromPoints([origin, jet2End]);
