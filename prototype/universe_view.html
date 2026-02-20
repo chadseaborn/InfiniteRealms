@@ -532,12 +532,12 @@ function generateUniverse(seed) {
     for (let i = 0; i < clusterCount; i++) {
         let cx, cy, cz, valid, attempts = 0;
         do {
-            cx = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75);
-            cy = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75) * flattenY;
-            cz = rng.nextFloat(-universeRadius * 0.75, universeRadius * 0.75);
+            cx = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85);
+            cy = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85) * flattenY;
+            cz = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85);
             valid = true;
             for (const e of clusters) {
-                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 130) { valid = false; break; }
+                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 180) { valid = false; break; }
             }
             attempts++;
         } while (!valid && attempts < 80);
@@ -545,8 +545,8 @@ function generateUniverse(seed) {
             x: cx, y: cy, z: cz,
             name: rng.pick(CLUSTER_PREFIX) + ' ' + rng.pick(CLUSTER_SUFFIX),
             id: `${universeId}:CL-${String(i).padStart(2, '0')}`,
-            galaxyCount: rng.nextInt(3, 15),
-            radius: rng.nextFloat(60, 150),
+            galaxyCount: rng.nextInt(3, 12),
+            radius: rng.nextFloat(80, 180),
             index: i
         });
     }
@@ -561,7 +561,7 @@ function generateUniverse(seed) {
         for (let g = 0; g < scaledGalCount; g++) {
             const theta = rng.nextFloat(0, Math.PI * 2);
             const phi = Math.acos(rng.nextFloat(-1, 1));
-            const dist = Math.abs(rng.gaussian()) * cluster.radius * 0.35;
+            const dist = Math.abs(rng.gaussian()) * cluster.radius * 0.55;
             const galaxySeed = rng.nextInt(1, 999999);
             const props = peekGalaxyProperties(galaxySeed);
             galaxies.push({
@@ -582,7 +582,7 @@ function generateUniverse(seed) {
     // Filament galaxies — along edges in 3D (scaled by density)
     for (const edge of edges) {
         const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
-        const baseFilCount = rng.nextInt(0, 4);
+        const baseFilCount = rng.nextInt(1, 6);
         const filCount = Math.round(baseFilCount * universeDensity);
         for (let f = 0; f < filCount; f++) {
             const t = rng.nextFloat(0.2, 0.8);
@@ -607,7 +607,7 @@ function generateUniverse(seed) {
     }
 
     // Field galaxies — scattered in void (scaled by density, Y flattened)
-    const baseFieldCount = rng.nextInt(5, 15);
+    const baseFieldCount = rng.nextInt(10, 25);
     const fieldCount = Math.max(1, Math.round(baseFieldCount * universeDensity));
     for (let f = 0; f < fieldCount; f++) {
         const galaxySeed = rng.nextInt(1, 999999);
@@ -910,25 +910,9 @@ function buildUniverseScene() {
     clearUniverseScene();
     const { clusters, galaxies, edges, universeRadius } = universeData;
 
-    // Orientation guides — disc plane ring + 2 vertical rings (flattened)
-    const discMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05 });
-    const vertMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.02 });
-    for (let plane = 0; plane < 3; plane++) {
-        const pts = [];
-        for (let i = 0; i <= 64; i++) {
-            const a = (i / 64) * Math.PI * 2;
-            const r = universeRadius * 1.02;
-            const ry = r * 0.55; // flattened Y for vertical rings
-            if (plane === 0) pts.push(new THREE.Vector3(Math.cos(a)*r, 0, Math.sin(a)*r));
-            else if (plane === 1) pts.push(new THREE.Vector3(Math.cos(a)*r, Math.sin(a)*ry, 0));
-            else pts.push(new THREE.Vector3(0, Math.cos(a)*ry, Math.sin(a)*r));
-        }
-        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), plane === 0 ? discMat : vertMat));
-    }
-
-    // Filaments
-    const filGlowMat = new THREE.LineBasicMaterial({ color: 0x5040a0, transparent: true, opacity: 0.15, depthWrite: false });
-    const filCoreMat = new THREE.LineBasicMaterial({ color: 0x8070cc, transparent: true, opacity: 0.08, depthWrite: false });
+    // Filaments — soft glow lines connecting clusters (no guide geometry)
+    const filGlowMat = new THREE.LineBasicMaterial({ color: 0x5040a0, transparent: true, opacity: 0.10, depthWrite: false });
+    const filCoreMat = new THREE.LineBasicMaterial({ color: 0x8070cc, transparent: true, opacity: 0.05, depthWrite: false });
     for (const edge of edges) {
         const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
         const pts = [new THREE.Vector3(c1.x, c1.y, c1.z), new THREE.Vector3(c2.x, c2.y, c2.z)];
@@ -936,14 +920,13 @@ function buildUniverseScene() {
         universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), filCoreMat));
     }
 
-    // Cluster halos — oblate ellipsoids
+    // Cluster halos — invisible but kept for raycasting/click detection
     const haloFlattenY = 0.55;
     for (let ci = 0; ci < clusters.length; ci++) {
         const cl = clusters[ci];
-        // Transparent oblate ellipsoid
         const haloGeo = new THREE.SphereGeometry(cl.radius, 16, 12);
         const haloMat = new THREE.MeshBasicMaterial({
-            color: 0x6050b0, transparent: true, opacity: 0.025, side: THREE.DoubleSide, depthWrite: false
+            color: 0x000000, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false
         });
         const halo = new THREE.Mesh(haloGeo, haloMat);
         halo.position.set(cl.x, cl.y, cl.z);
@@ -951,16 +934,6 @@ function buildUniverseScene() {
         halo.userData = { clusterIndex: ci };
         universeGroup.add(halo);
         clusterHaloMeshes.push(halo);
-
-        // Wireframe boundary — oblate
-        const wireGeo = new THREE.SphereGeometry(cl.radius, 12, 8);
-        const wireMat = new THREE.MeshBasicMaterial({
-            color: 0x8070cc, transparent: true, opacity: 0.04, wireframe: true, depthWrite: false
-        });
-        const wire = new THREE.Mesh(wireGeo, wireMat);
-        wire.position.set(cl.x, cl.y, cl.z);
-        wire.scale.set(1, haloFlattenY, 1);
-        universeGroup.add(wire);
     }
 
     // Galaxy sprites
