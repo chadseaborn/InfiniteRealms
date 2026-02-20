@@ -1805,41 +1805,88 @@ function renderStar(star) {
             pulsarGroup.add(hotspot);
         }
 
-        // Beam cones — tapered beams extending from each pole (small at star, wide at tip)
+        // Volumetric beam cones — multiple nested layers for 3D depth
         for (let pole = -1; pole <= 1; pole += 2) {
             const beamLength = bodyRadius * 12;
             const beamBaseR = bodyRadius * 0.6;
             const beamTipR = bodyRadius * 2.0;
-            // CylinderGeometry(topRadius, bottomRadius): top=+Y, bottom=-Y
-            // pole=+1: cone above star, tip at top (+Y) → top=wide, bottom=narrow
-            // pole=-1: cone below star, tip at bottom (-Y) → top=narrow, bottom=wide
-            const topR = pole === 1 ? beamTipR : beamBaseR;
-            const botR = pole === 1 ? beamBaseR : beamTipR;
-            const coneGeo = new THREE.CylinderGeometry(topR, botR, beamLength, 16, 8, true);
-            // Vertex color gradient: bright at base (near star), fading at tip (far end)
-            const colors = new Float32Array(coneGeo.attributes.position.count * 3);
-            for (let vi = 0; vi < coneGeo.attributes.position.count; vi++) {
-                const vy = coneGeo.attributes.position.getY(vi);
-                const t = (vy + beamLength / 2) / beamLength; // 0=bottom, 1=top
-                // For pole=+1, base is at bottom (t=0), tip at top (t=1) → fade=1-t
-                // For pole=-1, base is at top (t=1), tip at bottom (t=0) → fade=t
-                const fade = pole === 1 ? (1 - t) : t;
-                colors[vi * 3] = 0.85 * fade + 0.15;
-                colors[vi * 3 + 1] = 0.55 * fade + 0.1;
-                colors[vi * 3 + 2] = 1.0 * fade + 0.0;
+
+            // Layer 0: outermost diffuse shell, Layer 1: mid glow, Layer 2: bright core
+            const layers = [
+                { radiusScale: 1.0,  opacity: 0.12, segments: 24, heightSegs: 12, color: [0.6, 0.3, 1.0, 0.15, 0.05, 0.3] },
+                { radiusScale: 0.65, opacity: 0.22, segments: 16, heightSegs: 10, color: [0.85, 0.55, 1.0, 0.15, 0.1, 0.2] },
+                { radiusScale: 0.3,  opacity: 0.45, segments: 12, heightSegs: 8,  color: [1.0, 0.8, 1.0, 0.4, 0.2, 0.5] },
+            ];
+
+            for (const layer of layers) {
+                const lBaseR = beamBaseR * layer.radiusScale;
+                const lTipR = beamTipR * layer.radiusScale;
+                const topR = pole === 1 ? lTipR : lBaseR;
+                const botR = pole === 1 ? lBaseR : lTipR;
+                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, layer.segments, layer.heightSegs, true);
+
+                // Wobble the radii slightly for organic turbulence
+                const pos = geo.attributes.position;
+                for (let vi = 0; vi < pos.count; vi++) {
+                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                    const angle = Math.atan2(pz, px);
+                    const ht = (py + beamLength / 2) / beamLength;
+                    const wobble = 1.0 + 0.12 * Math.sin(angle * 5 + ht * 8) * ht;
+                    pos.setX(vi, px * wobble);
+                    pos.setZ(vi, pz * wobble);
+                }
+                pos.needsUpdate = true;
+
+                // Vertex colors with gradient + alpha fade at tip
+                const colors = new Float32Array(pos.count * 3);
+                for (let vi = 0; vi < pos.count; vi++) {
+                    const vy = pos.getY(vi);
+                    const t = (vy + beamLength / 2) / beamLength;
+                    const fade = pole === 1 ? (1 - t) : t;
+                    const c = layer.color;
+                    colors[vi * 3]     = c[0] * fade + c[3] * (1 - fade);
+                    colors[vi * 3 + 1] = c[1] * fade + c[4] * (1 - fade);
+                    colors[vi * 3 + 2] = c[2] * fade + c[5] * (1 - fade);
+                }
+                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                const mat = new THREE.MeshBasicMaterial({
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: layer.opacity,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
+                pulsarGroup.add(mesh);
             }
-            coneGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            const coneMat = new THREE.MeshBasicMaterial({
-                vertexColors: true,
+
+            // Helical filament — spiral structure inside the jet for depth cues
+            const helixPoints = [];
+            const helixTurns = 4;
+            const helixSteps = 80;
+            for (let si = 0; si <= helixSteps; si++) {
+                const ht = si / helixSteps; // 0→1 along beam
+                const angle = ht * Math.PI * 2 * helixTurns;
+                const r = (beamBaseR + (beamTipR - beamBaseR) * ht) * 0.5;
+                const hx = Math.cos(angle) * r;
+                const hz = Math.sin(angle) * r;
+                const hy = (ht - 0.5) * beamLength;
+                helixPoints.push(new THREE.Vector3(hx, hy, hz));
+            }
+            const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
+            const helixGeo = new THREE.TubeGeometry(helixCurve, 60, bodyRadius * 0.08, 6, false);
+            const helixMat = new THREE.MeshBasicMaterial({
+                color: 0xccaaff,
                 transparent: true,
-                opacity: 0.35,
-                side: THREE.DoubleSide,
+                opacity: 0.25,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
-            const cone = new THREE.Mesh(coneGeo, coneMat);
-            cone.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
-            pulsarGroup.add(cone);
+            const helix = new THREE.Mesh(helixGeo, helixMat);
+            helix.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
+            pulsarGroup.add(helix);
         }
 
         // Flat beam planes (enhanced — 2 perpendicular planes per beam for volume)
