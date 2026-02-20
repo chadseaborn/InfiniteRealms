@@ -1670,17 +1670,6 @@ function buildGlobeMesh(tiles) {
             const bandWidth = outerR - innerR;
             const midR = (innerR + outerR) / 2;
 
-            // Faint base disc — very subtle fill
-            const baseGeom = new THREE.RingGeometry(innerR, outerR, 80);
-            const baseMat = new THREE.MeshBasicMaterial({
-                color: band.color,
-                transparent: true,
-                opacity: band.opacity * 0.08,
-                side: THREE.DoubleSide,
-                depthWrite: false
-            });
-            ringParentGroup.add(new THREE.Mesh(baseGeom, baseMat));
-
             // Dust particle cloud
             const particleCount = Math.min(4000, Math.max(600, Math.round(midR * 100)));
             const positions = new Float32Array(particleCount * 3);

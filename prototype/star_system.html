@@ -1411,18 +1411,6 @@ function createRingMeshes(rings, bodyVisualR, parentType, planetIndex, moonIndex
         const bandWidth = outerR - innerR;
         const midR = (innerR + outerR) / 2;
 
-        // --- Faint base disc for soft fill ---
-        const baseGeom = new THREE.RingGeometry(innerR, outerR, 80);
-        const baseMat = new THREE.MeshBasicMaterial({
-            color: band.color,
-            transparent: true,
-            opacity: band.opacity * 0.08,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        const baseDisc = new THREE.Mesh(baseGeom, baseMat);
-        ringGroup.add(baseDisc);
-
         // --- Dust particle cloud ---
         // More particles for larger rings, capped for performance
         const particleCount = Math.min(3000, Math.max(400, Math.round(midR * 80)));
