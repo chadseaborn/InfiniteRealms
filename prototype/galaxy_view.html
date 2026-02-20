@@ -1153,27 +1153,27 @@ function buildGalaxyScene() {
                     az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.15;
                     ay = ambRng.gaussian() * galaxyRadius * 0.12;
                 }
-            } else if (aArmCount > 0 && ambRng.next() < 0.93) {
-                // Spiral arm star — extends beyond galaxyRadius with scatter
+            } else if (aArmCount > 0 && ambRng.next() < 0.80) {
+                // Spiral arm star — wider spread so arms blend together
                 const armIdx = ambRng.nextInt(0, aArmCount - 1);
                 const baseAngle = aAngles[armIdx];
-                const distFromCore = ambRng.nextFloat(0.03, 1.2); // extends 20% beyond
+                const distFromCore = ambRng.nextFloat(0.03, 1.2);
                 const spiralAngle = baseAngle + distFromCore * aRot;
-                const spreadScale = 0.04 + distFromCore * 0.03; // wider at edges
+                const spreadScale = 0.07 + distFromCore * 0.05; // much wider spread
                 const perpSpread = ambRng.gaussian() * aSpread * galaxyRadius * spreadScale;
-                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.02;
+                const radialDist = distFromCore * galaxyRadius + ambRng.gaussian() * galaxyRadius * 0.03;
                 ax = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
                 az = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
                 const r = Math.sqrt(ax*ax + az*az) / galaxyRadius;
                 ay = ambRng.gaussian() * dh(r) * 0.3;
             } else {
-                // Spiral core bulge fallback
+                // Inter-arm / disc fill stars — scattered throughout the disc
                 const angle = ambRng.nextFloat(0, Math.PI * 2);
-                const dist = Math.abs(ambRng.gaussian()) * cr * 1.0;
-                ax = Math.cos(angle) * dist;
-                az = Math.sin(angle) * dist;
+                const dist = Math.pow(ambRng.next(), 0.5) * galaxyRadius * 0.9; // sqrt for uniform area
+                ax = Math.cos(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.04;
+                az = Math.sin(angle) * dist + ambRng.gaussian() * galaxyRadius * 0.04;
                 const r = Math.sqrt(ax*ax + az*az) / galaxyRadius;
-                ay = ambRng.gaussian() * dh(r) * 0.3;
+                ay = ambRng.gaussian() * dh(r) * 0.25;
             }
 
             ambPositions[i*3]   = ax;
@@ -1261,8 +1261,8 @@ function buildGalaxyScene() {
             const distFromCore = dustRng.nextFloat(0.02, 1.15); // extends slightly beyond edge
             const spiralAngle = baseAngle + distFromCore * galArmRotation;
 
-            // Very tight — dust defines the arm centerline
-            const perpSpread = dustRng.gaussian() * galArmSpread * galaxyRadius * 0.04;
+            // Wider dust spread to blend between arms
+            const perpSpread = dustRng.gaussian() * galArmSpread * galaxyRadius * 0.07;
             const radialDist = distFromCore * galaxyRadius + dustRng.gaussian() * galaxyRadius * 0.01;
 
             const dx = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
@@ -1467,7 +1467,7 @@ function buildGalaxyScene() {
         const nArmCount = galaxy.armCount;
 
         // --- Layer 1: Giant sweeping arm-scale washes (few, very large, low opacity) ---
-        const washCount = gType === 'elliptical' ? 3 : (gType === 'irregular' ? 5 : 4);
+        const washCount = gType === 'elliptical' ? 3 : (gType === 'irregular' ? 5 : 8);
         // Assign a dominant color per arm for cohesive look
         const armPalettes = [];
         for (let a = 0; a < Math.max(nArmCount, 1); a++) {
@@ -1490,11 +1490,13 @@ function buildGalaxyScene() {
                 wx = pos.x; wy = pos.y; wz = pos.z;
             } else if (nArmCount > 0 && nArmAngles.length > 0) {
                 const baseAngle = nArmAngles[armIdx];
-                const distFromCore = 0.2 + (wi / washCount) * 0.6 + nebRng.nextFloat(-0.1, 0.1);
+                const distFromCore = 0.1 + (wi / washCount) * 0.8 + nebRng.nextFloat(-0.1, 0.1);
                 const spiralAngle = baseAngle + distFromCore * nArmRot;
                 const radialDist = distFromCore * galaxyRadius;
-                wx = Math.cos(spiralAngle) * radialDist;
-                wz = Math.sin(spiralAngle) * radialDist;
+                // Add perpendicular spread so washes bleed between arms
+                const perpSpread = (nebRng.next() - 0.5) * nArmSpread * galaxyRadius * 0.12;
+                wx = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
+                wz = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
                 wy = (nebRng.next() - 0.5) * galaxyRadius * 0.02;
             } else {
                 const angle = nebRng.nextFloat(0, Math.PI * 2);
@@ -1514,14 +1516,16 @@ function buildGalaxyScene() {
             });
             const sprite = new THREE.Sprite(mat);
             sprite.position.set(wx, wy, wz);
-            // Very large — covers a big section of the arm
-            const washSize = galaxyRadius * (0.5 + nebRng.next() * 0.4);
+            // Very large — covers a big section of the arm; spirals get bigger washes for more blending
+            const washBase = (gType === 'spiral' || nArmCount > 0) ? 0.6 : 0.5;
+            const washRange = (gType === 'spiral' || nArmCount > 0) ? 0.5 : 0.4;
+            const washSize = galaxyRadius * (washBase + nebRng.next() * washRange);
             sprite.scale.set(washSize, washSize, 1);
             galaxyGroup.add(sprite);
         }
 
         // --- Layer 2: Medium nebula patches (more numerous, moderate size) ---
-        const patchCount = gType === 'elliptical' ? 6 : (gType === 'irregular' ? 14 : 10);
+        const patchCount = gType === 'elliptical' ? 6 : (gType === 'irregular' ? 14 : 18);
         for (let pi2 = 0; pi2 < patchCount; pi2++) {
             // Mix palette — sometimes same arm color, sometimes contrast
             const armIdx = nArmCount > 0 ? (pi2 % nArmCount) : 0;
@@ -1532,11 +1536,11 @@ function buildGalaxyScene() {
             if (gType === 'irregular' && nIrrPos) {
                 const pos = nIrrPos(nebRng);
                 px2 = pos.x * 0.85; py2 = pos.y * 0.85; pz2 = pos.z * 0.85;
-            } else if (nArmCount > 0 && nArmAngles.length > 0 && nebRng.next() < 0.9) {
+            } else if (nArmCount > 0 && nArmAngles.length > 0 && nebRng.next() < 0.75) {
                 const baseAngle = nArmAngles[armIdx];
-                const distFromCore = nebRng.nextFloat(0.08, 0.95);
+                const distFromCore = nebRng.nextFloat(0.08, 1.0);
                 const spiralAngle = baseAngle + distFromCore * nArmRot;
-                const perpSpread = (nebRng.next() - 0.5) * nArmSpread * galaxyRadius * 0.15;
+                const perpSpread = (nebRng.next() - 0.5) * nArmSpread * galaxyRadius * 0.25;
                 const radialDist = distFromCore * galaxyRadius;
                 px2 = Math.cos(spiralAngle) * radialDist - Math.sin(spiralAngle) * perpSpread;
                 pz2 = Math.sin(spiralAngle) * radialDist + Math.cos(spiralAngle) * perpSpread;
@@ -1560,7 +1564,9 @@ function buildGalaxyScene() {
             });
             const sprite = new THREE.Sprite(mat);
             sprite.position.set(px2, py2, pz2);
-            const patchSize = galaxyRadius * (0.2 + nebRng.next() * 0.25);
+            const patchBase = (gType === 'spiral' || nArmCount > 0) ? 0.25 : 0.2;
+            const patchRange = (gType === 'spiral' || nArmCount > 0) ? 0.3 : 0.25;
+            const patchSize = galaxyRadius * (patchBase + nebRng.next() * patchRange);
             sprite.scale.set(patchSize, patchSize, 1);
             galaxyGroup.add(sprite);
         }
