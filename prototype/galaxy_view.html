@@ -1295,70 +1295,113 @@ function buildGalaxyScene() {
             { core: [0.3, 0.9, 1.0],  edge: [0.1, 0.5, 0.6] },    // Cyan
         ];
 
-        // Generate a large diffuse cloud texture — very soft, mostly transparent
+        // Simple seeded 2D value noise for cloud turbulence
+        function valueNoise2D(rng, gridSize) {
+            const grid = [];
+            for (let i = 0; i < (gridSize + 1) * (gridSize + 1); i++) {
+                grid.push(rng.next());
+            }
+            return function(x, y) {
+                // x, y in [0, gridSize)
+                const ix = Math.floor(x), iy = Math.floor(y);
+                const fx = x - ix, fy = y - iy;
+                // Smoothstep interpolation
+                const sx = fx * fx * (3 - 2 * fx);
+                const sy = fy * fy * (3 - 2 * fy);
+                const ix0 = ix % gridSize, ix1 = (ix + 1) % gridSize;
+                const iy0 = iy % gridSize, iy1 = (iy + 1) % gridSize;
+                const stride = gridSize + 1;
+                const v00 = grid[iy0 * stride + ix0];
+                const v10 = grid[iy0 * stride + ix1];
+                const v01 = grid[iy1 * stride + ix0];
+                const v11 = grid[iy1 * stride + ix1];
+                return v00 * (1-sx)*(1-sy) + v10 * sx*(1-sy) + v01 * (1-sx)*sy + v11 * sx*sy;
+            };
+        }
+
+        // Generate fluffy cloud texture using layered noise (fBm)
         function createNebulaTexture(palette, rng, texSize) {
             const size = texSize || 512;
             const canvas = document.createElement('canvas');
             canvas.width = size; canvas.height = size;
             const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(size, size);
+            const data = imgData.data;
+
+            // Create noise layers at different frequencies (fractal Brownian motion)
+            const octaves = [
+                { noise: valueNoise2D(rng, 4),  freq: 4,  amp: 0.45 },
+                { noise: valueNoise2D(rng, 8),  freq: 8,  amp: 0.30 },
+                { noise: valueNoise2D(rng, 16), freq: 16, amp: 0.15 },
+                { noise: valueNoise2D(rng, 32), freq: 32, amp: 0.10 },
+            ];
+
+            // Random offsets so each cloud looks different
+            const offX = rng.next() * 100;
+            const offY = rng.next() * 100;
+
             const cx = size / 2, cy = size / 2;
+            const maxR = size * 0.48;
 
-            // Many large overlapping soft blobs filling most of the canvas
-            const blobCount = 10 + Math.floor(rng.next() * 10);
+            for (let py = 0; py < size; py++) {
+                for (let px = 0; px < size; px++) {
+                    // Sum noise octaves for turbulence
+                    let n = 0;
+                    for (const oct of octaves) {
+                        const nx = (px / size) * oct.freq + offX;
+                        const ny = (py / size) * oct.freq + offY;
+                        n += oct.noise(nx, ny) * oct.amp;
+                    }
+                    // n is roughly 0..1 — remap for cloud density
+                    // Use a threshold to create gaps and wispy structure
+                    const density = Math.max(0, n - 0.2) / 0.8; // cut off low values
+                    const fluff = density * density; // square for contrast: bright knots, soft edges
+
+                    // Radial falloff — gentle, keeps center full
+                    const dx = px - cx, dy = py - cy;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const radial = 1.0 - Math.pow(Math.min(1, dist / maxR), 1.5);
+
+                    const alpha = fluff * radial;
+
+                    // Color: blend core→edge based on noise value + distance
+                    const colorMix = n * 0.6 + (dist / maxR) * 0.4;
+                    const cr = palette.core[0] * (1 - colorMix) + palette.edge[0] * colorMix;
+                    const cg = palette.core[1] * (1 - colorMix) + palette.edge[1] * colorMix;
+                    const cb = palette.core[2] * (1 - colorMix) + palette.edge[2] * colorMix;
+
+                    const idx = (py * size + px) * 4;
+                    data[idx]     = Math.round(Math.min(1, cr) * 255);
+                    data[idx + 1] = Math.round(Math.min(1, cg) * 255);
+                    data[idx + 2] = Math.round(Math.min(1, cb) * 255);
+                    data[idx + 3] = Math.round(Math.min(1, alpha) * 255);
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // Add a few bright knot highlights using soft radial blobs
             ctx.globalCompositeOperation = 'lighter';
-            for (let b = 0; b < blobCount; b++) {
-                // Spread blobs across the full canvas area
-                const bx = cx + (rng.next() - 0.5) * size * 0.8;
-                const by = cy + (rng.next() - 0.5) * size * 0.8;
-                const br = size * (0.25 + rng.next() * 0.4); // large radii
+            const knotCount = 3 + Math.floor(rng.next() * 4);
+            for (let k = 0; k < knotCount; k++) {
+                const kx = cx + (rng.next() - 0.5) * size * 0.6;
+                const ky = cy + (rng.next() - 0.5) * size * 0.6;
+                const kr = size * (0.05 + rng.next() * 0.1);
 
-                const t = rng.next();
+                const t = rng.next() * 0.4;
                 const r = Math.round((palette.core[0] * (1-t) + palette.edge[0] * t) * 255);
                 const g = Math.round((palette.core[1] * (1-t) + palette.edge[1] * t) * 255);
                 const bl = Math.round((palette.core[2] * (1-t) + palette.edge[2] * t) * 255);
 
-                const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-                const peakAlpha = 0.05 + rng.next() * 0.08; // very subtle
-                grad.addColorStop(0, `rgba(${r},${g},${bl},${peakAlpha})`);
-                grad.addColorStop(0.2, `rgba(${r},${g},${bl},${peakAlpha * 0.7})`);
-                grad.addColorStop(0.5, `rgba(${r},${g},${bl},${peakAlpha * 0.3})`);
+                const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, kr);
+                grad.addColorStop(0, `rgba(${r},${g},${bl},0.15)`);
+                grad.addColorStop(0.5, `rgba(${r},${g},${bl},0.05)`);
                 grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
                 ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, size, size);
-            }
-
-            // Wispy filaments — thicker, longer, more sweeping
-            const filamentCount = 4 + Math.floor(rng.next() * 5);
-            for (let f = 0; f < filamentCount; f++) {
-                const fx1 = rng.next() * size;
-                const fy1 = rng.next() * size;
-                const fx2 = rng.next() * size;
-                const fy2 = rng.next() * size;
-                const fcx = (fx1 + fx2) / 2 + (rng.next() - 0.5) * size * 0.6;
-                const fcy = (fy1 + fy2) / 2 + (rng.next() - 0.5) * size * 0.6;
-
-                const t = rng.next();
-                const r = Math.round((palette.core[0] * (1-t) + palette.edge[0] * t) * 255);
-                const g = Math.round((palette.core[1] * (1-t) + palette.edge[1] * t) * 255);
-                const bl = Math.round((palette.core[2] * (1-t) + palette.edge[2] * t) * 255);
-
-                ctx.strokeStyle = `rgba(${r},${g},${bl},${0.03 + rng.next() * 0.04})`;
-                ctx.lineWidth = 15 + rng.next() * 30;
-                ctx.lineCap = 'round';
                 ctx.beginPath();
-                ctx.moveTo(fx1, fy1);
-                ctx.quadraticCurveTo(fcx, fcy, fx2, fy2);
-                ctx.stroke();
+                ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+                ctx.fill();
             }
-
-            // Very gentle radial fade — start fading late so cloud stays large
-            const fadeGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
-            fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
-            fadeGrad.addColorStop(0.75, 'rgba(0,0,0,0)');
-            fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = fadeGrad;
-            ctx.fillRect(0, 0, size, size);
 
             const tex = new THREE.CanvasTexture(canvas);
             tex.needsUpdate = true;
