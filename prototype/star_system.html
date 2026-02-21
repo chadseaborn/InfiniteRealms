@@ -1991,8 +1991,7 @@ function renderSystem() {
     orbitLines = [];
     pulsarBeamSprites = [];
     if (labelContainer) labelContainer.innerHTML = '';
-    planetLabelEls = [];
-    moonLabelEls = [];
+    selectedLabelEl = null;
 
     // Render star
     renderStar(star);
@@ -2214,28 +2213,9 @@ function renderSystem() {
         wormholeLabelEl = whLabel;
     }
 
-    // ---- Create projected labels for planets and moons ----
-    for (let pi = 0; pi < planets.length; pi++) {
-        const planet = planets[pi];
-        const label = document.createElement('div');
-        label.className = 'body-label';
-        label.textContent = planet.name;
-        if (labelContainer) labelContainer.appendChild(label);
-        planetLabelEls.push(label);
-
-        if (planet.moonData) {
-            for (let mi = 0; mi < planet.moonData.length; mi++) {
-                const moon = planet.moonData[mi];
-                const moonLabel = document.createElement('div');
-                moonLabel.className = 'body-label';
-                moonLabel.textContent = moon.name;
-                moonLabel.style.fontSize = '9px';
-                moonLabel.style.color = '#999';
-                if (labelContainer) labelContainer.appendChild(moonLabel);
-                moonLabelEls.push({ el: moonLabel, planetIndex: pi, moonIndex: mi });
-            }
-        }
-    }
+    // ---- Single label shown only on selected body (created on demand) ----
+    // Planet/moon labels removed from 3D view — sidebar handles identification.
+    // A floating label appears above the selected body on click.
 }
 
 function createDustDiscTexture(starColor) {
@@ -3059,54 +3039,21 @@ function animate(time) {
         }
     }
 
-    // ---- Update projected labels each frame ----
-    if (labelContainer && systemData) {
+    // ---- Update selected-body label each frame ----
+    if (selectedLabelEl && selectedMesh) {
         const halfW = containerWidth / 2;
         const halfH = containerHeight / 2;
-
-        for (let pi = 0; pi < planetMeshes.length; pi++) {
-            if (pi < planetLabelEls.length) {
-                const pos = planetMeshes[pi].position.clone();
-                pos.y += getPlanetVisualRadius(systemData.planets[pi]) + 1.5;
-                pos.project(camera);
-
-                const sx = (pos.x * halfW) + halfW;
-                const sy = -(pos.y * halfH) + halfH;
-                const label = planetLabelEls[pi];
-
-                if (pos.z < 1) {
-                    label.style.display = '';
-                    label.style.left = sx + 'px';
-                    label.style.top = sy + 'px';
-                    label.style.transform = 'translate(-50%, -100%)';
-                } else {
-                    label.style.display = 'none';
-                }
-            }
-        }
-
-        for (const moonInfo of moonLabelEls) {
-            const moonMesh = moonMeshes.find(m =>
-                m.userData.planetIndex === moonInfo.planetIndex &&
-                m.userData.moonIndex === moonInfo.moonIndex
-            );
-            if (moonMesh) {
-                const pos = moonMesh.position.clone();
-                pos.y += 1;
-                pos.project(camera);
-
-                const sx = (pos.x * halfW) + halfW;
-                const sy = -(pos.y * halfH) + halfH;
-
-                if (pos.z < 1) {
-                    moonInfo.el.style.display = '';
-                    moonInfo.el.style.left = sx + 'px';
-                    moonInfo.el.style.top = sy + 'px';
-                    moonInfo.el.style.transform = 'translate(-50%, -100%)';
-                } else {
-                    moonInfo.el.style.display = 'none';
-                }
-            }
+        const pos = selectedMesh.position.clone();
+        const r = selectedMesh.geometry.parameters.radius || 1;
+        pos.y += r + 1.5;
+        pos.project(camera);
+        if (pos.z < 1) {
+            selectedLabelEl.style.display = '';
+            selectedLabelEl.style.left = (pos.x * halfW + halfW) + 'px';
+            selectedLabelEl.style.top = (-(pos.y * halfH) + halfH) + 'px';
+            selectedLabelEl.style.transform = 'translate(-50%, -100%)';
+        } else {
+            selectedLabelEl.style.display = 'none';
         }
     }
 
@@ -3228,6 +3175,7 @@ function onDblClick(e) {
 // ============================================================
 let selectionRing = null;  // visible ring around selected body
 let selectedMesh = null;   // mesh currently highlighted (persists through pan)
+let selectedLabelEl = null; // floating name label above selected body
 
 function clearBodyHighlights() {
     // Remove existing selection ring
@@ -3237,10 +3185,15 @@ function clearBodyHighlights() {
         selectionRing.material.dispose();
         selectionRing = null;
     }
+    // Remove floating label
+    if (selectedLabelEl) {
+        selectedLabelEl.remove();
+        selectedLabelEl = null;
+    }
     selectedMesh = null;
 }
 
-function highlightMesh(mesh) {
+function highlightMesh(mesh, bodyName) {
     clearBodyHighlights();
     if (mesh) {
         // Thin subtle selection ring — no emissive color change on the body
@@ -3257,6 +3210,14 @@ function highlightMesh(mesh) {
         selectionRing.userData.isSelectionRing = true;
         selectedMesh = mesh;
         scene.add(selectionRing);
+
+        // Floating name label above body
+        if (bodyName && labelContainer) {
+            selectedLabelEl = document.createElement('div');
+            selectedLabelEl.className = 'body-label';
+            selectedLabelEl.textContent = bodyName;
+            labelContainer.appendChild(selectedLabelEl);
+        }
     }
 }
 
@@ -3268,7 +3229,7 @@ function selectPlanet(index) {
 
     // Highlight 3D mesh and set focus target
     if (index >= 0 && index < planetMeshes.length) {
-        highlightMesh(planetMeshes[index]);
+        highlightMesh(planetMeshes[index], planet.name);
         focusTarget = planetMeshes[index];
     }
 
@@ -3310,16 +3271,15 @@ function selectMoon(planetIndex, moonIndex) {
     setDetailLabels(defaultDetailLabels); // restore planet labels
 
     // Highlight 3D mesh and set focus target
+    const planet = systemData.planets[planetIndex];
+    const moon = planet && planet.moonData ? planet.moonData[moonIndex] : null;
     const targetMoonMesh = moonMeshes.find(m =>
         m.userData.planetIndex === planetIndex && m.userData.moonIndex === moonIndex
     );
-    highlightMesh(targetMoonMesh);
+    highlightMesh(targetMoonMesh, moon ? moon.name : '');
     if (targetMoonMesh) focusTarget = targetMoonMesh;
 
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
-
-    const planet = systemData.planets[planetIndex];
-    const moon = planet.moonData[moonIndex];
 
     const detail = document.getElementById('planet-detail');
     detail.classList.add('active');
@@ -3350,7 +3310,7 @@ function selectWormhole() {
 
     // Highlight wormhole mesh
     if (wormholeMesh) {
-        highlightMesh(wormholeMesh);
+        highlightMesh(wormholeMesh, wh.name || 'Wormhole');
         focusTarget = wormholeMesh;
     }
 
@@ -3393,21 +3353,11 @@ function selectStar(companionIndex) {
     selectedMoon = null;
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
 
-    // Highlight the star mesh (use selection ring but skip emissive for stars with surface textures)
+    // Highlight the star mesh
     const targetMesh = isCompanion ? binaryCompanionSprite : starSprite;
+    const starName = isCompanion ? star.companion.name : star.name;
     if (targetMesh) {
-        clearBodyHighlights();
-        // Subtle selection ring for stars
-        const radius = targetMesh.geometry.parameters.radius || 1;
-        const ringGeom = new THREE.RingGeometry(radius * 1.5, radius * 1.58, 64);
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xaaccff, side: THREE.DoubleSide,
-            transparent: true, opacity: 0.3, depthWrite: false
-        });
-        selectionRing = new THREE.Mesh(ringGeom, ringMat);
-        selectionRing.userData.isSelectionRing = true;
-        selectedMesh = targetMesh;
-        scene.add(selectionRing);
+        highlightMesh(targetMesh, starName);
         focusTarget = targetMesh;
     }
 
