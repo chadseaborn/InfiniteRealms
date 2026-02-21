@@ -527,7 +527,7 @@ function generateUniverse(seed) {
 
     // Cluster centers — oblate disc distribution (Y flattened)
     const flattenY = 0.55;
-    const clusterCount = rng.nextInt(30, 55);
+    const clusterCount = rng.nextInt(24, 42);
     const clusters = [];
     for (let i = 0; i < clusterCount; i++) {
         let cx, cy, cz, valid, attempts = 0;
@@ -545,7 +545,7 @@ function generateUniverse(seed) {
             x: cx, y: cy, z: cz,
             name: rng.pick(CLUSTER_PREFIX) + ' ' + rng.pick(CLUSTER_SUFFIX),
             id: `${universeId}:CL-${String(i).padStart(2, '0')}`,
-            galaxyCount: rng.nextInt(5, 14),
+            galaxyCount: rng.nextInt(4, 10),
             radius: rng.nextFloat(120, 280),
             index: i
         });
@@ -607,7 +607,7 @@ function generateUniverse(seed) {
     }
 
     // Field galaxies — scattered in void (scaled by density, Y flattened)
-    const baseFieldCount = rng.nextInt(80, 160);
+    const baseFieldCount = rng.nextInt(50, 100);
     const fieldCount = Math.max(1, Math.round(baseFieldCount * universeDensity));
     for (let f = 0; f < fieldCount; f++) {
         const galaxySeed = rng.nextInt(1, 999999);
@@ -1064,6 +1064,7 @@ let universeGroup = null;
 let galaxySprites = [];
 let clusterHaloMeshes = [];
 let uniWormholeSprites = []; // universe wormhole endpoint sprites
+let _texQueueSorted = false; // frustum-priority texture queue needs re-sort
 let uniWormholeLines = [];   // connecting lines between endpoints
 let quasarSprites = [];       // quasar core sprites
 let quasarJetMeshes = [];     // quasar jet line meshes
@@ -1142,6 +1143,8 @@ function updateCamera() {
     camera.position.y = camDist * Math.cos(camPhi);
     camera.position.z = camDist * Math.sin(camPhi) * Math.sin(camTheta);
     camera.lookAt(0, 0, 0);
+    // Invalidate texture queue sort so visible galaxies get priority
+    _texQueueSorted = false;
 }
 
 function createStarfield() {
@@ -1236,24 +1239,54 @@ function buildUniverseScene() {
         galaxySprites.push(sprite);
     }
 
-    // Deferred texture loading — process galaxies in batches to keep UI responsive
-    let _deferredTexIdx = 0;
-    const BATCH_SIZE = 12;
-    function loadTextureBatch() {
-        if (_deferredTexIdx >= galaxies.length) return;
-        const end = Math.min(_deferredTexIdx + BATCH_SIZE, galaxies.length);
-        for (let gi = _deferredTexIdx; gi < end; gi++) {
+    // Frustum-prioritized deferred texture loading
+    // Sort galaxies by: (1) in-view first, (2) closer to camera first, (3) larger first
+    // Re-sorts every frame so camera movement reprioritizes the queue
+    const _texLoaded = new Set();
+    const _texQueue = []; // indices into galaxies[]
+    for (let gi = 0; gi < galaxies.length; gi++) _texQueue.push(gi);
+    _texQueueSorted = false;
+    const BATCH_SIZE = 20;
+    const _frustum = new THREE.Frustum();
+    const _projScreenMatrix = new THREE.Matrix4();
+
+    function sortTexQueue() {
+        _projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+        _frustum.setFromProjectionMatrix(_projScreenMatrix);
+        const camPos = camera.position;
+        // Score: in-frustum gets big bonus, then closer + larger = higher priority
+        const scores = {};
+        for (const gi of _texQueue) {
+            if (_texLoaded.has(gi)) continue;
             const gal = galaxies[gi];
-            const texSize = gal.size > 16 ? 160 : 96;
+            const pos = new THREE.Vector3(gal.x, gal.y, gal.z);
+            const inView = _frustum.containsPoint(pos);
+            const dist = pos.distanceTo(camPos);
+            scores[gi] = (inView ? 100000 : 0) + gal.size * 50 - dist;
+        }
+        _texQueue.sort((a, b) => (scores[b] || -99999) - (scores[a] || -99999));
+        _texQueueSorted = true;
+    }
+
+    function loadTextureBatch() {
+        if (_texLoaded.size >= galaxies.length) return;
+        if (!_texQueueSorted) sortTexQueue();
+        let loaded = 0;
+        for (let qi = 0; qi < _texQueue.length && loaded < BATCH_SIZE; qi++) {
+            const gi = _texQueue[qi];
+            if (_texLoaded.has(gi)) continue;
+            const gal = galaxies[gi];
+            const texSize = gal.size > 18 ? 128 : 80;
             const tex = createUniqueGalaxyTexture(gal.seed, gal.type.id, texSize);
             const sprite = galaxySprites[gi];
             if (sprite && sprite.material) {
                 sprite.material.map = tex;
                 sprite.material.needsUpdate = true;
             }
+            _texLoaded.add(gi);
+            loaded++;
         }
-        _deferredTexIdx = end;
-        if (_deferredTexIdx < galaxies.length) {
+        if (_texLoaded.size < galaxies.length) {
             requestAnimationFrame(loadTextureBatch);
         }
     }
