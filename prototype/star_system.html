@@ -2014,8 +2014,7 @@ function renderSystem() {
             );
         }
         orbitGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(orbitPoints), 3));
-        const orbitColor = planet.inHabZone ? 0x50b450 : 0xffffff;
-        const orbitMaterial = new THREE.LineBasicMaterial({ color: orbitColor, transparent: true, opacity: planet.inHabZone ? 0.2 : 0.08 });
+        const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08 });
         const orbitLine = new THREE.Line(orbitGeom, orbitMaterial);
         scene.add(orbitLine);
         orbitLines.push(orbitLine);
@@ -2139,22 +2138,7 @@ function renderSystem() {
         }
     }
 
-    // Habitable zone ring (uses clamped zone radius to avoid blowup in small systems)
-    if (star.type.habZone.length >= 2) {
-        const innerR = getZoneRadius(star.type.habZone[0] - 0.4, totalOrbits);
-        const outerR = getZoneRadius(star.type.habZone[1] + 0.4, totalOrbits);
-        const habGeom = new THREE.RingGeometry(innerR, outerR, 256);
-        const habMaterial = new THREE.MeshBasicMaterial({
-            color: 0x50b450,
-            transparent: true,
-            opacity: 0.06,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        habZoneRing = new THREE.Mesh(habGeom, habMaterial);
-        habZoneRing.rotation.x = -Math.PI / 2;
-        scene.add(habZoneRing);
-    }
+    // Habitable zone — spawn weighting still applies, visual disc removed
 
     // Engulf zone for red giants (clamped radius)
     if (star.type.engulfZone) {
@@ -3156,8 +3140,8 @@ function animate(time) {
     if (selectionRing && selectedMesh) {
         selectionRing.position.copy(selectedMesh.position);
         selectionRing.lookAt(camera.position);
-        // Gentle pulse animation
-        const pulse = 0.7 + 0.15 * Math.sin(time * 0.004);
+        // Very subtle pulse
+        const pulse = 0.25 + 0.1 * Math.sin(time * 0.003);
         selectionRing.material.opacity = pulse;
     }
 
@@ -3246,18 +3230,6 @@ let selectionRing = null;  // visible ring around selected body
 let selectedMesh = null;   // mesh currently highlighted (persists through pan)
 
 function clearBodyHighlights() {
-    planetMeshes.forEach(m => {
-        if (m.material.emissive) {
-            m.material.emissive.setHex(0x000000);
-            m.material.emissiveIntensity = 0;
-        }
-    });
-    moonMeshes.forEach(m => {
-        if (m.material.emissive) {
-            m.material.emissive.setHex(0x000000);
-            m.material.emissiveIntensity = 0;
-        }
-    });
     // Remove existing selection ring
     if (selectionRing) {
         scene.remove(selectionRing);
@@ -3271,20 +3243,14 @@ function clearBodyHighlights() {
 function highlightMesh(mesh) {
     clearBodyHighlights();
     if (mesh) {
-        // Emissive glow on the body itself (only if material supports it)
-        if (mesh.material.emissive) {
-            mesh.material.emissive.setHex(0xffcc00);
-            mesh.material.emissiveIntensity = 0.6;
-        }
-
-        // Add a visible selection ring around the body
+        // Thin subtle selection ring — no emissive color change on the body
         const radius = mesh.geometry.parameters.radius || 1;
-        const ringGeom = new THREE.RingGeometry(radius * 1.6, radius * 1.85, 48);
+        const ringGeom = new THREE.RingGeometry(radius * 1.5, radius * 1.58, 64);
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xffcc00,
+            color: 0xaaccff,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.7,
+            opacity: 0.3,
             depthWrite: false
         });
         selectionRing = new THREE.Mesh(ringGeom, ringMat);
@@ -3431,12 +3397,12 @@ function selectStar(companionIndex) {
     const targetMesh = isCompanion ? binaryCompanionSprite : starSprite;
     if (targetMesh) {
         clearBodyHighlights();
-        // Add selection ring without emissive glow (star sphere is self-lit)
+        // Subtle selection ring for stars
         const radius = targetMesh.geometry.parameters.radius || 1;
-        const ringGeom = new THREE.RingGeometry(radius * 1.6, radius * 1.85, 48);
+        const ringGeom = new THREE.RingGeometry(radius * 1.5, radius * 1.58, 64);
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xffcc00, side: THREE.DoubleSide,
-            transparent: true, opacity: 0.7, depthWrite: false
+            color: 0xaaccff, side: THREE.DoubleSide,
+            transparent: true, opacity: 0.3, depthWrite: false
         });
         selectionRing = new THREE.Mesh(ringGeom, ringMat);
         selectionRing.userData.isSelectionRing = true;
