@@ -279,9 +279,11 @@ const STAR_TYPES = [
     { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.05, luminosity: 'Very Low', color: '#884422', radius: 2,   planetRange: [0,4] },
     { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.03, luminosity: 'High',     color: '#6688ff', radius: 6,   planetRange: [2,10] },
     { id: 'red_giant',    name: 'Red Giant',     frequency: 0.03, luminosity: 'High',     color: '#ff5533', radius: 5.5, planetRange: [1,8] },
-    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.02, luminosity: 'Extreme',  color: '#cc88ff', radius: 2,   planetRange: [0,3] },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.015,luminosity: 'Extreme',  color: '#cc88ff', radius: 2,   planetRange: [0,3] },
     { id: 'protostar',    name: 'Protostar',     frequency: 0.01, luminosity: 'Variable', color: '#ffaa66', radius: 4.5, planetRange: [0,3] },
     { id: 'pulsar',       name: 'Pulsar',        frequency: 0.01, luminosity: 'Extreme',  color: '#dd99ff', radius: 2,   planetRange: [0,2] },
+    { id: 'magnetar',     name: 'Magnetar',      frequency: 0.005,luminosity: 'Extreme',  color: '#ff66cc', radius: 2,   planetRange: [0,1] },
+    { id: 'ms_pulsar',    name: 'Millisecond Pulsar', frequency: 0.005, luminosity: 'Extreme', color: '#aaddff', radius: 2, planetRange: [0,2] },
     { id: 'black_hole',   name: 'Black Hole',    frequency: 0.007,luminosity: 'None',     color: '#441155', radius: 3,   planetRange: [0,4] },
 ];
 
@@ -422,7 +424,7 @@ function burnRingRng(rng, bodyTypeId) {
 const HAB_ZONES = {
     red_dwarf: [1,2], orange_dwarf: [1,3], yellow_sun: [2,5], blue_giant: [4,7], red_giant: [5,8],
     white_dwarf: [1,1], brown_dwarf: [], binary: [3,5],
-    neutron_star: [], pulsar: [], black_hole: [], protostar: []
+    neutron_star: [], pulsar: [], magnetar: [], ms_pulsar: [], black_hole: [], protostar: []
 };
 
 // Peek at system details by replaying the exact RNG sequence from star_system.html's generateSystem()

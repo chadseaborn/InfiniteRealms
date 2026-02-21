@@ -313,9 +313,11 @@ const STAR_TYPES = [
     { id: 'brown_dwarf',  name: 'Brown Dwarf',   frequency: 0.05, luminosity: 'Very Low', color: '#884422', radius: 15, planetCount: [0,4],  habZone: [] },
     { id: 'blue_giant',   name: 'Blue Giant',    frequency: 0.03, luminosity: 'High',     color: '#6688ff', radius: 45, planetCount: [2,10], habZone: [4,7] },
     { id: 'red_giant',    name: 'Red Giant',     frequency: 0.03, luminosity: 'High',     color: '#ff5533', radius: 50, planetCount: [1,8],  habZone: [5,8], engulfZone: 2 },
-    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.02, luminosity: 'Extreme',  color: '#cc88ff', radius: 8,  planetCount: [0,3],  habZone: [] },
+    { id: 'neutron_star', name: 'Neutron Star',  frequency: 0.015,luminosity: 'Extreme',  color: '#cc88ff', radius: 8,  planetCount: [0,3],  habZone: [] },
     { id: 'protostar',    name: 'Protostar',     frequency: 0.01, luminosity: 'Variable', color: '#ffaa66', radius: 35, planetCount: [0,3],  habZone: [], diskColor: '#886633' },
     { id: 'pulsar',       name: 'Pulsar',        frequency: 0.01, luminosity: 'Extreme',  color: '#dd99ff', radius: 8,  planetCount: [0,2],  habZone: [] },
+    { id: 'magnetar',     name: 'Magnetar',      frequency: 0.005,luminosity: 'Extreme',  color: '#ff66cc', radius: 8,  planetCount: [0,1],  habZone: [] },
+    { id: 'ms_pulsar',    name: 'Millisecond Pulsar', frequency: 0.005, luminosity: 'Extreme', color: '#aaddff', radius: 8, planetCount: [0,2], habZone: [] },
     { id: 'black_hole',   name: 'Black Hole',    frequency: 0.007,luminosity: 'None',     color: '#441155', radius: 18, planetCount: [0,4],  habZone: [], accretionColor: '#ff6622' },
 ];
 
@@ -1061,8 +1063,10 @@ const STAR_PHYSICS = {
     white_dwarf:  { diameterSol: 0.015, massSol: 0.6,    tempK: 25000,  luminositySol: 0.001,   densityKgM3: 1e9,    spectralClass: 'DA/DB',    ageDesc: 'Stellar remnant, cooling' },
     brown_dwarf:  { diameterSol: 0.12,  massSol: 0.04,   tempK: 1500,   luminositySol: 0.00001, densityKgM3: 80000,  spectralClass: 'T/Y-type', ageDesc: 'Failed star, slowly cooling' },
     binary:       { diameterSol: 1.0,   massSol: 1.2,    tempK: 5800,   luminositySol: 1.5,     densityKgM3: 1400,   spectralClass: 'Variable', ageDesc: 'Gravitationally bound pair' },
-    neutron_star: { diameterSol: 0.00003, massSol: 1.4,  tempK: 600000, luminositySol: 0.01,    densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Supernova remnant' },
-    pulsar:       { diameterSol: 0.00003, massSol: 1.4,  tempK: 1000000,luminositySol: 100,     densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Rotating neutron star' },
+    neutron_star: { diameterSol: 0.00003, massSol: 1.4,  tempK: 600000,  luminositySol: 0.01,    densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Supernova remnant' },
+    pulsar:       { diameterSol: 0.00003, massSol: 1.4,  tempK: 1000000, luminositySol: 100,    densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Rotating neutron star' },
+    magnetar:     { diameterSol: 0.00003, massSol: 1.6,  tempK: 1800000, luminositySol: 500,    densityKgM3: 5e17,   spectralClass: 'Degenerate', ageDesc: 'Ultra-magnetic neutron star' },
+    ms_pulsar:    { diameterSol: 0.00003, massSol: 1.3,  tempK: 800000,  luminositySol: 50,     densityKgM3: 4e17,   spectralClass: 'Degenerate', ageDesc: 'Recycled millisecond pulsar' },
     black_hole:   { diameterSol: null,  massSol: 10,     tempK: null,   luminositySol: null,    densityKgM3: null,   spectralClass: 'Singularity', ageDesc: 'Gravitational collapse remnant' },
     protostar:    { diameterSol: 3.0,   massSol: 0.5,    tempK: 3000,   luminositySol: 5,       densityKgM3: 0.5,    spectralClass: 'Pre-MS',   ageDesc: 'Forming, < 10 Myr old' },
 };
@@ -1117,6 +1121,16 @@ const STAR_SURFACE_DESC = {
         'Spinning at tremendous speed, the magnetic poles sweep lighthouse beams across space. The magnetosphere crackles with relativistic particle acceleration.',
         'Incandescent polar caps blaze with channeled X-ray emission while the equatorial magnetosphere hums with synchrotron radiation. Relativistic plasma jets extend for light-years from each pole.',
     ],
+    magnetar: [
+        'The most powerfully magnetic object in the universe. The magnetic field exceeds 10¹⁵ Gauss — strong enough to distort atomic orbitals at a thousand kilometers. Periodic starquakes release catastrophic gamma-ray flares that could sterilize a solar system.',
+        'Violently unstable surface wracked by constant magnetic reconnection events. The crust fractures under immense magnetic stress, releasing bursts of hard X-rays and gamma radiation. Surrounding space shimmers with magnetospheric plasma.',
+        'An incandescent fury of twisted magnetic field lines. The surface crackles with soft gamma repeater bursts, and the magnetosphere extends in dense, tangled loops far beyond what normal pulsars produce. Approach is extremely hazardous.',
+    ],
+    ms_pulsar: [
+        'An ancient neutron star spun back up to hundreds of rotations per second by accreting matter from a companion. The surface is remarkably stable, its precise spin making it a natural cosmic clock.',
+        'Millisecond rotation creates an almost imperceptible blur. The recycled pulsar emits tight, steady beams — the most precise natural timekeepers in the universe. Often found with a white dwarf companion.',
+        'Ultra-rapid spin produces a perfectly regular pulse train detectable across the galaxy. The compact magnetosphere is tightly wound, emitting focused beams of radio waves with metronomic precision.',
+    ],
     black_hole: [
         'No surface exists beyond the event horizon. An accretion disk of superheated plasma spirals inward, glowing with intense X-ray emission. A faint photon ring marks the last stable orbit.',
         'The event horizon cloaks an unknowable interior. Infalling matter forms a luminous accretion disk, with relativistic jets possibly extending from the poles.',
@@ -1139,6 +1153,8 @@ const STAR_SURFACE_PROFILES = {
     binary:       { granScale: 5.0,  granContrast: 0.20, spotCount: [4,8],  spotSize: [3,8],   spotDark: 0.45, bandCount: 0, driftSpeed: 0.00006, flareChance: 0.001 },
     neutron_star: { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
     pulsar:       { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
+    magnetar:     { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
+    ms_pulsar:    { granScale: 0,    granContrast: 0,    spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0,       flareChance: 0 },
     black_hole:   null, // no surface
     protostar:    { granScale: 2.5,  granContrast: 0.35, spotCount: [0,0],  spotSize: [0,0],   spotDark: 0,    bandCount: 0, driftSpeed: 0.00005, flareChance: 0.005 },
 };
@@ -1284,22 +1300,38 @@ function paintStarSurface(state, time) {
                 brightness = 0.6 + 0.4 * Math.sin(time * 0.008 + theta * 3);
             }
 
-            // Pulsar: intense polar hotspots + rapid surface sweep
-            if (starType.id === 'pulsar') {
-                // Base: dim bluish surface
+            // Pulsar / Millisecond Pulsar: intense polar hotspots + rapid surface sweep
+            if (starType.id === 'pulsar' || starType.id === 'ms_pulsar') {
+                const spinRate = starType.id === 'ms_pulsar' ? 0.04 : 0.008; // ms_pulsar spins much faster
                 brightness = 0.3;
-                // Polar hotspots — bright caps near poles
-                const polarDist = Math.min(theta, Math.PI - theta); // distance from nearest pole
+                const polarDist = Math.min(theta, Math.PI - theta);
                 if (polarDist < 0.5) {
                     const hotGlow = 1.0 - polarDist / 0.5;
-                    brightness += hotGlow * 1.2;
+                    brightness += hotGlow * (starType.id === 'ms_pulsar' ? 0.8 : 1.2);
                 }
-                // Sweeping beam light across equator (lighthouse flash)
-                const sweepPhase = phi - time * 0.008;
+                const sweepPhase = phi - time * spinRate;
                 const sweepGlow = Math.pow(Math.max(0, Math.cos(sweepPhase)), 8);
-                brightness += sweepGlow * 0.4 * Math.sin(theta); // strongest at equator
-                // Magnetic field line texture (faint latitude bands)
+                brightness += sweepGlow * 0.4 * Math.sin(theta);
                 brightness += Math.sin(theta * 8) * 0.05;
+            }
+
+            // Magnetar: violent flickering + bright crackle texture
+            if (starType.id === 'magnetar') {
+                brightness = 0.5;
+                // Chaotic surface crackle from magnetic stress
+                const crackle = SimplexNoise2D.noise((sx + drift * 5) * 8, sy * 8);
+                brightness += crackle * 0.4;
+                // Intense random flicker (starquakes)
+                const flicker = Math.sin(time * 0.03 + phi * 7) * Math.sin(time * 0.017 + theta * 5);
+                brightness += Math.max(0, flicker) * 0.6;
+                // Bright polar regions — tangled magnetic field convergence
+                const polarDist = Math.min(theta, Math.PI - theta);
+                if (polarDist < 0.7) {
+                    brightness += (1.0 - polarDist / 0.7) * 0.5;
+                }
+                // Occasional bright flare patches
+                const flarePatch = Math.pow(Math.max(0, SimplexNoise2D.noise(sx * 4 + time * 0.005, sy * 4)), 4);
+                brightness += flarePatch * 1.5;
             }
 
             // White dwarf: gentle shimmer
@@ -2681,12 +2713,13 @@ function renderStar(star) {
         scene.add(binaryCompanionGlow);
     }
 
-    // ---- Enhanced Pulsar: dipole field lines, tilted beam cones, polar hotspots ----
-    if (star.type.id === 'pulsar') {
+    // ---- Enhanced Pulsar / Millisecond Pulsar: dipole field lines, tilted beam cones ----
+    if (star.type.id === 'pulsar' || star.type.id === 'ms_pulsar') {
         // Magnetic axis is tilted ~30° from rotation axis (Y)
         // pulsarGroup contains the magnetic components (beams + field lines)
         // and rotates around Y in the animation loop
-        const magneticTilt = 0.5; // ~30° tilt
+        const isMsPulsar = star.type.id === 'ms_pulsar';
+        const magneticTilt = isMsPulsar ? 0.15 : 0.5; // ms_pulsar: tighter tilt (~9°), pulsar: ~30°
         pulsarGroup = new THREE.Group();
         scene.add(pulsarGroup);
 
@@ -2722,9 +2755,9 @@ function renderStar(star) {
 
         // ---- Beam cones along magnetic axis ----
         for (let pole = -1; pole <= 1; pole += 2) {
-            const beamLength = bodyRadius * 28;
-            const beamBaseR = bodyRadius * 0.4;
-            const beamTipR = bodyRadius * 3.0;
+            const beamLength = bodyRadius * (isMsPulsar ? 35 : 28);
+            const beamBaseR = bodyRadius * (isMsPulsar ? 0.25 : 0.4);
+            const beamTipR = bodyRadius * (isMsPulsar ? 1.8 : 3.0); // ms_pulsar: tighter, more focused beams
 
             const topR = pole === 1 ? beamTipR : beamBaseR;
             const botR = pole === 1 ? beamBaseR : beamTipR;
@@ -2765,8 +2798,8 @@ function renderStar(star) {
                         float coreBright = exp(-vRadial * vRadial * 5.0);
                         float axial = vAxial * vAxial;
                         float alpha = coreBright * axial * 0.35;
-                        vec3 coreCol = vec3(0.95, 0.85, 1.0);
-                        vec3 edgeCol = vec3(0.3, 0.1, 0.5);
+                        vec3 coreCol = ${isMsPulsar ? 'vec3(0.85, 0.95, 1.0)' : 'vec3(0.95, 0.85, 1.0)'};
+                        vec3 edgeCol = ${isMsPulsar ? 'vec3(0.15, 0.25, 0.5)' : 'vec3(0.3, 0.1, 0.5)'};
                         vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
                         gl_FragColor = vec4(col, alpha);
                     }
@@ -2784,8 +2817,8 @@ function renderStar(star) {
         // ---- Dipole magnetic field lines (pole-to-pole loops) ----
         // These are the elegant curved lines arching from north to south pole
         // like the reference image — classic magnetic dipole pattern
-        const fieldLineCount = 12;  // number of field line loops
-        const fieldReach = bodyRadius * 10; // how far the outermost lines extend
+        const fieldLineCount = isMsPulsar ? 8 : 12;  // ms_pulsar: fewer but tighter
+        const fieldReach = bodyRadius * (isMsPulsar ? 5 : 10); // ms_pulsar: compact magnetosphere
 
         for (let fi = 0; fi < fieldLineCount; fi++) {
             // Azimuthal angle around the magnetic axis
@@ -2844,7 +2877,7 @@ function renderStar(star) {
                         varying float vFade;
                         void main() {
                             // Brighter blue-violet field lines
-                            vec3 col = vec3(0.45, 0.55, 1.0);
+                            vec3 col = ${isMsPulsar ? 'vec3(0.5, 0.7, 1.0)' : 'vec3(0.45, 0.55, 1.0)'};
                             gl_FragColor = vec4(col, vFade * uOpacity);
                         }
                     `,
@@ -2911,6 +2944,117 @@ function renderStar(star) {
         });
         const axisLine = new THREE.Mesh(axisGeo, axisMat);
         pulsarGroup.add(axisLine); // added to pulsarGroup directly (not magnetic), so it stays on rotation axis
+    }
+
+    // ---- Magnetar: tangled intense field lines, flare bursts, no clean beams ----
+    if (star.type.id === 'magnetar') {
+        pulsarGroup = new THREE.Group();
+        scene.add(pulsarGroup);
+
+        // Magnetars have extremely tangled, dense magnetic field structures
+        // Multiple tilted dipole layers create a chaotic appearance
+        const dipoleAxes = [
+            { tiltZ: 0.3, tiltX: 0.0 },   // primary axis
+            { tiltZ: -0.5, tiltX: 0.4 },   // secondary twisted axis
+            { tiltZ: 0.1, tiltX: -0.6 },   // tertiary
+        ];
+
+        for (const axis of dipoleAxes) {
+            const axisGroup = new THREE.Group();
+            axisGroup.rotation.z = axis.tiltZ;
+            axisGroup.rotation.x = axis.tiltX;
+            pulsarGroup.add(axisGroup);
+
+            const lineCount = 8;
+            const reach = bodyRadius * 7;
+            const layers = [0.25, 0.5, 0.8];
+
+            for (let fi = 0; fi < lineCount; fi++) {
+                const azimuth = (fi / lineCount) * Math.PI * 2;
+                for (let li = 0; li < layers.length; li++) {
+                    const scale = layers[li];
+                    const loopReach = reach * scale;
+                    const points = [];
+                    for (let si = 0; si <= 48; si++) {
+                        const theta = (si / 48) * Math.PI;
+                        const r = loopReach * Math.sin(theta) * Math.sin(theta);
+                        const y = r * Math.cos(theta);
+                        const rPerp = r * Math.sin(theta);
+                        points.push(new THREE.Vector3(
+                            rPerp * Math.cos(azimuth), y, rPerp * Math.sin(azimuth)
+                        ));
+                    }
+                    const curve = new THREE.CatmullRomCurve3(points);
+                    const tubeR = bodyRadius * (0.04 + 0.02 * scale);
+                    const tubeGeo = new THREE.TubeGeometry(curve, 40, tubeR, 5, false);
+
+                    const tPos = tubeGeo.attributes.position;
+                    const alphas = new Float32Array(tPos.count);
+                    for (let vi = 0; vi < tPos.count; vi++) {
+                        const vx = tPos.getX(vi), vy = tPos.getY(vi), vz = tPos.getZ(vi);
+                        const dist = Math.sqrt(vx * vx + vy * vy + vz * vz);
+                        alphas[vi] = Math.pow(1 - Math.min(1, dist / loopReach) * 0.6, 2);
+                    }
+                    tubeGeo.setAttribute('alphaFade', new THREE.BufferAttribute(alphas, 1));
+
+                    const opacity = 0.25 + 0.15 * (1 - scale);
+                    const tubeMat = new THREE.ShaderMaterial({
+                        vertexShader: `
+                            attribute float alphaFade;
+                            varying float vFade;
+                            void main() {
+                                vFade = alphaFade;
+                                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                            }
+                        `,
+                        fragmentShader: `
+                            uniform float uOpacity;
+                            varying float vFade;
+                            void main() {
+                                vec3 col = vec3(0.9, 0.3, 0.7);
+                                gl_FragColor = vec4(col, vFade * uOpacity);
+                            }
+                        `,
+                        uniforms: { uOpacity: { value: opacity } },
+                        transparent: true, depthWrite: false,
+                        blending: THREE.AdditiveBlending
+                    });
+                    axisGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+                }
+            }
+        }
+
+        // Intense polar flare sprites at multiple angles
+        for (let i = 0; i < 6; i++) {
+            const flareCanvas = document.createElement('canvas');
+            flareCanvas.width = 64; flareCanvas.height = 64;
+            const fCtx = flareCanvas.getContext('2d');
+            const grad = fCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255,150,220,1)');
+            grad.addColorStop(0.2, 'rgba(255,80,180,0.7)');
+            grad.addColorStop(0.6, 'rgba(200,30,120,0.15)');
+            grad.addColorStop(1, 'rgba(150,20,80,0)');
+            fCtx.fillStyle = grad;
+            fCtx.fillRect(0, 0, 64, 64);
+            const flareTex = new THREE.CanvasTexture(flareCanvas);
+            const flareMat = new THREE.SpriteMaterial({
+                map: flareTex, transparent: true,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            const flare = new THREE.Sprite(flareMat);
+            const angle = (i / 6) * Math.PI * 2;
+            const fR = bodyRadius * (2 + Math.random() * 3);
+            flare.position.set(
+                Math.cos(angle) * fR * 0.3,
+                fR * (i % 2 === 0 ? 1 : -1) * 0.7,
+                Math.sin(angle) * fR * 0.3
+            );
+            flare.scale.set(bodyRadius * 2.5, bodyRadius * 2.5, 1);
+            flare.userData.magnetarFlare = true;
+            flare.userData.baseY = flare.position.y;
+            flare.userData.phase = angle;
+            pulsarGroup.add(flare);
+        }
     }
 }
 
@@ -3101,23 +3245,45 @@ function animate(time) {
             if (binaryCompanionGlow) binaryCompanionGlow.position.set(cx, 0, cz);
         }
 
-        // Pulsar rotation — entire magnetic structure spins around rotation axis (Y)
-        if (star.type.id === 'pulsar' && pulsarGroup) {
-            const beamAngle = time * 0.008;  // fast spin
+        // Pulsar / Millisecond Pulsar rotation
+        if ((star.type.id === 'pulsar' || star.type.id === 'ms_pulsar') && pulsarGroup) {
+            const spinRate = star.type.id === 'ms_pulsar' ? 0.04 : 0.008;
+            const beamAngle = time * spinRate;
             pulsarGroup.rotation.y = beamAngle;
 
-            // Flat beam planes also spin, matching the magnetic tilt
             for (let i = 0; i < pulsarBeamSprites.length; i++) {
                 const beamIdx = Math.floor(i / 2);
                 pulsarBeamSprites[i].rotation.z = beamAngle + (beamIdx * Math.PI);
             }
 
-            // Subtle pulse on beam plane opacity
             const pulse = 0.18 + 0.12 * Math.sin(time * 0.012);
             for (const bs of pulsarBeamSprites) {
                 bs.material.uniforms && bs.material.uniforms.uOpacity
                     ? (bs.material.uniforms.uOpacity.value = pulse)
                     : (bs.material.opacity = pulse);
+            }
+        }
+
+        // Magnetar: slow chaotic rotation + flickering flare sprites
+        if (star.type.id === 'magnetar' && pulsarGroup) {
+            pulsarGroup.rotation.y = time * 0.003; // slower, more ominous spin
+
+            // Animate flare sprites — pulsing intensity + slight drift
+            for (const child of pulsarGroup.children) {
+                if (child.isSprite && child.userData.magnetarFlare) {
+                    const phase = child.userData.phase;
+                    const flicker = 0.3 + 0.7 * Math.pow(Math.max(0,
+                        Math.sin(time * 0.015 + phase * 3) * Math.sin(time * 0.023 + phase)), 2);
+                    child.material.opacity = flicker;
+                    // Slight vertical oscillation
+                    child.position.y = child.userData.baseY + Math.sin(time * 0.005 + phase) * bodyRadius * 0.3;
+                }
+            }
+
+            // Slowly rotate the tangled dipole axes at slightly different rates
+            const axisGroups = pulsarGroup.children.filter(c => c.isGroup);
+            for (let i = 0; i < axisGroups.length; i++) {
+                axisGroups[i].rotation.y += 0.001 * (1 + i * 0.3);
             }
         }
 
