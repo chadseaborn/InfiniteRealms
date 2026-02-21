@@ -1539,31 +1539,39 @@ function buildGlobeMesh(tiles) {
         const center = tile.center;
         const tileColor = tileColors[ti];
 
-        // For each edge, find the neighbor across it and compute blended edge color
+        // For each edge, find the neighbor across it and blend ONLY if biome differs
         const edgeMidColors = [];
+        const edgeBlends = []; // true if this edge actually blends
         for (let c = 0; c < corners.length; c++) {
             const c1 = corners[c];
             const c2 = corners[(c + 1) % corners.length];
             const key = [c1, c2].map(p => p.map(v => v.toFixed(6)).join(',')).sort().join('|');
             const sharing = edgeToNeighborTile.get(key);
-            let neighborColor = null;
+            let neighborIdx = -1;
             if (sharing) {
                 for (const ni of sharing) {
-                    if (ni !== ti) { neighborColor = tileColors[ni]; break; }
+                    if (ni !== ti) { neighborIdx = ni; break; }
                 }
             }
-            if (neighborColor) {
+            if (neighborIdx >= 0 && tiles[neighborIdx].biome !== tile.biome) {
+                // Different biome — blend toward neighbor
                 const blended = tileColor.clone();
-                blended.lerp(neighborColor, edgeBlend);
+                blended.lerp(tileColors[neighborIdx], edgeBlend);
                 edgeMidColors.push(blended);
+                edgeBlends.push(true);
             } else {
+                // Same biome or no neighbor — keep tile's own color (crisp)
                 edgeMidColors.push(tileColor.clone());
+                edgeBlends.push(false);
             }
         }
 
-        // Corner colors: average of the two adjacent edge mid colors
+        // Corner colors: only blend if at least one adjacent edge has a biome transition
         const cornerColors = corners.map((c, i) => {
             const prevEdge = (i - 1 + corners.length) % corners.length;
+            if (!edgeBlends[prevEdge] && !edgeBlends[i]) {
+                return tileColor.clone(); // both edges same biome — stay crisp
+            }
             const blended = edgeMidColors[prevEdge].clone();
             blended.lerp(edgeMidColors[i], 0.5);
             return blended;
