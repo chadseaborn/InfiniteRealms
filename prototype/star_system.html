@@ -1824,6 +1824,69 @@ function createPlanetTexture(planet, size) {
 }
 
 // ============================================================
+// PLANET SIDEBAR THUMBNAIL — circular disc from equirectangular texture
+// ============================================================
+function createPlanetThumbnail(planet, dotSize) {
+    // Generate a small equirectangular texture
+    const texSize = 32;
+    const tex = createPlanetTexture(planet, texSize);
+    const srcCanvas = tex.image; // the underlying canvas (64×32)
+
+    // Create circular thumbnail canvas
+    const thumb = document.createElement('canvas');
+    const s = dotSize * 2; // retina resolution
+    thumb.width = s;
+    thumb.height = s;
+    const tctx = thumb.getContext('2d');
+    const r = s / 2;
+
+    // Sample the equirectangular map onto a sphere-like disc
+    // with limb darkening for a 3D appearance
+    const imgData = tctx.createImageData(s, s);
+    const d = imgData.data;
+    const srcCtx = srcCanvas.getContext('2d');
+    const srcData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    const sd = srcData.data;
+    const sw = srcCanvas.width;
+    const sh = srcCanvas.height;
+
+    for (let py = 0; py < s; py++) {
+        for (let px = 0; px < s; px++) {
+            const nx = (px - r) / r; // -1..1
+            const ny = (py - r) / r;
+            const dist2 = nx * nx + ny * ny;
+            if (dist2 > 1) continue;
+
+            // Spherical projection: map disc position to lat/lon
+            const z = Math.sqrt(1 - dist2);
+            const lon = Math.atan2(nx, z); // -PI..PI
+            const lat = Math.asin(ny);     // -PI/2..PI/2
+
+            // Map to equirectangular UV
+            const u = (lon / Math.PI + 1) * 0.5; // 0..1
+            const v = (lat / (Math.PI / 2) + 1) * 0.5; // 0..1
+
+            // Sample source texture
+            const sx2 = Math.floor(u * (sw - 1));
+            const sy2 = Math.floor(v * (sh - 1));
+            const si = (sy2 * sw + sx2) * 4;
+
+            // Limb darkening — darker near edges for 3D look
+            const limb = 0.4 + 0.6 * z;
+
+            const di = (py * s + px) * 4;
+            d[di]     = Math.min(255, sd[si] * limb);
+            d[di + 1] = Math.min(255, sd[si + 1] * limb);
+            d[di + 2] = Math.min(255, sd[si + 2] * limb);
+            d[di + 3] = 255;
+        }
+    }
+    tctx.putImageData(imgData, 0, 0);
+
+    return thumb.toDataURL();
+}
+
+// ============================================================
 // ATMOSPHERIC GLOW + CLOUD LAYERS
 // ============================================================
 function createAtmosphereGlow(radius, planet) {
@@ -3625,7 +3688,7 @@ function buildPlanetList() {
         const dotSize = Math.max(10, Math.round(6 + Math.sqrt(planet.sizeN) * 4));
         dot.style.width = dotSize + 'px';
         dot.style.height = dotSize + 'px';
-        dot.style.background = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
+        dot.style.background = 'url(' + createPlanetThumbnail(planet, dotSize) + ') center/cover';
         if (planet.rings) {
             dot.style.boxShadow = `0 0 0 2px #0a0a1a, 0 0 0 3px ${planet.rings.bands[0].color}`;
         }
@@ -3676,7 +3739,7 @@ function buildPlanetList() {
                 const moonDotSize = Math.max(6, Math.round(4 + Math.sqrt(moon.sizeN) * 3));
                 moonDot.style.width = moonDotSize + 'px';
                 moonDot.style.height = moonDotSize + 'px';
-                moonDot.style.background = moon.type.color;
+                moonDot.style.background = 'url(' + createPlanetThumbnail(moon, moonDotSize) + ') center/cover';
                 if (moon.rings) {
                     moonDot.style.boxShadow = `0 0 0 1px #0a0a1a, 0 0 0 2px ${moon.rings.bands[0].color}`;
                 }
