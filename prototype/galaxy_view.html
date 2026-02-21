@@ -1137,42 +1137,47 @@ function buildGalaxyScene() {
             agnJetGroup.add(helix);
         }
 
-        // --- Swirling gas torus — large orbiting gas clouds around the core ---
+        // --- Dense swirling gas torus — thick, multi-layered gas around BH ---
         {
-            // Create a soft cloud texture for gas blobs
-            const gcC = document.createElement('canvas');
-            gcC.width = 64; gcC.height = 64;
-            const gcCtx = gcC.getContext('2d');
-            // Multi-blob organic shape
-            for (let b = 0; b < 4; b++) {
-                const bx = 32 + (Math.random() - 0.5) * 20;
-                const by = 32 + (Math.random() - 0.5) * 20;
-                const br = 14 + Math.random() * 12;
-                const bg = gcCtx.createRadialGradient(bx, by, 0, bx, by, br);
-                bg.addColorStop(0, 'rgba(255,255,255,0.12)');
-                bg.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-                bg.addColorStop(1, 'rgba(0,0,0,0)');
-                gcCtx.fillStyle = bg;
-                gcCtx.fillRect(0, 0, 64, 64);
+            // Generate several varied cloud textures for visual diversity
+            const gasTextures = [];
+            for (let ti = 0; ti < 5; ti++) {
+                const gcC = document.createElement('canvas');
+                gcC.width = 64; gcC.height = 64;
+                const gcCtx = gcC.getContext('2d');
+                const blobCount = 3 + Math.floor(Math.random() * 4);
+                for (let b = 0; b < blobCount; b++) {
+                    const bx = 32 + (Math.random() - 0.5) * 24;
+                    const by = 32 + (Math.random() - 0.5) * 24;
+                    const br = 10 + Math.random() * 18;
+                    const bg = gcCtx.createRadialGradient(bx, by, 0, bx, by, br);
+                    bg.addColorStop(0, 'rgba(255,255,255,0.18)');
+                    bg.addColorStop(0.35, 'rgba(255,255,255,0.08)');
+                    bg.addColorStop(0.7, 'rgba(255,255,255,0.02)');
+                    bg.addColorStop(1, 'rgba(0,0,0,0)');
+                    gcCtx.fillStyle = bg;
+                    gcCtx.fillRect(0, 0, 64, 64);
+                }
+                gasTextures.push(new THREE.CanvasTexture(gcC));
             }
-            const gasCloudTex = new THREE.CanvasTexture(gcC);
 
-            // Place gas cloud sprites in a torus orbiting the core
-            const gasCount = 18;
-            for (let gi = 0; gi < gasCount; gi++) {
-                const angle = (gi / gasCount) * Math.PI * 2 + Math.random() * 0.3;
-                const torusR = 18 + Math.random() * 20; // distance from center
-                const yOff = (Math.random() - 0.5) * 8;
-                // Vary color: orange/red inner, purple/blue outer
-                const innerFrac = 1 - (torusR - 18) / 20;
-                const r = Math.min(1, 0.4 + innerFrac * 0.6);
-                const g = Math.min(1, 0.1 + innerFrac * 0.3);
-                const bv = Math.min(1, 0.3 + (1 - innerFrac) * 0.4);
+            // Layer 1: Dense inner torus — thick blazing gas hugging the BH (r = 6–18)
+            const innerGasCount = 45;
+            for (let gi = 0; gi < innerGasCount; gi++) {
+                const angle = Math.random() * Math.PI * 2;
+                const torusR = 6 + Math.pow(Math.random(), 0.7) * 12;
+                const yOff = (Math.random() - 0.5) * (3 + (torusR - 6) * 0.4);
+                const hotFrac = 1 - (torusR - 6) / 12;
+                // Inner: blazing white-yellow, outer: orange-red
+                const cr = Math.min(1, 0.7 + hotFrac * 0.3);
+                const cg = Math.min(1, 0.15 + hotFrac * 0.55);
+                const cb = Math.min(1, 0.05 + hotFrac * 0.3);
                 const gMat = new THREE.SpriteMaterial({
-                    map: gasCloudTex, transparent: true, depthWrite: false,
+                    map: gasTextures[Math.floor(Math.random() * gasTextures.length)],
+                    transparent: true, depthWrite: false,
                     blending: THREE.AdditiveBlending,
-                    color: new THREE.Color(r, g, bv),
-                    opacity: 0.25 + Math.random() * 0.2,
+                    color: new THREE.Color(cr, cg, cb),
+                    opacity: 0.3 + hotFrac * 0.25 + Math.random() * 0.1,
                     rotation: Math.random() * Math.PI * 2
                 });
                 const gSprite = new THREE.Sprite(gMat);
@@ -1181,7 +1186,92 @@ function buildGalaxyScene() {
                     yOff,
                     Math.sin(angle) * torusR
                 );
-                const cloudSize = 12 + Math.random() * 18;
+                const cloudSize = 6 + Math.random() * 10 + hotFrac * 5;
+                gSprite.scale.set(cloudSize, cloudSize, 1);
+                agnJetGroup.add(gSprite);
+            }
+
+            // Layer 2: Mid torus — warm turbulent gas (r = 14–32)
+            const midGasCount = 35;
+            for (let gi = 0; gi < midGasCount; gi++) {
+                const angle = Math.random() * Math.PI * 2;
+                const torusR = 14 + Math.random() * 18;
+                const yOff = (Math.random() - 0.5) * (5 + Math.random() * 6);
+                const midFrac = 1 - (torusR - 14) / 18;
+                // Orange-red inner, transitioning to deep red-purple
+                const cr = Math.min(1, 0.35 + midFrac * 0.5);
+                const cg = Math.min(1, 0.08 + midFrac * 0.15);
+                const cb = Math.min(1, 0.15 + (1 - midFrac) * 0.35);
+                const gMat = new THREE.SpriteMaterial({
+                    map: gasTextures[Math.floor(Math.random() * gasTextures.length)],
+                    transparent: true, depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    color: new THREE.Color(cr, cg, cb),
+                    opacity: 0.2 + midFrac * 0.15 + Math.random() * 0.1,
+                    rotation: Math.random() * Math.PI * 2
+                });
+                const gSprite = new THREE.Sprite(gMat);
+                gSprite.position.set(
+                    Math.cos(angle) * torusR,
+                    yOff,
+                    Math.sin(angle) * torusR
+                );
+                const cloudSize = 10 + Math.random() * 16;
+                gSprite.scale.set(cloudSize, cloudSize, 1);
+                agnJetGroup.add(gSprite);
+            }
+
+            // Layer 3: Outer diffuse halo — wispy tendrils (r = 25–50)
+            const outerGasCount = 25;
+            for (let gi = 0; gi < outerGasCount; gi++) {
+                const angle = Math.random() * Math.PI * 2;
+                const torusR = 25 + Math.random() * 25;
+                const yOff = (Math.random() - 0.5) * 12;
+                const outerFrac = (torusR - 25) / 25;
+                // Deep purple-blue with faint red tinge
+                const cr = Math.min(1, 0.25 - outerFrac * 0.1);
+                const cg = Math.min(1, 0.05 + outerFrac * 0.08);
+                const cb = Math.min(1, 0.25 + outerFrac * 0.3);
+                const gMat = new THREE.SpriteMaterial({
+                    map: gasTextures[Math.floor(Math.random() * gasTextures.length)],
+                    transparent: true, depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    color: new THREE.Color(cr, cg, cb),
+                    opacity: 0.12 + Math.random() * 0.12,
+                    rotation: Math.random() * Math.PI * 2
+                });
+                const gSprite = new THREE.Sprite(gMat);
+                gSprite.position.set(
+                    Math.cos(angle) * torusR,
+                    yOff,
+                    Math.sin(angle) * torusR
+                );
+                const cloudSize = 14 + Math.random() * 22;
+                gSprite.scale.set(cloudSize, cloudSize, 1);
+                agnJetGroup.add(gSprite);
+            }
+
+            // Layer 4: Bright hotspot knots — intense clumps being devoured
+            const knotCount = 12;
+            for (let gi = 0; gi < knotCount; gi++) {
+                const angle = Math.random() * Math.PI * 2;
+                const torusR = 7 + Math.random() * 14;
+                const yOff = (Math.random() - 0.5) * 3;
+                const gMat = new THREE.SpriteMaterial({
+                    map: gasTextures[Math.floor(Math.random() * gasTextures.length)],
+                    transparent: true, depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    color: new THREE.Color(1.0, 0.85, 0.5),
+                    opacity: 0.4 + Math.random() * 0.25,
+                    rotation: Math.random() * Math.PI * 2
+                });
+                const gSprite = new THREE.Sprite(gMat);
+                gSprite.position.set(
+                    Math.cos(angle) * torusR,
+                    yOff,
+                    Math.sin(angle) * torusR
+                );
+                const cloudSize = 4 + Math.random() * 7;
                 gSprite.scale.set(cloudSize, cloudSize, 1);
                 agnJetGroup.add(gSprite);
             }
