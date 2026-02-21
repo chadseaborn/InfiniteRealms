@@ -3236,7 +3236,10 @@ function selectPlanet(index) {
     // Highlight in list — use body-item class to skip star entries
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
     const bodyItems = document.querySelectorAll('.planet-list-item.body-planet');
-    if (index >= 0 && index < bodyItems.length) bodyItems[index].classList.add('selected');
+    if (index >= 0 && index < bodyItems.length) {
+        bodyItems[index].classList.add('selected');
+        bodyItems[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     // Update detail panel
     const detail = document.getElementById('planet-detail');
@@ -3280,6 +3283,11 @@ function selectMoon(planetIndex, moonIndex) {
     if (targetMoonMesh) focusTarget = targetMoonMesh;
 
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+    const moonEl = document.querySelector(`.body-moon[data-planet-index="${planetIndex}"][data-moon-index="${moonIndex}"]`);
+    if (moonEl) {
+        moonEl.classList.add('selected');
+        moonEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     const detail = document.getElementById('planet-detail');
     detail.classList.add('active');
@@ -3307,6 +3315,11 @@ function selectWormhole() {
     selectedMoon = null;
     setDetailLabels(defaultDetailLabels);
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+    const whEl = document.querySelector('.body-wormhole');
+    if (whEl) {
+        whEl.classList.add('selected');
+        whEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     // Highlight wormhole mesh
     if (wormholeMesh) {
@@ -3352,6 +3365,11 @@ function selectStar(companionIndex) {
     selectedPlanetIndex = -1;
     selectedMoon = null;
     document.querySelectorAll('.planet-list-item').forEach(el => el.classList.remove('selected'));
+    const starEl = document.querySelector('.body-star');
+    if (starEl) {
+        starEl.classList.add('selected');
+        starEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     // Highlight the star mesh
     const targetMesh = isCompanion ? binaryCompanionSprite : starSprite;
@@ -3538,7 +3556,7 @@ function buildPlanetList() {
     // ---- Star entry at top of list ----
     const star = systemData.star;
     const starItem = document.createElement('div');
-    starItem.className = 'planet-list-item';
+    starItem.className = 'planet-list-item body-star';
     starItem.onclick = () => selectStar(0);
 
     const starDot = document.createElement('div');
@@ -3598,6 +3616,7 @@ function buildPlanetList() {
 
         const item = document.createElement('div');
         item.className = 'planet-list-item body-planet';
+        item.dataset.planetIndex = pi;
         item.onclick = () => selectPlanet(pi);
         item.ondblclick = () => { selectPlanet(pi); landOnPlanet(pi); };
 
@@ -3645,6 +3664,8 @@ function buildPlanetList() {
                 const moon = planet.moonData[mi];
                 const moonItem = document.createElement('div');
                 moonItem.className = 'planet-list-item body-moon';
+                moonItem.dataset.planetIndex = pi;
+                moonItem.dataset.moonIndex = mi;
                 moonItem.style.paddingLeft = '30px';
                 moonItem.style.fontSize = '11px';
                 moonItem.onclick = () => selectMoon(pi, mi);
@@ -3686,7 +3707,7 @@ function buildPlanetList() {
     if (systemData.wormhole) {
         const wh = systemData.wormhole;
         const whItem = document.createElement('div');
-        whItem.className = 'planet-list-item';
+        whItem.className = 'planet-list-item body-wormhole';
         whItem.onclick = () => selectWormhole();
         whItem.ondblclick = () => enterWormhole();
 

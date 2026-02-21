@@ -1765,9 +1765,11 @@ function selectGalaxy(index) {
     autoRotate = false;
     clearTimeout(autoRotateTimer);
 
-    // Highlight in list
+    // Highlight in list and scroll to it
     document.querySelectorAll('.galaxy-list-item').forEach(el => {
-        el.classList.toggle('selected', parseInt(el.dataset.index) === index);
+        const isSelected = parseInt(el.dataset.index) === index;
+        el.classList.toggle('selected', isSelected);
+        if (isSelected) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
     const detail = document.getElementById('galaxy-detail');

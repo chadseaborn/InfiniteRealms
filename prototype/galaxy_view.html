@@ -2084,7 +2084,9 @@ function selectSystem(index) {
     clearTimeout(autoRotateTimer);
 
     document.querySelectorAll('.system-list-item').forEach(el => {
-        el.classList.toggle('selected', parseInt(el.dataset.index) === index);
+        const isSelected = parseInt(el.dataset.index) === index;
+        el.classList.toggle('selected', isSelected);
+        if (isSelected) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
     const detail = document.getElementById('system-detail');
