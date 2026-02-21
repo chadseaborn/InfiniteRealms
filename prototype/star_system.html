@@ -2695,21 +2695,29 @@ function renderStar(star) {
         magneticAxisGroup.rotation.z = magneticTilt;
         pulsarGroup.add(magneticAxisGroup);
 
-        // ---- Polar hotspot glow caps ----
+        // ---- Polar hotspot glows (sprites, not mesh caps) ----
         for (let pole = -1; pole <= 1; pole += 2) {
-            const hotspotGeo = new THREE.SphereGeometry(bodyRadius * 0.4, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.45);
-            const hotspotMat = new THREE.MeshBasicMaterial({
-                color: 0xeeddff,
+            const hotCanvas = document.createElement('canvas');
+            hotCanvas.width = 64; hotCanvas.height = 64;
+            const hCtx = hotCanvas.getContext('2d');
+            const grad = hCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(230,210,255,1)');
+            grad.addColorStop(0.3, 'rgba(200,160,255,0.6)');
+            grad.addColorStop(0.7, 'rgba(150,100,220,0.15)');
+            grad.addColorStop(1, 'rgba(100,60,180,0)');
+            hCtx.fillStyle = grad;
+            hCtx.fillRect(0, 0, 64, 64);
+            const hotTex = new THREE.CanvasTexture(hotCanvas);
+            const hotMat = new THREE.SpriteMaterial({
+                map: hotTex,
                 transparent: true,
-                opacity: 0.85,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
-            const hotspot = new THREE.Mesh(hotspotGeo, hotspotMat);
-            hotspot.position.y = bodyRadius * 0.82 * pole;
-            if (pole === -1) hotspot.rotation.x = Math.PI;
-            magneticAxisGroup.add(hotspot);
+            const hotSprite = new THREE.Sprite(hotMat);
+            hotSprite.scale.set(bodyRadius * 1.8, bodyRadius * 1.8, 1);
+            hotSprite.position.y = bodyRadius * 1.0 * pole;
+            magneticAxisGroup.add(hotSprite);
         }
 
         // ---- Beam cones along magnetic axis ----
@@ -2776,15 +2784,15 @@ function renderStar(star) {
         // ---- Dipole magnetic field lines (pole-to-pole loops) ----
         // These are the elegant curved lines arching from north to south pole
         // like the reference image — classic magnetic dipole pattern
-        const fieldLineCount = 10;  // number of field line loops
-        const fieldReach = bodyRadius * 8; // how far the outermost lines extend
+        const fieldLineCount = 12;  // number of field line loops
+        const fieldReach = bodyRadius * 10; // how far the outermost lines extend
 
         for (let fi = 0; fi < fieldLineCount; fi++) {
             // Azimuthal angle around the magnetic axis
             const azimuth = (fi / fieldLineCount) * Math.PI * 2;
 
             // Multiple distances from the star — closer lines loop tighter
-            const layers = [0.3, 0.55, 0.85, 1.0];
+            const layers = [0.2, 0.38, 0.56, 0.74, 0.92];
             for (let li = 0; li < layers.length; li++) {
                 const scale = layers[li];
                 const loopReach = fieldReach * scale;
@@ -2805,8 +2813,8 @@ function renderStar(star) {
                 }
 
                 const curve = new THREE.CatmullRomCurve3(points);
-                const tubeR = bodyRadius * (0.02 + 0.01 * scale);
-                const tubeGeo = new THREE.TubeGeometry(curve, 40, tubeR, 4, false);
+                const tubeR = bodyRadius * (0.06 + 0.03 * scale);
+                const tubeGeo = new THREE.TubeGeometry(curve, 48, tubeR, 6, false);
 
                 // Per-vertex alpha: brightest near the star, fading at the extremes
                 const tPos = tubeGeo.attributes.position;
@@ -2821,7 +2829,7 @@ function renderStar(star) {
                 }
                 tubeGeo.setAttribute('alphaFade', new THREE.BufferAttribute(alphas, 1));
 
-                const opacity = 0.12 + 0.08 * (1 - scale);  // inner lines brighter
+                const opacity = 0.35 + 0.2 * (1 - scale);  // inner lines much brighter
                 const tubeMat = new THREE.ShaderMaterial({
                     vertexShader: `
                         attribute float alphaFade;
@@ -2835,7 +2843,8 @@ function renderStar(star) {
                         uniform float uOpacity;
                         varying float vFade;
                         void main() {
-                            vec3 col = vec3(0.55, 0.35, 0.9);
+                            // Brighter blue-violet field lines
+                            vec3 col = vec3(0.45, 0.55, 1.0);
                             gl_FragColor = vec4(col, vFade * uOpacity);
                         }
                     `,
