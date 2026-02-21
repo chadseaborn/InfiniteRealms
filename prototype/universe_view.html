@@ -527,17 +527,17 @@ function generateUniverse(seed) {
 
     // Cluster centers — oblate disc distribution (Y flattened to 30%)
     const flattenY = 0.55;
-    const clusterCount = rng.nextInt(12, 24);
+    const clusterCount = rng.nextInt(14, 28);
     const clusters = [];
     for (let i = 0; i < clusterCount; i++) {
         let cx, cy, cz, valid, attempts = 0;
         do {
-            cx = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92);
-            cy = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92) * flattenY;
-            cz = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92);
+            cx = rng.nextFloat(-universeRadius * 0.95, universeRadius * 0.95);
+            cy = rng.nextFloat(-universeRadius * 0.95, universeRadius * 0.95) * flattenY;
+            cz = rng.nextFloat(-universeRadius * 0.95, universeRadius * 0.95);
             valid = true;
             for (const e of clusters) {
-                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 140) { valid = false; break; }
+                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 160) { valid = false; break; }
             }
             attempts++;
         } while (!valid && attempts < 80);
@@ -545,8 +545,8 @@ function generateUniverse(seed) {
             x: cx, y: cy, z: cz,
             name: rng.pick(CLUSTER_PREFIX) + ' ' + rng.pick(CLUSTER_SUFFIX),
             id: `${universeId}:CL-${String(i).padStart(2, '0')}`,
-            galaxyCount: rng.nextInt(4, 14),
-            radius: rng.nextFloat(90, 200),
+            galaxyCount: rng.nextInt(3, 9),
+            radius: rng.nextFloat(100, 220),
             index: i
         });
     }
@@ -561,7 +561,7 @@ function generateUniverse(seed) {
         for (let g = 0; g < scaledGalCount; g++) {
             const theta = rng.nextFloat(0, Math.PI * 2);
             const phi = Math.acos(rng.nextFloat(-1, 1));
-            const dist = Math.abs(rng.gaussian()) * cluster.radius * 0.55;
+            const dist = Math.abs(rng.gaussian()) * cluster.radius * 0.7;
             const galaxySeed = rng.nextInt(1, 999999);
             const props = peekGalaxyProperties(galaxySeed);
             galaxies.push({
@@ -591,7 +591,7 @@ function generateUniverse(seed) {
             const rx = rng.gaussian(), ry = rng.gaussian(), rz = rng.gaussian();
             let px = edy*rz - edz*ry, py = edz*rx - edx*rz, pz = edx*ry - edy*rx;
             const pLen = Math.sqrt(px*px + py*py + pz*pz) || 1;
-            const perpDist = rng.gaussian() * 25;
+            const perpDist = rng.gaussian() * 45;
             px = (px/pLen) * perpDist; py = (py/pLen) * perpDist; pz = (pz/pLen) * perpDist;
             const galaxySeed = rng.nextInt(1, 999999);
             const props = peekGalaxyProperties(galaxySeed);
@@ -607,7 +607,7 @@ function generateUniverse(seed) {
     }
 
     // Field galaxies — scattered in void (scaled by density, Y flattened)
-    const baseFieldCount = rng.nextInt(20, 45);
+    const baseFieldCount = rng.nextInt(30, 60);
     const fieldCount = Math.max(1, Math.round(baseFieldCount * universeDensity));
     for (let f = 0; f < fieldCount; f++) {
         const galaxySeed = rng.nextInt(1, 999999);
@@ -1212,20 +1212,52 @@ function buildUniverseScene() {
             universeGroup.add(sp2);
             uniWormholeSprites.push(sp2);
 
-            // Connecting line (dashed cyan)
-            const pts = [
-                new THREE.Vector3(wh.x1, wh.y1, wh.z1),
-                new THREE.Vector3(wh.x2, wh.y2, wh.z2)
-            ];
-            const lineMat = new THREE.LineDashedMaterial({
-                color: 0x44ffdd, transparent: true, opacity: 0.25,
-                dashSize: 10, gapSize: 8, depthWrite: false
+            // Tunnel-styled wormhole connection
+            const p1 = new THREE.Vector3(wh.x1, wh.y1, wh.z1);
+            const p2 = new THREE.Vector3(wh.x2, wh.y2, wh.z2);
+            // Create a curved path with a midpoint bow for tunnel feel
+            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+            const whSeedRng = new SeededRandom(wh.nearGalaxyIndex * 137 + wi);
+            mid.x += (whSeedRng.next() - 0.5) * 60;
+            mid.y += (whSeedRng.next() - 0.5) * 30;
+            mid.z += (whSeedRng.next() - 0.5) * 60;
+            const tunnelCurve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+            const tunnelGeo = new THREE.TubeGeometry(tunnelCurve, 32, 2.5, 8, false);
+            // Per-vertex alpha: bright at endpoints, fading in middle
+            const tPos = tunnelGeo.attributes.position;
+            const tAlphas = new Float32Array(tPos.count);
+            for (let ti = 0; ti < tPos.count; ti++) {
+                const tp = new THREE.Vector3(tPos.getX(ti), tPos.getY(ti), tPos.getZ(ti));
+                const d1 = tp.distanceTo(p1), d2 = tp.distanceTo(p2);
+                const totalDist = p1.distanceTo(p2);
+                const minEndDist = Math.min(d1, d2) / totalDist;
+                // Brighter near endpoints, dimmer in middle
+                tAlphas[ti] = 0.15 + 0.85 * Math.pow(1 - Math.min(1, minEndDist / 0.5), 2);
+            }
+            tunnelGeo.setAttribute('alphaFade', new THREE.BufferAttribute(tAlphas, 1));
+            const tunnelMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float alphaFade;
+                    varying float vAlpha;
+                    void main() {
+                        vAlpha = alphaFade;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vAlpha;
+                    void main() {
+                        gl_FragColor = vec4(0.25, 1.0, 0.85, vAlpha * 0.12);
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
             });
-            const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-            const line = new THREE.Line(lineGeo, lineMat);
-            line.computeLineDistances();
-            universeGroup.add(line);
-            uniWormholeLines.push(line);
+            const tunnel = new THREE.Mesh(tunnelGeo, tunnelMat);
+            universeGroup.add(tunnel);
+            uniWormholeLines.push(tunnel);
         }
     }
 
