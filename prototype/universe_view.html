@@ -527,17 +527,17 @@ function generateUniverse(seed) {
 
     // Cluster centers — oblate disc distribution (Y flattened to 30%)
     const flattenY = 0.55;
-    const clusterCount = rng.nextInt(8, 18);
+    const clusterCount = rng.nextInt(12, 24);
     const clusters = [];
     for (let i = 0; i < clusterCount; i++) {
         let cx, cy, cz, valid, attempts = 0;
         do {
-            cx = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85);
-            cy = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85) * flattenY;
-            cz = rng.nextFloat(-universeRadius * 0.85, universeRadius * 0.85);
+            cx = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92);
+            cy = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92) * flattenY;
+            cz = rng.nextFloat(-universeRadius * 0.92, universeRadius * 0.92);
             valid = true;
             for (const e of clusters) {
-                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 180) { valid = false; break; }
+                if (Math.sqrt((cx-e.x)**2 + (cy-e.y)**2 + (cz-e.z)**2) < 140) { valid = false; break; }
             }
             attempts++;
         } while (!valid && attempts < 80);
@@ -545,8 +545,8 @@ function generateUniverse(seed) {
             x: cx, y: cy, z: cz,
             name: rng.pick(CLUSTER_PREFIX) + ' ' + rng.pick(CLUSTER_SUFFIX),
             id: `${universeId}:CL-${String(i).padStart(2, '0')}`,
-            galaxyCount: rng.nextInt(3, 12),
-            radius: rng.nextFloat(80, 180),
+            galaxyCount: rng.nextInt(4, 14),
+            radius: rng.nextFloat(90, 200),
             index: i
         });
     }
@@ -607,7 +607,7 @@ function generateUniverse(seed) {
     }
 
     // Field galaxies — scattered in void (scaled by density, Y flattened)
-    const baseFieldCount = rng.nextInt(10, 25);
+    const baseFieldCount = rng.nextInt(20, 45);
     const fieldCount = Math.max(1, Math.round(baseFieldCount * universeDensity));
     for (let f = 0; f < fieldCount; f++) {
         const galaxySeed = rng.nextInt(1, 999999);
@@ -910,16 +910,6 @@ function buildUniverseScene() {
     clearUniverseScene();
     const { clusters, galaxies, edges, universeRadius } = universeData;
 
-    // Filaments — soft glow lines connecting clusters (no guide geometry)
-    const filGlowMat = new THREE.LineBasicMaterial({ color: 0x5040a0, transparent: true, opacity: 0.10, depthWrite: false });
-    const filCoreMat = new THREE.LineBasicMaterial({ color: 0x8070cc, transparent: true, opacity: 0.05, depthWrite: false });
-    for (const edge of edges) {
-        const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
-        const pts = [new THREE.Vector3(c1.x, c1.y, c1.z), new THREE.Vector3(c2.x, c2.y, c2.z)];
-        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), filGlowMat));
-        universeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), filCoreMat));
-    }
-
     // Cluster halos — invisible but kept for raycasting/click detection
     const haloFlattenY = 0.55;
     for (let ci = 0; ci < clusters.length; ci++) {
@@ -951,6 +941,125 @@ function buildUniverseScene() {
         sprite.userData = { galaxyIndex: gi };
         universeGroup.add(sprite);
         galaxySprites.push(sprite);
+    }
+
+    // ---- Cosmic gas / intergalactic nebulae ----
+    {
+        const nebRng = new SeededRandom(universeData.seed * 31 + 7);
+        const nebulaColors = [
+            [0.3, 0.2, 0.6],  // deep violet
+            [0.15, 0.25, 0.5], // dark blue
+            [0.5, 0.15, 0.3],  // warm magenta
+            [0.2, 0.4, 0.5],   // teal
+            [0.4, 0.25, 0.15], // warm amber
+            [0.1, 0.3, 0.35],  // dark cyan
+            [0.35, 0.1, 0.45], // purple
+            [0.15, 0.35, 0.2], // deep green
+        ];
+
+        // Create a soft noise cloud texture
+        function makeCosmicCloudTex(color, rng, size) {
+            const c = document.createElement('canvas');
+            c.width = size; c.height = size;
+            const ctx = c.getContext('2d');
+            const cx = size / 2, cy = size / 2, maxR = size / 2;
+
+            // Layer multiple soft radial blobs at random offsets for organic shape
+            const blobCount = 5 + Math.floor(rng.next() * 6);
+            for (let b = 0; b < blobCount; b++) {
+                const bx = cx + (rng.next() - 0.5) * size * 0.5;
+                const by = cy + (rng.next() - 0.5) * size * 0.5;
+                const br = maxR * (0.3 + rng.next() * 0.5);
+                const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+                const a = 0.03 + rng.next() * 0.04;
+                grad.addColorStop(0, `rgba(${Math.floor(color[0]*255)},${Math.floor(color[1]*255)},${Math.floor(color[2]*255)},${a})`);
+                grad.addColorStop(0.4, `rgba(${Math.floor(color[0]*255)},${Math.floor(color[1]*255)},${Math.floor(color[2]*255)},${a*0.5})`);
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, size, size);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        // Large-scale cosmic gas washes — near clusters and filaments
+        // Cluster-associated nebulae
+        for (let ci = 0; ci < clusters.length; ci++) {
+            const cl = clusters[ci];
+            const cloudCount = 2 + Math.floor(nebRng.next() * 3);
+            for (let n = 0; n < cloudCount; n++) {
+                const color = nebulaColors[Math.floor(nebRng.next() * nebulaColors.length)];
+                // Brighten slightly
+                const bc = color.map(c => Math.min(1, c * (1.0 + nebRng.next() * 0.4)));
+                const tex = makeCosmicCloudTex(bc, nebRng, 256);
+                const mat = new THREE.SpriteMaterial({
+                    map: tex, transparent: true,
+                    opacity: 0.4 + nebRng.next() * 0.3,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    rotation: nebRng.next() * Math.PI * 2
+                });
+                const sprite = new THREE.Sprite(mat);
+                // Position near cluster with some offset
+                const ox = (nebRng.next() - 0.5) * cl.radius * 1.5;
+                const oy = (nebRng.next() - 0.5) * cl.radius * 0.6;
+                const oz = (nebRng.next() - 0.5) * cl.radius * 1.5;
+                sprite.position.set(cl.x + ox, cl.y + oy, cl.z + oz);
+                const cloudSize = cl.radius * (0.8 + nebRng.next() * 1.2);
+                sprite.scale.set(cloudSize, cloudSize, 1);
+                universeGroup.add(sprite);
+            }
+        }
+
+        // Filament-associated gas — along edges between clusters
+        for (const edge of edges) {
+            const c1 = clusters[edge[0]], c2 = clusters[edge[1]];
+            const filClouds = 1 + Math.floor(nebRng.next() * 3);
+            for (let fc = 0; fc < filClouds; fc++) {
+                const t = 0.15 + nebRng.next() * 0.7;
+                const color = nebulaColors[Math.floor(nebRng.next() * nebulaColors.length)];
+                const tex = makeCosmicCloudTex(color, nebRng, 256);
+                const mat = new THREE.SpriteMaterial({
+                    map: tex, transparent: true,
+                    opacity: 0.25 + nebRng.next() * 0.2,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    rotation: nebRng.next() * Math.PI * 2
+                });
+                const sprite = new THREE.Sprite(mat);
+                const mx = c1.x + (c2.x - c1.x) * t + (nebRng.next() - 0.5) * 80;
+                const my = c1.y + (c2.y - c1.y) * t + (nebRng.next() - 0.5) * 40;
+                const mz = c1.z + (c2.z - c1.z) * t + (nebRng.next() - 0.5) * 80;
+                sprite.position.set(mx, my, mz);
+                const fSize = 80 + nebRng.next() * 150;
+                sprite.scale.set(fSize, fSize, 1);
+                universeGroup.add(sprite);
+            }
+        }
+
+        // Scattered void nebulae — very faint, very large
+        const voidCloudCount = 8 + Math.floor(nebRng.next() * 8);
+        for (let vc = 0; vc < voidCloudCount; vc++) {
+            const color = nebulaColors[Math.floor(nebRng.next() * nebulaColors.length)];
+            const tex = makeCosmicCloudTex(color, nebRng, 256);
+            const mat = new THREE.SpriteMaterial({
+                map: tex, transparent: true,
+                opacity: 0.15 + nebRng.next() * 0.15,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                rotation: nebRng.next() * Math.PI * 2
+            });
+            const sprite = new THREE.Sprite(mat);
+            sprite.position.set(
+                (nebRng.next() - 0.5) * universeRadius * 1.6,
+                (nebRng.next() - 0.5) * universeRadius * 0.8,
+                (nebRng.next() - 0.5) * universeRadius * 1.6
+            );
+            const vSize = 150 + nebRng.next() * 300;
+            sprite.scale.set(vSize, vSize, 1);
+            universeGroup.add(sprite);
+        }
     }
 
     // ---- Universe wormholes ----
