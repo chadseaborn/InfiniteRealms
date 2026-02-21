@@ -702,18 +702,35 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
     const ctx = c.getContext('2d');
     const cx = size / 2, cy = size / 2, maxR = size / 2;
 
-    // Unique color palette per galaxy — warm/cool shift from base
-    const palettes = {
-        spiral:  [[0.53,0.67,1.0],[0.45,0.6,0.95],[0.7,0.75,1.0],[0.4,0.55,0.85],[0.6,0.8,1.0]],
-        barred:  [[0.6,0.73,1.0],[0.5,0.65,0.9],[0.7,0.8,1.0],[0.55,0.7,0.95],[0.45,0.6,1.0]],
-        elliptical: [[1.0,0.8,0.53],[1.0,0.75,0.5],[0.95,0.7,0.45],[1.0,0.85,0.6],[0.9,0.7,0.55]],
-        irregular:  [[0.67,0.87,0.67],[0.5,0.8,0.7],[0.7,0.9,0.55],[0.6,0.75,0.85],[0.8,0.7,0.6]]
-    };
-    const pal = palettes[typeId] || palettes.spiral;
-    const baseCol = pal[Math.floor(rng.next() * pal.length)];
-    // Per-galaxy color variation
-    const col = baseCol.map(v => Math.min(1, Math.max(0, v + (rng.next() - 0.5) * 0.15)));
-    const colStr = (a) => `rgba(${Math.floor(col[0]*255)},${Math.floor(col[1]*255)},${Math.floor(col[2]*255)},${a})`;
+    // --- Multi-color palette system: each galaxy picks 2-3 colors and blends between them ---
+    // Arms get blue/young-star colors, cores get warm/old-star colors, regions get unique tints
+    const spiralPalettes = [
+        { arm: [[0.4,0.55,1.0],[0.3,0.6,0.95]], core: [1.0,0.88,0.6], dust: [0.15,0.08,0.03], hii: [1.0,0.3,0.5] },
+        { arm: [[0.5,0.7,1.0],[0.35,0.5,0.9]],  core: [1.0,0.92,0.7], dust: [0.12,0.06,0.02], hii: [0.4,0.8,1.0] },
+        { arm: [[0.6,0.75,1.0],[0.45,0.65,1.0]], core: [1.0,0.85,0.55], dust: [0.18,0.1,0.04], hii: [1.0,0.5,0.8] },
+        { arm: [[0.55,0.8,0.95],[0.4,0.7,0.85]], core: [1.0,0.9,0.65], dust: [0.1,0.07,0.03], hii: [0.3,1.0,0.6] },
+        { arm: [[0.7,0.6,1.0],[0.5,0.4,0.95]],   core: [1.0,0.82,0.5], dust: [0.2,0.1,0.05], hii: [1.0,0.4,0.3] },
+        { arm: [[0.4,0.9,0.9],[0.3,0.7,0.8]],     core: [0.95,0.85,0.6], dust: [0.08,0.12,0.06], hii: [0.9,0.3,1.0] },
+    ];
+    const ellipticalPalettes = [
+        { inner: [1.0,0.85,0.55], outer: [0.9,0.7,0.4], accent: [0.7,0.6,0.45] },
+        { inner: [1.0,0.9,0.7],   outer: [0.85,0.65,0.4], accent: [0.6,0.55,0.5] },
+        { inner: [1.0,0.8,0.5],   outer: [0.95,0.75,0.5], accent: [0.8,0.7,0.55] },
+        { inner: [0.95,0.88,0.75],outer: [0.8,0.6,0.35], accent: [0.65,0.5,0.4] },
+    ];
+    const irregularPalettes = [
+        { blobs: [[0.4,0.7,1.0],[0.9,0.4,0.6],[0.3,0.9,0.5]], hii: [1.0,0.3,0.5] },
+        { blobs: [[0.5,0.9,0.8],[1.0,0.7,0.3],[0.6,0.4,1.0]], hii: [0.3,0.8,1.0] },
+        { blobs: [[0.8,0.5,1.0],[0.3,1.0,0.7],[1.0,0.9,0.4]], hii: [1.0,0.5,0.2] },
+        { blobs: [[0.3,0.6,0.9],[0.7,0.9,0.4],[0.9,0.5,0.7]], hii: [0.5,1.0,0.8] },
+    ];
+
+    // Helper: make rgba string from [r,g,b] (0-1) and alpha
+    const rgba = (rgb, a) => `rgba(${Math.floor(rgb[0]*255)},${Math.floor(rgb[1]*255)},${Math.floor(rgb[2]*255)},${a})`;
+    // Helper: lerp two colors
+    const lerpCol = (c1, c2, t) => c1.map((v, i) => v + (c2[i] - v) * t);
+    // Helper: jitter a color
+    const jitterCol = (rgb, amount) => rgb.map(v => Math.min(1, Math.max(0, v + (rng.next() - 0.5) * amount)));
 
     // Rotation angle — unique tilt per galaxy
     const rotation = rng.next() * Math.PI * 2;
@@ -723,172 +740,268 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
     ctx.translate(-cx, -cy);
 
     if (typeId === 'spiral' || typeId === 'barred') {
-        const armCount = typeId === 'barred' ? 2 : (2 + Math.floor(rng.next() * 3)); // 2-4 arms
-        const tightness = 2.5 + rng.next() * 2.5; // spiral winding
-        const armWidth = 3 + rng.next() * 4;
-        const ellip = 0.6 + rng.next() * 0.4; // viewing angle squash
+        const pal = spiralPalettes[Math.floor(rng.next() * spiralPalettes.length)];
+        const armCol1 = jitterCol(pal.arm[0], 0.12);
+        const armCol2 = jitterCol(pal.arm[1], 0.12);
+        const coreCol = jitterCol(pal.core, 0.1);
+        const dustCol = jitterCol(pal.dust, 0.05);
+        const hiiCol = jitterCol(pal.hii, 0.15);
 
-        // Diffuse background glow
+        const armCount = typeId === 'barred' ? 2 : (2 + Math.floor(rng.next() * 3));
+        const tightness = 2.5 + rng.next() * 2.5;
+        const ellip = 0.55 + rng.next() * 0.45;
+        // Per-galaxy: some have prominent dust lanes, some don't
+        const hasDustLanes = rng.next() > 0.35;
+        // Per-galaxy: arm color gradient strength (blue outer, warm inner)
+        const armGradientStrength = 0.5 + rng.next() * 0.5;
+
+        // Diffuse background disc — gradient from warm core to cool outer
         const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-        glow.addColorStop(0, colStr(0.3));
-        glow.addColorStop(0.3, colStr(0.12));
-        glow.addColorStop(0.7, colStr(0.03));
+        glow.addColorStop(0, rgba(lerpCol(coreCol, armCol1, 0.3), 0.3));
+        glow.addColorStop(0.2, rgba(lerpCol(coreCol, armCol1, 0.6), 0.15));
+        glow.addColorStop(0.5, rgba(armCol1, 0.06));
+        glow.addColorStop(0.8, rgba(armCol2, 0.02));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow;
         ctx.beginPath(); ctx.ellipse(cx, cy, maxR, maxR * ellip, 0, 0, Math.PI * 2); ctx.fill();
 
-        // Draw spiral arms as many small dots along the curve
+        // Spiral arms — color shifts from warm (inner) to blue (outer)
         for (let arm = 0; arm < armCount; arm++) {
             const startAngle = (arm / armCount) * Math.PI * 2 + rng.next() * 0.3;
-            for (let i = 0; i < 300; i++) {
+            // Each arm can have a slight color personality
+            const armTint = jitterCol(armCol1, 0.08);
+            for (let i = 0; i < 350; i++) {
                 const t = rng.next();
-                const r = t * maxR * 0.9;
+                const r = t * maxR * 0.92;
                 const a = startAngle + t * tightness;
-                // Perpendicular scatter — wider further out
-                const spread = (0.02 + t * 0.06) * maxR;
+                const spread = (0.02 + t * 0.07) * maxR;
                 const perpAngle = a + Math.PI / 2;
                 const scatter = (rng.next() - 0.5) * 2 * spread;
                 const px = cx + Math.cos(a) * r + Math.cos(perpAngle) * scatter;
                 const py = cy + (Math.sin(a) * r + Math.sin(perpAngle) * scatter) * ellip;
-                const bright = (1 - t) * 0.7 + 0.3;
-                const dotR = 1 + rng.next() * 2.5;
-                const alpha = bright * (0.15 + rng.next() * 0.2);
-                ctx.fillStyle = colStr(alpha);
+                // Color gradient along arm: warm near core → blue at tip
+                const armBlend = t * armGradientStrength;
+                const starCol = lerpCol(lerpCol(coreCol, armTint, 0.3 + armBlend * 0.7), armCol2, armBlend);
+                const bright = (1 - t) * 0.6 + 0.4;
+                const dotR = 0.8 + rng.next() * 2.8;
+                const alpha = bright * (0.12 + rng.next() * 0.22);
+                ctx.fillStyle = rgba(starCol, alpha);
                 ctx.beginPath(); ctx.arc(px, py, dotR, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Dust lanes — dark streaks on the inner (trailing) edge of each arm
+            if (hasDustLanes) {
+                for (let i = 0; i < 120; i++) {
+                    const t = 0.15 + rng.next() * 0.65;
+                    const r = t * maxR * 0.85;
+                    const a = startAngle + t * tightness;
+                    // Offset to trailing edge
+                    const perpAngle = a + Math.PI / 2;
+                    const offset = -(2 + rng.next() * 3); // inner side
+                    const px = cx + Math.cos(a) * r + Math.cos(perpAngle) * offset;
+                    const py = cy + (Math.sin(a) * r + Math.sin(perpAngle) * offset) * ellip;
+                    const dustAlpha = 0.06 + rng.next() * 0.1;
+                    ctx.fillStyle = rgba(dustCol, dustAlpha);
+                    ctx.beginPath(); ctx.arc(px, py, 1.5 + rng.next() * 3, 0, Math.PI * 2); ctx.fill();
+                }
             }
         }
 
-        // Inter-arm scatter
-        for (let i = 0; i < 150; i++) {
+        // Inter-arm scatter — faint, diverse colors
+        for (let i = 0; i < 180; i++) {
             const angle = rng.next() * Math.PI * 2;
-            const r = Math.sqrt(rng.next()) * maxR * 0.75;
+            const r = Math.sqrt(rng.next()) * maxR * 0.78;
             const px = cx + Math.cos(angle) * r;
             const py = cy + Math.sin(angle) * r * ellip;
-            ctx.fillStyle = colStr(0.04 + rng.next() * 0.06);
-            ctx.beginPath(); ctx.arc(px, py, 0.8 + rng.next() * 1.5, 0, Math.PI * 2); ctx.fill();
+            const scatterCol = lerpCol(coreCol, armCol2, r / (maxR * 0.78));
+            ctx.fillStyle = rgba(jitterCol(scatterCol, 0.1), 0.03 + rng.next() * 0.06);
+            ctx.beginPath(); ctx.arc(px, py, 0.6 + rng.next() * 1.8, 0, Math.PI * 2); ctx.fill();
         }
 
-        // Barred: central bar
+        // Barred: central bar — warm golden
         if (typeId === 'barred') {
             const barLen = maxR * (0.25 + rng.next() * 0.15);
-            const barW = maxR * 0.06;
+            const barW = maxR * 0.07;
             const barAngle = rng.next() * Math.PI;
-            for (let i = 0; i < 120; i++) {
+            const barCol = lerpCol(coreCol, [1, 0.9, 0.6], 0.5);
+            for (let i = 0; i < 140; i++) {
                 const t = (rng.next() - 0.5) * 2;
                 const px = cx + Math.cos(barAngle) * t * barLen + (rng.next() - 0.5) * barW;
                 const py = cy + (Math.sin(barAngle) * t * barLen + (rng.next() - 0.5) * barW) * ellip;
-                ctx.fillStyle = colStr(0.15 + rng.next() * 0.15);
-                ctx.beginPath(); ctx.arc(px, py, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
+                const barStar = jitterCol(barCol, 0.08);
+                ctx.fillStyle = rgba(barStar, 0.12 + rng.next() * 0.18);
+                ctx.beginPath(); ctx.arc(px, py, 0.8 + rng.next() * 2.2, 0, Math.PI * 2); ctx.fill();
             }
         }
 
-        // Diffuse central bulge — warm glow, NOT a point source
-        const bulgeR = maxR * (0.12 + rng.next() * 0.08);
+        // Diffuse central bulge — warm golden/amber glow
+        const bulgeR = maxR * (0.13 + rng.next() * 0.09);
         const bulgeGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, bulgeR);
-        const warmCol = `rgba(${Math.min(255,Math.floor(col[0]*255)+40)},${Math.min(255,Math.floor(col[1]*255)+20)},${Math.floor(col[2]*200)},`;
-        bulgeGlow.addColorStop(0, warmCol + '0.45)');
-        bulgeGlow.addColorStop(0.3, warmCol + '0.25)');
-        bulgeGlow.addColorStop(0.6, colStr(0.1));
+        bulgeGlow.addColorStop(0, rgba(coreCol, 0.5));
+        bulgeGlow.addColorStop(0.25, rgba(lerpCol(coreCol, armCol1, 0.2), 0.3));
+        bulgeGlow.addColorStop(0.6, rgba(lerpCol(coreCol, armCol1, 0.5), 0.1));
         bulgeGlow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = bulgeGlow;
         ctx.beginPath(); ctx.ellipse(cx, cy, bulgeR, bulgeR * ellip, 0, 0, Math.PI * 2); ctx.fill();
 
-        // Soft star-forming region glows along arms (not point-like)
-        const knotCount = 3 + Math.floor(rng.next() * 5);
+        // HII regions (star-forming) — varied colors: pink, blue-white, magenta
+        const knotCount = 4 + Math.floor(rng.next() * 6);
         for (let k = 0; k < knotCount; k++) {
             const arm = Math.floor(rng.next() * armCount);
-            const t = 0.3 + rng.next() * 0.5;
+            const t = 0.25 + rng.next() * 0.55;
             const a = (arm / armCount) * Math.PI * 2 + t * tightness;
-            const r = t * maxR * 0.85;
-            const kx = cx + Math.cos(a) * r + (rng.next() - 0.5) * 6;
-            const ky = cy + Math.sin(a) * r * ellip + (rng.next() - 0.5) * 4;
-            const kR = 4 + rng.next() * 5;
+            const r = t * maxR * 0.88;
+            const kx = cx + Math.cos(a) * r + (rng.next() - 0.5) * 8;
+            const ky = cy + Math.sin(a) * r * ellip + (rng.next() - 0.5) * 5;
+            const kR = 3 + rng.next() * 6;
+            // Randomize HII color: pink, blue, magenta, cyan
+            const hiiVariant = jitterCol(hiiCol, 0.25);
             const kGlow = ctx.createRadialGradient(kx, ky, 0, kx, ky, kR);
-            // Soft blue-ish tint for HII regions
-            kGlow.addColorStop(0, `rgba(${Math.floor(col[0]*200+55)},${Math.floor(col[1]*200+55)},255,0.2)`);
-            kGlow.addColorStop(0.5, colStr(0.08));
+            kGlow.addColorStop(0, rgba(hiiVariant, 0.22 + rng.next() * 0.12));
+            kGlow.addColorStop(0.4, rgba(lerpCol(hiiVariant, armCol2, 0.5), 0.1));
             kGlow.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = kGlow;
             ctx.beginPath(); ctx.arc(kx, ky, kR, 0, Math.PI * 2); ctx.fill();
         }
 
+        // Occasional bright OB associations — tiny hot blue-white clusters in outer arms
+        const obCount = Math.floor(rng.next() * 5);
+        for (let o = 0; o < obCount; o++) {
+            const arm = Math.floor(rng.next() * armCount);
+            const t = 0.5 + rng.next() * 0.4;
+            const a = (arm / armCount) * Math.PI * 2 + t * tightness;
+            const r = t * maxR * 0.85;
+            const ox = cx + Math.cos(a) * r + (rng.next() - 0.5) * 4;
+            const oy = cy + Math.sin(a) * r * ellip + (rng.next() - 0.5) * 3;
+            ctx.fillStyle = rgba([0.7, 0.85, 1.0], 0.3 + rng.next() * 0.2);
+            ctx.beginPath(); ctx.arc(ox, oy, 0.8 + rng.next() * 1.2, 0, Math.PI * 2); ctx.fill();
+        }
+
     } else if (typeId === 'elliptical') {
+        const pal = ellipticalPalettes[Math.floor(rng.next() * ellipticalPalettes.length)];
+        const innerCol = jitterCol(pal.inner, 0.1);
+        const outerCol = jitterCol(pal.outer, 0.1);
+        const accentCol = jitterCol(pal.accent, 0.1);
         const ellipX = 0.7 + rng.next() * 0.3;
         const ellipY = 0.4 + rng.next() * 0.35;
+        // Some ellipticals have faint shells or tidal features
+        const hasShells = rng.next() > 0.6;
 
-        // Smooth radial falloff — multiple layers for richness
-        for (let layer = 0; layer < 3; layer++) {
-            const ox = (rng.next() - 0.5) * 4;
-            const oy = (rng.next() - 0.5) * 4;
+        // Smooth radial falloff — color gradient from warm inner to cooler outer
+        for (let layer = 0; layer < 4; layer++) {
+            const ox = (rng.next() - 0.5) * 5;
+            const oy = (rng.next() - 0.5) * 5;
+            const layerAlpha = [0.4, 0.25, 0.15, 0.1][layer];
+            const layerCol = lerpCol(innerCol, outerCol, layer / 3);
             const glow = ctx.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, maxR * ellipX);
-            const layerAlpha = [0.4, 0.2, 0.15][layer];
-            glow.addColorStop(0, colStr(layerAlpha));
-            glow.addColorStop(0.3, colStr(layerAlpha * 0.5));
-            glow.addColorStop(0.6, colStr(layerAlpha * 0.15));
+            glow.addColorStop(0, rgba(layerCol, layerAlpha));
+            glow.addColorStop(0.25, rgba(lerpCol(layerCol, outerCol, 0.3), layerAlpha * 0.55));
+            glow.addColorStop(0.5, rgba(lerpCol(layerCol, outerCol, 0.6), layerAlpha * 0.2));
+            glow.addColorStop(0.8, rgba(outerCol, layerAlpha * 0.06));
             glow.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = glow;
             ctx.beginPath(); ctx.ellipse(cx + ox, cy + oy, maxR * ellipX, maxR * ellipY, 0, 0, Math.PI * 2); ctx.fill();
         }
 
-        // Scattered globular cluster dots
-        for (let i = 0; i < 80; i++) {
-            const angle = rng.next() * Math.PI * 2;
-            const r = Math.pow(rng.next(), 1.5) * maxR * ellipX * 0.8;
-            const px = cx + Math.cos(angle) * r;
-            const py = cy + Math.sin(angle) * r * (ellipY / ellipX);
-            ctx.fillStyle = colStr(0.06 + rng.next() * 0.1);
-            ctx.beginPath(); ctx.arc(px, py, 0.5 + rng.next() * 1.5, 0, Math.PI * 2); ctx.fill();
+        // Faint shell/tidal features — concentric arcs at specific radii
+        if (hasShells) {
+            const shellCount = 1 + Math.floor(rng.next() * 3);
+            for (let s = 0; s < shellCount; s++) {
+                const shellR = maxR * (0.35 + rng.next() * 0.4);
+                const shellAngle = rng.next() * Math.PI * 2;
+                const shellArc = 0.5 + rng.next() * 1.0; // partial arc
+                ctx.strokeStyle = rgba(accentCol, 0.06 + rng.next() * 0.06);
+                ctx.lineWidth = 2 + rng.next() * 3;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, shellR * ellipX, shellR * (ellipY / (ellipX || 1)), 0, shellAngle, shellAngle + shellArc);
+                ctx.stroke();
+            }
         }
 
-        // Warm diffuse core — broad central concentration, not a point
-        const eCoreR = maxR * (0.15 + rng.next() * 0.08);
+        // Scattered globular cluster dots — varied warm colors
+        for (let i = 0; i < 100; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const r = Math.pow(rng.next(), 1.5) * maxR * ellipX * 0.85;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r * (ellipY / ellipX);
+            const gcCol = jitterCol(lerpCol(innerCol, accentCol, rng.next()), 0.08);
+            ctx.fillStyle = rgba(gcCol, 0.05 + rng.next() * 0.1);
+            ctx.beginPath(); ctx.arc(px, py, 0.4 + rng.next() * 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Warm diffuse core
+        const eCoreR = maxR * (0.15 + rng.next() * 0.1);
         const eCoreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, eCoreR);
-        const eWarm = `rgba(${Math.min(255,Math.floor(col[0]*255)+30)},${Math.min(255,Math.floor(col[1]*255)+15)},${Math.floor(col[2]*220)},`;
-        eCoreGlow.addColorStop(0, eWarm + '0.5)');
-        eCoreGlow.addColorStop(0.4, eWarm + '0.2)');
+        eCoreGlow.addColorStop(0, rgba(innerCol, 0.55));
+        eCoreGlow.addColorStop(0.3, rgba(lerpCol(innerCol, outerCol, 0.3), 0.25));
+        eCoreGlow.addColorStop(0.7, rgba(outerCol, 0.08));
         eCoreGlow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = eCoreGlow;
         ctx.beginPath(); ctx.ellipse(cx, cy, eCoreR, eCoreR * (ellipY / ellipX), 0, 0, Math.PI * 2); ctx.fill();
 
     } else {
-        // Irregular — clumpy, asymmetric blobs
-        const blobCount = 4 + Math.floor(rng.next() * 5);
-        // Faint overall glow
-        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.7);
-        glow.addColorStop(0, colStr(0.12));
-        glow.addColorStop(0.5, colStr(0.04));
+        // Irregular — multi-colored chaotic blobs
+        const pal = irregularPalettes[Math.floor(rng.next() * irregularPalettes.length)];
+        const blobColors = pal.blobs.map(c => jitterCol(c, 0.15));
+        const hiiCol = jitterCol(pal.hii, 0.15);
+        const blobCount = 5 + Math.floor(rng.next() * 5);
+
+        // Faint asymmetric overall glow — off-center
+        const glowOx = (rng.next() - 0.5) * maxR * 0.3;
+        const glowOy = (rng.next() - 0.5) * maxR * 0.3;
+        const glow = ctx.createRadialGradient(cx + glowOx, cy + glowOy, 0, cx + glowOx, cy + glowOy, maxR * 0.75);
+        glow.addColorStop(0, rgba(blobColors[0], 0.12));
+        glow.addColorStop(0.4, rgba(blobColors[1], 0.05));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
 
         for (let b = 0; b < blobCount; b++) {
-            const bx = cx + (rng.next() - 0.5) * maxR * 0.9;
-            const by = cy + (rng.next() - 0.5) * maxR * 0.7;
-            const br = maxR * (0.1 + rng.next() * 0.2);
-            // Each blob is a cluster of dots
-            for (let d = 0; d < 40; d++) {
+            const bx = cx + (rng.next() - 0.5) * maxR * 0.95;
+            const by = cy + (rng.next() - 0.5) * maxR * 0.75;
+            const br = maxR * (0.08 + rng.next() * 0.22);
+            // Each blob picks a different color from the palette
+            const blobCol = blobColors[b % blobColors.length];
+            const blobJitter = jitterCol(blobCol, 0.1);
+            for (let d = 0; d < 50; d++) {
                 const dx = bx + (rng.next() - 0.5) * br * 2;
                 const dy = by + (rng.next() - 0.5) * br * 2;
                 const dd = Math.sqrt((dx - bx) ** 2 + (dy - by) ** 2);
                 if (dd > br * 1.2) continue;
-                const alpha = (1 - dd / (br * 1.2)) * (0.1 + rng.next() * 0.15);
-                ctx.fillStyle = colStr(alpha);
-                ctx.beginPath(); ctx.arc(dx, dy, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
+                const alpha = (1 - dd / (br * 1.2)) * (0.08 + rng.next() * 0.18);
+                const dotCol = jitterCol(blobJitter, 0.06);
+                ctx.fillStyle = rgba(dotCol, alpha);
+                ctx.beginPath(); ctx.arc(dx, dy, 0.8 + rng.next() * 2.2, 0, Math.PI * 2); ctx.fill();
             }
-            // Blob diffuse glow — no bright center
-            const bGlow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 0.8);
-            bGlow.addColorStop(0, colStr(0.15));
-            bGlow.addColorStop(0.4, colStr(0.08));
+            // Blob diffuse glow in its own color
+            const bGlow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 0.9);
+            bGlow.addColorStop(0, rgba(blobJitter, 0.16));
+            bGlow.addColorStop(0.4, rgba(blobJitter, 0.07));
             bGlow.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = bGlow;
-            ctx.beginPath(); ctx.arc(bx, by, br * 0.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(bx, by, br * 0.9, 0, Math.PI * 2); ctx.fill();
         }
 
-        // Scattered blue star-forming knots
-        for (let k = 0; k < 8; k++) {
-            const kx = cx + (rng.next() - 0.5) * maxR * 0.8;
-            const ky = cy + (rng.next() - 0.5) * maxR * 0.6;
-            ctx.fillStyle = `rgba(150,200,255,${0.15 + rng.next() * 0.2})`;
-            ctx.beginPath(); ctx.arc(kx, ky, 1.5 + rng.next() * 2.5, 0, Math.PI * 2); ctx.fill();
+        // Star-forming knots — diverse bright colors
+        for (let k = 0; k < 10; k++) {
+            const kx = cx + (rng.next() - 0.5) * maxR * 0.85;
+            const ky = cy + (rng.next() - 0.5) * maxR * 0.65;
+            const knotCol = jitterCol(rng.next() > 0.5 ? hiiCol : blobColors[Math.floor(rng.next() * blobColors.length)], 0.15);
+            ctx.fillStyle = rgba(knotCol, 0.15 + rng.next() * 0.22);
+            ctx.beginPath(); ctx.arc(kx, ky, 1.2 + rng.next() * 2.8, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Tidal tail / bridge — faint streamer feature
+        if (rng.next() > 0.5) {
+            const tailAngle = rng.next() * Math.PI * 2;
+            const tailLen = maxR * (0.5 + rng.next() * 0.4);
+            const tailCol = jitterCol(blobColors[0], 0.1);
+            for (let t = 0; t < 40; t++) {
+                const prog = rng.next();
+                const tx = cx + Math.cos(tailAngle) * prog * tailLen + (rng.next() - 0.5) * 6;
+                const ty = cy + Math.sin(tailAngle) * prog * tailLen + (rng.next() - 0.5) * 6;
+                ctx.fillStyle = rgba(tailCol, 0.04 + (1 - prog) * 0.06);
+                ctx.beginPath(); ctx.arc(tx, ty, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
+            }
         }
     }
 
