@@ -968,8 +968,8 @@ function buildGalaxyScene() {
         for (let pole = -1; pole <= 1; pole += 2) {
             // Scale jets to galaxy — prominent relativistic jets extending well beyond the disc
             const jetLen = galaxyRadius * (0.8 + galaxy.smbh.mass * 0.03); // 0.83x to 2.0x galaxy radius
-            const baseR = 3;
-            const tipR = jetLen * 0.06;  // wider spread at the far end, proportional to length
+            const baseR = 5;
+            const tipR = jetLen * 0.09;  // wider spread at the far end, proportional to length
 
             // Single cone with smooth radial core brightening via shader (no banded layers)
             {
@@ -1023,10 +1023,10 @@ function buildGalaxyScene() {
                         varying float vRadial;
                         void main() {
                             // Smooth radial falloff — bright core, soft edge
-                            float coreBright = exp(-vRadial * vRadial * 4.0);
-                            // Axial fade — cubic falloff along jet length
-                            float axial = vAxial * vAxial * vAxial;
-                            float alpha = coreBright * axial * 0.22;
+                            float coreBright = exp(-vRadial * vRadial * 2.5);
+                            // Axial fade — gentler falloff so jet is visible along full length
+                            float axial = pow(vAxial, 1.5);
+                            float alpha = coreBright * axial * 0.45;
                             // Color: hot white-gold core, cooler blue-purple at edges
                             vec3 coreCol = vec3(1.0, 0.9, 0.7);
                             vec3 edgeCol = vec3(0.3, 0.2, 0.7);
