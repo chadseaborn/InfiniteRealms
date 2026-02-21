@@ -1456,6 +1456,27 @@ function buildGlobeMesh(tiles) {
         }
     }
 
+    // Build corner → tiles map for vertex color blending
+    // Each corner point is shared by 2-3 tiles; we blend colors at shared corners
+    const cornerToTiles = new Map();
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const corners = tiles[ti].corners;
+        for (let c = 0; c < corners.length; c++) {
+            const key = corners[c].map(v => v.toFixed(6)).join(',');
+            if (!cornerToTiles.has(key)) cornerToTiles.set(key, []);
+            cornerToTiles.get(key).push(ti);
+        }
+    }
+
+    // Pre-compute tile colors
+    const tileColors = tiles.map(t => {
+        const biome = BIOMES[t.biome];
+        return new THREE.Color(t.tintedColor || biome.color);
+    });
+
+    // Blend factor: 0 = no blending (hard edges), 1 = full average at corners
+    const blendFactor = 0.45;
+
     // Batched cliff-wall geometry (one draw call for all walls)
     const wallVerts = [];
     const wallNormals = [];
@@ -1465,8 +1486,26 @@ function buildGlobeMesh(tiles) {
         const tile = tiles[ti];
         const corners = tile.corners;
         const center = tile.center;
-        const biome = BIOMES[tile.biome];
-        const color = new THREE.Color(tile.tintedColor || biome.color);
+        const tileColor = tileColors[ti];
+
+        // Compute blended color for each corner vertex
+        const cornerBlendedColors = corners.map(c => {
+            const key = c.map(v => v.toFixed(6)).join(',');
+            const sharing = cornerToTiles.get(key);
+            if (!sharing || sharing.length <= 1) return tileColor.clone();
+            // Average the colors of all tiles sharing this corner
+            const avg = new THREE.Color(0, 0, 0);
+            let count = 0;
+            for (const ni of sharing) {
+                if (ni !== ti) { avg.add(tileColors[ni]); count++; }
+            }
+            if (count === 0) return tileColor.clone();
+            avg.multiplyScalar(1 / count);
+            // Blend: tile color → neighbor average
+            const blended = tileColor.clone();
+            blended.lerp(avg, blendFactor);
+            return blended;
+        });
 
         // Slightly shrink corners toward center for gap effect
         const shrunkCorners = corners.map(c => {
@@ -1482,20 +1521,29 @@ function buildGlobeMesh(tiles) {
         const elevOffset = (reliefEnabled && isLand) ? tile.elevation * 0.06 : 0;
         const r = baseR + elevOffset;
 
-        // Build triangle fan geometry (top face)
+        // Build triangle fan geometry (top face) with per-vertex colors
         const geometry = new THREE.BufferGeometry();
         const verts = [];
         const normals = [];
+        const colors = [];
 
         const cx = center[0] * r, cy = center[1] * r, cz = center[2] * r;
 
         for (let i = 0; i < shrunkCorners.length; i++) {
             const c1 = shrunkCorners[i];
             const c2 = shrunkCorners[(i + 1) % shrunkCorners.length];
+            const bc1 = cornerBlendedColors[i];
+            const bc2 = cornerBlendedColors[(i + 1) % shrunkCorners.length];
 
             verts.push(cx, cy, cz);
             verts.push(c1[0]*r, c1[1]*r, c1[2]*r);
             verts.push(c2[0]*r, c2[1]*r, c2[2]*r);
+
+            // Center vertex: tile's own color
+            colors.push(tileColor.r, tileColor.g, tileColor.b);
+            // Corner vertices: blended toward neighbors
+            colors.push(bc1.r, bc1.g, bc1.b);
+            colors.push(bc2.r, bc2.g, bc2.b);
 
             // Normal is the center direction (sphere normal)
             normals.push(center[0], center[1], center[2]);
@@ -1505,9 +1553,10 @@ function buildGlobeMesh(tiles) {
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
         geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
         const material = new THREE.MeshLambertMaterial({
-            color: color,
+            vertexColors: true,
             side: THREE.DoubleSide
         });
 
@@ -1521,7 +1570,7 @@ function buildGlobeMesh(tiles) {
         // Wall extends from this tile's surface down to the neighbor's surface (not sea level),
         // preventing dark cliff geometry from clipping through adjacent tiles.
         if (reliefEnabled && isLand && elevOffset > 0.001) {
-            const wallColor = color.clone().multiplyScalar(0.45);
+            const wallColor = tileColor.clone().multiplyScalar(0.45);
 
             for (let i = 0; i < shrunkCorners.length; i++) {
                 // Look up neighbor elevation for this edge
