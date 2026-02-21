@@ -1512,9 +1512,21 @@ function buildGlobeMesh(tiles) {
         return new THREE.Color(t.tintedColor || biome.color);
     });
 
-    // Blend factor: 0 = no blending (hard edges), 1 = full average at corners
-    // 0.18 gives a subtle softening at tile borders without washing out biome identity
-    const blendFactor = 0.18;
+    // Build edge → neighbor tile map for per-edge color blending
+    const edgeToNeighborTile = new Map();
+    for (let ti = 0; ti < tiles.length; ti++) {
+        const corners = tiles[ti].corners;
+        for (let c = 0; c < corners.length; c++) {
+            const c1 = corners[c];
+            const c2 = corners[(c + 1) % corners.length];
+            const key = [c1, c2].map(p => p.map(v => v.toFixed(6)).join(',')).sort().join('|');
+            if (!edgeToNeighborTile.has(key)) edgeToNeighborTile.set(key, []);
+            edgeToNeighborTile.get(key).push(ti);
+        }
+    }
+
+    // Edge blend: how much the edge midpoint shifts toward neighbor color
+    const edgeBlend = 0.35;
 
     // Batched cliff-wall geometry (one draw call for all walls)
     const wallVerts = [];
@@ -1527,22 +1539,33 @@ function buildGlobeMesh(tiles) {
         const center = tile.center;
         const tileColor = tileColors[ti];
 
-        // Compute blended color for each corner vertex
-        const cornerBlendedColors = corners.map(c => {
-            const key = c.map(v => v.toFixed(6)).join(',');
-            const sharing = cornerToTiles.get(key);
-            if (!sharing || sharing.length <= 1) return tileColor.clone();
-            // Average the colors of all tiles sharing this corner
-            const avg = new THREE.Color(0, 0, 0);
-            let count = 0;
-            for (const ni of sharing) {
-                if (ni !== ti) { avg.add(tileColors[ni]); count++; }
+        // For each edge, find the neighbor across it and compute blended edge color
+        const edgeMidColors = [];
+        for (let c = 0; c < corners.length; c++) {
+            const c1 = corners[c];
+            const c2 = corners[(c + 1) % corners.length];
+            const key = [c1, c2].map(p => p.map(v => v.toFixed(6)).join(',')).sort().join('|');
+            const sharing = edgeToNeighborTile.get(key);
+            let neighborColor = null;
+            if (sharing) {
+                for (const ni of sharing) {
+                    if (ni !== ti) { neighborColor = tileColors[ni]; break; }
+                }
             }
-            if (count === 0) return tileColor.clone();
-            avg.multiplyScalar(1 / count);
-            // Blend: tile color → neighbor average
-            const blended = tileColor.clone();
-            blended.lerp(avg, blendFactor);
+            if (neighborColor) {
+                const blended = tileColor.clone();
+                blended.lerp(neighborColor, edgeBlend);
+                edgeMidColors.push(blended);
+            } else {
+                edgeMidColors.push(tileColor.clone());
+            }
+        }
+
+        // Corner colors: average of the two adjacent edge mid colors
+        const cornerColors = corners.map((c, i) => {
+            const prevEdge = (i - 1 + corners.length) % corners.length;
+            const blended = edgeMidColors[prevEdge].clone();
+            blended.lerp(edgeMidColors[i], 0.5);
             return blended;
         });
 
@@ -1560,10 +1583,15 @@ function buildGlobeMesh(tiles) {
         const elevOffset = (reliefEnabled && isLand) ? tile.elevation * 0.06 : 0;
         const r = baseR + elevOffset;
 
-        // Build triangle fan geometry (top face) with per-vertex colors
+        // Build subdivided triangle fan with edge midpoints for smoother gradients
+        // Each original fan triangle (center → corner_i → corner_i+1) becomes 3 triangles:
+        //   center → corner_i → edgeMid_i
+        //   center → edgeMid_i → corner_i+1
+        //   corner_i → edgeMid_i → corner_i+1  (outer strip triangle — not needed, covered above)
+        // Actually we use 2 triangles with the midpoint to get the gradient right:
         const geometry = new THREE.BufferGeometry();
         const verts = [];
-        const normals = [];
+        const norms = [];
         const colors = [];
 
         const cx = center[0] * r, cy = center[1] * r, cz = center[2] * r;
@@ -1571,27 +1599,43 @@ function buildGlobeMesh(tiles) {
         for (let i = 0; i < shrunkCorners.length; i++) {
             const c1 = shrunkCorners[i];
             const c2 = shrunkCorners[(i + 1) % shrunkCorners.length];
-            const bc1 = cornerBlendedColors[i];
-            const bc2 = cornerBlendedColors[(i + 1) % shrunkCorners.length];
+            const bc1 = cornerColors[i];
+            const bc2 = cornerColors[(i + 1) % shrunkCorners.length];
+            const edgeMidColor = edgeMidColors[i];
 
+            // Edge midpoint position
+            const mx = (c1[0] + c2[0]) * 0.5;
+            const my = (c1[1] + c2[1]) * 0.5;
+            const mz = (c1[2] + c2[2]) * 0.5;
+
+            // Normal at midpoint
+            const mn = [(c1[0]+c2[0])*0.5, (c1[1]+c2[1])*0.5, (c1[2]+c2[2])*0.5];
+
+            // Triangle 1: center → corner1 → edgeMid
             verts.push(cx, cy, cz);
             verts.push(c1[0]*r, c1[1]*r, c1[2]*r);
-            verts.push(c2[0]*r, c2[1]*r, c2[2]*r);
-
-            // Center vertex: tile's own color
+            verts.push(mx*r, my*r, mz*r);
             colors.push(tileColor.r, tileColor.g, tileColor.b);
-            // Corner vertices: blended toward neighbors
             colors.push(bc1.r, bc1.g, bc1.b);
-            colors.push(bc2.r, bc2.g, bc2.b);
+            colors.push(edgeMidColor.r, edgeMidColor.g, edgeMidColor.b);
+            norms.push(center[0], center[1], center[2]);
+            norms.push(c1[0], c1[1], c1[2]);
+            norms.push(mn[0], mn[1], mn[2]);
 
-            // Normal is the center direction (sphere normal)
-            normals.push(center[0], center[1], center[2]);
-            normals.push(c1[0], c1[1], c1[2]);
-            normals.push(c2[0], c2[1], c2[2]);
+            // Triangle 2: center → edgeMid → corner2
+            verts.push(cx, cy, cz);
+            verts.push(mx*r, my*r, mz*r);
+            verts.push(c2[0]*r, c2[1]*r, c2[2]*r);
+            colors.push(tileColor.r, tileColor.g, tileColor.b);
+            colors.push(edgeMidColor.r, edgeMidColor.g, edgeMidColor.b);
+            colors.push(bc2.r, bc2.g, bc2.b);
+            norms.push(center[0], center[1], center[2]);
+            norms.push(mn[0], mn[1], mn[2]);
+            norms.push(c2[0], c2[1], c2[2]);
         }
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
         const material = new THREE.MeshLambertMaterial({
