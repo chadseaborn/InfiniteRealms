@@ -1852,79 +1852,72 @@ function renderStar(star) {
         dCtx.fillRect(0, 0, 64, 64);
         const dotTex = new THREE.CanvasTexture(dotC);
 
-        // Main dust particle cloud — soft inner edge, exponential falloff
-        const pCount = 4000;
+        // Single unified particle cloud with per-vertex size via custom shader
+        const pCount = 6000;
         const positions = new Float32Array(pCount * 3);
-        const pColors = new Float32Array(pCount * 3);
-        const vertSpread = bodyRadius * 0.18;
-        const softInner = bodyRadius * 0.8; // particles can extend closer to hole
+        const pColors = new Float32Array(pCount * 4); // RGBA for per-particle alpha
+        const pSizes = new Float32Array(pCount);
+        const vertSpread = bodyRadius * 0.2;
 
         for (let i = 0; i < pCount; i++) {
             const angle = Math.random() * Math.PI * 2;
-            // Exponential distribution biased toward inner region, soft inner edge
-            const rr = softInner + Math.pow(Math.random(), 0.7) * (outerR - softInner) * 1.2;
-            const yOff = (Math.random() - 0.5) * vertSpread * (1 + Math.random());
+            // Continuous exponential distribution — no hard inner edge
+            // Use -log for exponential, centered around innerR
+            const u = Math.random();
+            const rr = bodyRadius * 0.5 + Math.abs(u * 2 - 1) * outerR * 1.1
+                     + (Math.random() - 0.5) * bodyRadius * 0.5; // jitter to break rings
+            const rClamped = Math.max(bodyRadius * 0.4, rr);
+            const yOff = (Math.random() - 0.5) * vertSpread * (1 + Math.random() * 0.5);
 
-            positions[i * 3]     = Math.cos(angle) * rr;
+            positions[i * 3]     = Math.cos(angle) * rClamped;
             positions[i * 3 + 1] = yOff;
-            positions[i * 3 + 2] = Math.sin(angle) * rr;
+            positions[i * 3 + 2] = Math.sin(angle) * rClamped;
 
-            // Smooth color: white-hot center → orange → dim red, no sharp transitions
-            const radialT = Math.min(1, (rr - softInner) / (outerR * 1.3 - softInner));
-            const hot = Math.pow(1 - radialT, 1.5);
-            pColors[i * 3]     = Math.min(1, 0.3 + hot * 0.7);
-            pColors[i * 3 + 1] = Math.min(1, 0.05 + hot * 0.65);
-            pColors[i * 3 + 2] = Math.min(1, 0.01 + hot * 0.35);
+            // Distance from the peak brightness zone (innerR)
+            const distFromPeak = Math.abs(rClamped - innerR) / outerR;
+            const hot = Math.exp(-distFromPeak * distFromPeak * 8);
+
+            pColors[i * 4]     = Math.min(1, 0.25 + hot * 0.75);
+            pColors[i * 4 + 1] = Math.min(1, 0.03 + hot * 0.7);
+            pColors[i * 4 + 2] = Math.min(1, 0.01 + hot * 0.4);
+            // Per-particle alpha — brighter near innerR, dim at edges
+            pColors[i * 4 + 3] = 0.1 + hot * 0.6;
+
+            // Varied sizes — smaller particles far out, larger near peak
+            pSizes[i] = bodyRadius * (0.03 + Math.random() * 0.08 + hot * 0.06);
         }
 
         const pGeom = new THREE.BufferGeometry();
         pGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        pGeom.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+        pGeom.setAttribute('color', new THREE.BufferAttribute(pColors, 4));
+        pGeom.setAttribute('size', new THREE.BufferAttribute(pSizes, 1));
 
-        const pMat = new THREE.PointsMaterial({
-            vertexColors: true,
-            size: bodyRadius * 0.08,
-            sizeAttenuation: true,
-            map: dotTex,
+        const pMat = new THREE.ShaderMaterial({
+            uniforms: { dotMap: { value: dotTex } },
+            vertexShader: `
+                attribute float size;
+                attribute vec4 color;
+                varying vec4 vColor;
+                void main() {
+                    vColor = color;
+                    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPos.z);
+                    gl_Position = projectionMatrix * mvPos;
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D dotMap;
+                varying vec4 vColor;
+                void main() {
+                    vec4 texel = texture2D(dotMap, gl_PointCoord);
+                    gl_FragColor = vec4(vColor.rgb, vColor.a * texel.a);
+                }
+            `,
             transparent: true,
-            opacity: 0.5,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         accretionDiscGroup.add(new THREE.Points(pGeom, pMat));
-
-        // Bright inner glow particles — concentrated but not ringed
-        const hotCount = 1200;
-        const hotPos = new Float32Array(hotCount * 3);
-        const hotColors = new Float32Array(hotCount * 3);
-        for (let i = 0; i < hotCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            // Gaussian distribution centered around innerR — no hard edge
-            const rr = innerR + (Math.random() - 0.5) * discWidth * 0.6;
-            const rClamped = Math.max(bodyRadius * 0.6, rr);
-            hotPos[i * 3]     = Math.cos(angle) * rClamped;
-            hotPos[i * 3 + 1] = (Math.random() - 0.5) * vertSpread * 0.4;
-            hotPos[i * 3 + 2] = Math.sin(angle) * rClamped;
-            const dist = Math.abs(rClamped - innerR) / (discWidth * 0.5);
-            const brightness = Math.exp(-dist * dist * 2);
-            hotColors[i * 3]     = 0.8 + brightness * 0.2;
-            hotColors[i * 3 + 1] = 0.4 + brightness * 0.5;
-            hotColors[i * 3 + 2] = 0.2 + brightness * 0.6;
-        }
-        const hotGeom = new THREE.BufferGeometry();
-        hotGeom.setAttribute('position', new THREE.BufferAttribute(hotPos, 3));
-        hotGeom.setAttribute('color', new THREE.BufferAttribute(hotColors, 3));
-        const hotMat = new THREE.PointsMaterial({
-            vertexColors: true,
-            size: bodyRadius * 0.07,
-            sizeAttenuation: true,
-            map: dotTex,
-            transparent: true,
-            opacity: 0.6,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
-        accretionDiscGroup.add(new THREE.Points(hotGeom, hotMat));
 
         scene.add(accretionDiscGroup);
 
