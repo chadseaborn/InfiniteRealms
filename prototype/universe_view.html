@@ -693,90 +693,202 @@ function generateUniverse(seed) {
 // ============================================================
 // GALAXY TEXTURES (canvas-drawn sprites per type)
 // ============================================================
-const galaxyTextures = {};
+// ---- Per-galaxy unique procedural textures ----
+function createUniqueGalaxyTexture(galaxySeed, typeId) {
+    const rng = new SeededRandom(galaxySeed);
+    const size = 128;
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const ctx = c.getContext('2d');
+    const cx = size / 2, cy = size / 2, maxR = size / 2;
 
-function createGalaxyTextures() {
-    const types = [
-        { id: 'spiral', color: '#88aaff', draw: drawSpiralTex },
-        { id: 'barred', color: '#99bbff', draw: drawBarredTex },
-        { id: 'elliptical', color: '#ffcc88', draw: drawEllipticalTex },
-        { id: 'irregular', color: '#aaddaa', draw: drawIrregularTex },
-    ];
-    for (const t of types) {
-        const size = 128;
-        const c = document.createElement('canvas');
-        c.width = size; c.height = size;
-        const ctx = c.getContext('2d');
-        t.draw(ctx, size, t.color);
-        const tex = new THREE.CanvasTexture(c);
-        tex.needsUpdate = true;
-        galaxyTextures[t.id] = tex;
-    }
-}
+    // Unique color palette per galaxy — warm/cool shift from base
+    const palettes = {
+        spiral:  [[0.53,0.67,1.0],[0.45,0.6,0.95],[0.7,0.75,1.0],[0.4,0.55,0.85],[0.6,0.8,1.0]],
+        barred:  [[0.6,0.73,1.0],[0.5,0.65,0.9],[0.7,0.8,1.0],[0.55,0.7,0.95],[0.45,0.6,1.0]],
+        elliptical: [[1.0,0.8,0.53],[1.0,0.75,0.5],[0.95,0.7,0.45],[1.0,0.85,0.6],[0.9,0.7,0.55]],
+        irregular:  [[0.67,0.87,0.67],[0.5,0.8,0.7],[0.7,0.9,0.55],[0.6,0.75,0.85],[0.8,0.7,0.6]]
+    };
+    const pal = palettes[typeId] || palettes.spiral;
+    const baseCol = pal[Math.floor(rng.next() * pal.length)];
+    // Per-galaxy color variation
+    const col = baseCol.map(v => Math.min(1, Math.max(0, v + (rng.next() - 0.5) * 0.15)));
+    const colStr = (a) => `rgba(${Math.floor(col[0]*255)},${Math.floor(col[1]*255)},${Math.floor(col[2]*255)},${a})`;
 
-function drawSpiralTex(ctx, size, color) {
-    const cx = size/2, cy = size/2;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
-    glow.addColorStop(0, color + '44'); glow.addColorStop(0.5, color + '11'); glow.addColorStop(1, 'transparent');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
-    for (let arm = 0; arm < 2; arm++) {
-        ctx.beginPath();
-        const start = arm * Math.PI;
-        for (let t = 0.05; t < 1; t += 0.02) {
-            const r = t * size * 0.42, a = start + t * 3.5;
-            const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r;
-            t <= 0.05 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    // Rotation angle — unique tilt per galaxy
+    const rotation = rng.next() * Math.PI * 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+    ctx.translate(-cx, -cy);
+
+    if (typeId === 'spiral' || typeId === 'barred') {
+        const armCount = typeId === 'barred' ? 2 : (2 + Math.floor(rng.next() * 3)); // 2-4 arms
+        const tightness = 2.5 + rng.next() * 2.5; // spiral winding
+        const armWidth = 3 + rng.next() * 4;
+        const ellip = 0.6 + rng.next() * 0.4; // viewing angle squash
+
+        // Diffuse background glow
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+        glow.addColorStop(0, colStr(0.3));
+        glow.addColorStop(0.3, colStr(0.12));
+        glow.addColorStop(0.7, colStr(0.03));
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.ellipse(cx, cy, maxR, maxR * ellip, 0, 0, Math.PI * 2); ctx.fill();
+
+        // Draw spiral arms as many small dots along the curve
+        for (let arm = 0; arm < armCount; arm++) {
+            const startAngle = (arm / armCount) * Math.PI * 2 + rng.next() * 0.3;
+            for (let i = 0; i < 300; i++) {
+                const t = rng.next();
+                const r = t * maxR * 0.9;
+                const a = startAngle + t * tightness;
+                // Perpendicular scatter — wider further out
+                const spread = (0.02 + t * 0.06) * maxR;
+                const perpAngle = a + Math.PI / 2;
+                const scatter = (rng.next() - 0.5) * 2 * spread;
+                const px = cx + Math.cos(a) * r + Math.cos(perpAngle) * scatter;
+                const py = cy + (Math.sin(a) * r + Math.sin(perpAngle) * scatter) * ellip;
+                const bright = (1 - t) * 0.7 + 0.3;
+                const dotR = 1 + rng.next() * 2.5;
+                const alpha = bright * (0.15 + rng.next() * 0.2);
+                ctx.fillStyle = colStr(alpha);
+                ctx.beginPath(); ctx.arc(px, py, dotR, 0, Math.PI * 2); ctx.fill();
+            }
         }
-        ctx.strokeStyle = color + '88'; ctx.lineWidth = 3; ctx.stroke();
-    }
-    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size*0.1);
-    core.addColorStop(0, '#ffffffcc'); core.addColorStop(0.5, color + 'bb'); core.addColorStop(1, 'transparent');
-    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, size*0.1, 0, Math.PI*2); ctx.fill();
-}
 
-function drawBarredTex(ctx, size, color) {
-    const cx = size/2, cy = size/2;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
-    glow.addColorStop(0, color + '44'); glow.addColorStop(0.5, color + '11'); glow.addColorStop(1, 'transparent');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
-    ctx.strokeStyle = color + '99'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(cx - size*0.18, cy); ctx.lineTo(cx + size*0.18, cy); ctx.stroke();
-    for (let arm = 0; arm < 2; arm++) {
-        ctx.beginPath();
-        for (let t = 0.12; t < 1; t += 0.02) {
-            const r = t * size * 0.4, a = arm * Math.PI + t * 3.0;
-            const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r;
-            t <= 0.12 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        // Inter-arm scatter
+        for (let i = 0; i < 150; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const r = Math.sqrt(rng.next()) * maxR * 0.75;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r * ellip;
+            ctx.fillStyle = colStr(0.04 + rng.next() * 0.06);
+            ctx.beginPath(); ctx.arc(px, py, 0.8 + rng.next() * 1.5, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.strokeStyle = color + '66'; ctx.lineWidth = 2.5; ctx.stroke();
-    }
-    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, size*0.08);
-    core.addColorStop(0, '#ffffffcc'); core.addColorStop(0.5, color + 'bb'); core.addColorStop(1, 'transparent');
-    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, size*0.08, 0, Math.PI*2); ctx.fill();
-}
 
-function drawEllipticalTex(ctx, size, color) {
-    const cx = size/2, cy = size/2;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
-    glow.addColorStop(0, color + 'cc'); glow.addColorStop(0.3, color + '66');
-    glow.addColorStop(0.6, color + '22'); glow.addColorStop(1, 'transparent');
-    ctx.fillStyle = glow; ctx.beginPath(); ctx.ellipse(cx, cy, size*0.45, size*0.3, 0, 0, Math.PI*2); ctx.fill();
-}
+        // Barred: central bar
+        if (typeId === 'barred') {
+            const barLen = maxR * (0.25 + rng.next() * 0.15);
+            const barW = maxR * 0.06;
+            const barAngle = rng.next() * Math.PI;
+            for (let i = 0; i < 120; i++) {
+                const t = (rng.next() - 0.5) * 2;
+                const px = cx + Math.cos(barAngle) * t * barLen + (rng.next() - 0.5) * barW;
+                const py = cy + (Math.sin(barAngle) * t * barLen + (rng.next() - 0.5) * barW) * ellip;
+                ctx.fillStyle = colStr(0.15 + rng.next() * 0.15);
+                ctx.beginPath(); ctx.arc(px, py, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
+            }
+        }
 
-function drawIrregularTex(ctx, size, color) {
-    const cx = size/2, cy = size/2;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size/2);
-    glow.addColorStop(0, color + '33'); glow.addColorStop(1, 'transparent');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
-    const br = new SeededRandom(42);
-    for (let b = 0; b < 6; b++) {
-        const bx = cx + br.nextFloat(-size*0.25, size*0.25);
-        const by = cy + br.nextFloat(-size*0.2, size*0.2);
-        const bRadius = br.nextFloat(size*0.06, size*0.16);
-        const bg = ctx.createRadialGradient(bx, by, 0, bx, by, bRadius);
-        bg.addColorStop(0, color + 'aa'); bg.addColorStop(1, 'transparent');
-        ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx, by, bRadius, 0, Math.PI*2); ctx.fill();
+        // Bright core
+        const coreR = maxR * (0.06 + rng.next() * 0.05);
+        const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        coreGlow.addColorStop(0, `rgba(255,255,240,0.9)`);
+        coreGlow.addColorStop(0.3, colStr(0.6));
+        coreGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = coreGlow;
+        ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
+
+        // A few bright star knots along arms
+        const knotCount = 3 + Math.floor(rng.next() * 5);
+        for (let k = 0; k < knotCount; k++) {
+            const arm = Math.floor(rng.next() * armCount);
+            const t = 0.3 + rng.next() * 0.5;
+            const a = (arm / armCount) * Math.PI * 2 + t * tightness;
+            const r = t * maxR * 0.85;
+            const kx = cx + Math.cos(a) * r + (rng.next() - 0.5) * 6;
+            const ky = cy + Math.sin(a) * r * ellip + (rng.next() - 0.5) * 4;
+            const kGlow = ctx.createRadialGradient(kx, ky, 0, kx, ky, 3 + rng.next() * 3);
+            kGlow.addColorStop(0, colStr(0.5));
+            kGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = kGlow;
+            ctx.beginPath(); ctx.arc(kx, ky, 4 + rng.next() * 3, 0, Math.PI * 2); ctx.fill();
+        }
+
+    } else if (typeId === 'elliptical') {
+        const ellipX = 0.7 + rng.next() * 0.3;
+        const ellipY = 0.4 + rng.next() * 0.35;
+
+        // Smooth radial falloff — multiple layers for richness
+        for (let layer = 0; layer < 3; layer++) {
+            const ox = (rng.next() - 0.5) * 4;
+            const oy = (rng.next() - 0.5) * 4;
+            const glow = ctx.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, maxR * ellipX);
+            const layerAlpha = [0.4, 0.2, 0.15][layer];
+            glow.addColorStop(0, colStr(layerAlpha));
+            glow.addColorStop(0.3, colStr(layerAlpha * 0.5));
+            glow.addColorStop(0.6, colStr(layerAlpha * 0.15));
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.ellipse(cx + ox, cy + oy, maxR * ellipX, maxR * ellipY, 0, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Scattered globular cluster dots
+        for (let i = 0; i < 80; i++) {
+            const angle = rng.next() * Math.PI * 2;
+            const r = Math.pow(rng.next(), 1.5) * maxR * ellipX * 0.8;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r * (ellipY / ellipX);
+            ctx.fillStyle = colStr(0.06 + rng.next() * 0.1);
+            ctx.beginPath(); ctx.arc(px, py, 0.5 + rng.next() * 1.5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Hot bright core
+        const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.08);
+        coreGlow.addColorStop(0, 'rgba(255,245,220,0.85)');
+        coreGlow.addColorStop(0.5, colStr(0.4));
+        coreGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = coreGlow;
+        ctx.beginPath(); ctx.arc(cx, cy, maxR * 0.08, 0, Math.PI * 2); ctx.fill();
+
+    } else {
+        // Irregular — clumpy, asymmetric blobs
+        const blobCount = 4 + Math.floor(rng.next() * 5);
+        // Faint overall glow
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.7);
+        glow.addColorStop(0, colStr(0.12));
+        glow.addColorStop(0.5, colStr(0.04));
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
+
+        for (let b = 0; b < blobCount; b++) {
+            const bx = cx + (rng.next() - 0.5) * maxR * 0.9;
+            const by = cy + (rng.next() - 0.5) * maxR * 0.7;
+            const br = maxR * (0.1 + rng.next() * 0.2);
+            // Each blob is a cluster of dots
+            for (let d = 0; d < 40; d++) {
+                const dx = bx + (rng.next() - 0.5) * br * 2;
+                const dy = by + (rng.next() - 0.5) * br * 2;
+                const dd = Math.sqrt((dx - bx) ** 2 + (dy - by) ** 2);
+                if (dd > br * 1.2) continue;
+                const alpha = (1 - dd / (br * 1.2)) * (0.1 + rng.next() * 0.15);
+                ctx.fillStyle = colStr(alpha);
+                ctx.beginPath(); ctx.arc(dx, dy, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
+            }
+            // Blob core glow
+            const bGlow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 0.6);
+            bGlow.addColorStop(0, colStr(0.25));
+            bGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = bGlow;
+            ctx.beginPath(); ctx.arc(bx, by, br * 0.6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Scattered blue star-forming knots
+        for (let k = 0; k < 8; k++) {
+            const kx = cx + (rng.next() - 0.5) * maxR * 0.8;
+            const ky = cy + (rng.next() - 0.5) * maxR * 0.6;
+            ctx.fillStyle = `rgba(150,200,255,${0.15 + rng.next() * 0.2})`;
+            ctx.beginPath(); ctx.arc(kx, ky, 1.5 + rng.next() * 2.5, 0, Math.PI * 2); ctx.fill();
+        }
     }
+
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
 }
 
 // ============================================================
@@ -926,10 +1038,10 @@ function buildUniverseScene() {
         clusterHaloMeshes.push(halo);
     }
 
-    // Galaxy sprites
+    // Galaxy sprites — unique procedural texture per galaxy
     for (let gi = 0; gi < galaxies.length; gi++) {
         const gal = galaxies[gi];
-        const tex = galaxyTextures[gal.type.id];
+        const tex = createUniqueGalaxyTexture(gal.seed, gal.type.id);
         const mat = new THREE.SpriteMaterial({
             map: tex, transparent: true, depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -1642,7 +1754,6 @@ function randomSeed() {
 }
 
 // Init
-createGalaxyTextures();
 initThree();
 initDensitySlider();
 
