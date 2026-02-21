@@ -130,12 +130,37 @@ canvas { display: block; }
     display: none;
 }
 #tile-info.active { display: block; }
+#zoom-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 5px;
+    z-index: 5;
+}
+.zoom-btn {
+    padding: 6px 10px;
+    background: #2a2a4a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    transition: all 0.15s;
+}
+.zoom-btn:hover { background: #3a3a5a; border-color: #ffcc00; color: #fff; }
 </style>
 </head>
 <body>
 
 <div id="canvas-container">
     <button id="back-btn" onclick="returnToSystem()">← Return to System</button>
+    <div id="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()">+</button>
+        <button class="zoom-btn" onclick="zoomReset()">Reset</button>
+        <button class="zoom-btn" onclick="zoomOut()">−</button>
+    </div>
     <div id="stats"></div>
     <div id="controls">
         <div>Drag to rotate | Scroll to zoom</div>
@@ -1401,6 +1426,19 @@ function initThree() {
         e.preventDefault();
         camera.position.z = Math.max(globeRadius + 0.15, Math.min(8, camera.position.z + e.deltaY * 0.002));
     }, { passive: false });
+
+    // Zoom button functions
+    window.zoomIn = function() {
+        camera.position.z = Math.max(globeRadius + 0.15, camera.position.z - 0.4);
+    };
+    window.zoomOut = function() {
+        camera.position.z = Math.min(8, camera.position.z + 0.4);
+    };
+    window.zoomReset = function() {
+        camera.position.z = 3.5;
+        globeGroup.rotation.x = 0;
+        globeGroup.rotation.y = 0;
+    };
 
     // Click detection
     renderer.domElement.addEventListener('click', (e) => {
