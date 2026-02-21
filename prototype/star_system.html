@@ -1930,6 +1930,134 @@ function renderStar(star) {
         accretionDiscGroup.add(new THREE.Points(hotGeom, hotMat));
 
         scene.add(accretionDiscGroup);
+
+        // ---- Black hole relativistic jets ----
+        // Active black holes emit powerful jets along the polar axis
+        const bhJetGroup = new THREE.Group();
+        scene.add(bhJetGroup);
+
+        for (let pole = -1; pole <= 1; pole += 2) {
+            const jetLen = bodyRadius * 28;
+            const jetBaseR = bodyRadius * 0.4;
+            const jetTipR = bodyRadius * 5;
+
+            // Single smooth cone with radial + axial shader
+            const topR = pole === 1 ? jetTipR : jetBaseR;
+            const botR = pole === 1 ? jetBaseR : jetTipR;
+            const geo = new THREE.CylinderGeometry(topR, botR, jetLen, 32, 24, true);
+
+            const pos = geo.attributes.position;
+            // Turbulence wobble
+            for (let vi = 0; vi < pos.count; vi++) {
+                const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                const angle = Math.atan2(pz, px);
+                const ht = (py + jetLen / 2) / jetLen;
+                const wobble = 1.0 + 0.12 * Math.sin(angle * 4 + ht * 7) * ht * ht;
+                pos.setX(vi, px * wobble);
+                pos.setZ(vi, pz * wobble);
+            }
+            pos.needsUpdate = true;
+
+            const axialFade = new Float32Array(pos.count);
+            const radialDist = new Float32Array(pos.count);
+            for (let vi = 0; vi < pos.count; vi++) {
+                const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                const t = (py + jetLen / 2) / jetLen;
+                axialFade[vi] = pole === 1 ? (1 - t) : t;
+                const outward = pole === 1 ? t : (1 - t);
+                const maxR = jetBaseR + (jetTipR - jetBaseR) * outward;
+                const r = Math.sqrt(px * px + pz * pz);
+                radialDist[vi] = maxR > 0 ? Math.min(1, r / maxR) : 0;
+            }
+            geo.setAttribute('axialFade', new THREE.BufferAttribute(axialFade, 1));
+            geo.setAttribute('radialDist', new THREE.BufferAttribute(radialDist, 1));
+
+            const mat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float axialFade;
+                    attribute float radialDist;
+                    varying float vAxial;
+                    varying float vRadial;
+                    void main() {
+                        vAxial = axialFade;
+                        vRadial = radialDist;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vAxial;
+                    varying float vRadial;
+                    void main() {
+                        float coreBright = exp(-vRadial * vRadial * 3.5);
+                        float axial = vAxial * vAxial;
+                        float alpha = coreBright * axial * 0.35;
+                        // Hot orange-white core, deep red-orange edges
+                        vec3 coreCol = vec3(1.0, 0.85, 0.6);
+                        vec3 edgeCol = vec3(0.6, 0.15, 0.02);
+                        vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
+                        gl_FragColor = vec4(col, alpha);
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.y = pole * (jetLen / 2 + bodyRadius * 0.3);
+            bhJetGroup.add(mesh);
+
+            // Helical plasma filament
+            const hPts = [];
+            const hTurns = 5, hSteps = 80;
+            for (let si = 0; si <= hSteps; si++) {
+                const ht = si / hSteps;
+                const hAngle = ht * Math.PI * 2 * hTurns;
+                const outward = pole === 1 ? ht : (1 - ht);
+                const hr = (jetBaseR + (jetTipR - jetBaseR) * outward) * 0.3;
+                hPts.push(new THREE.Vector3(
+                    Math.cos(hAngle) * hr,
+                    (ht - 0.5) * jetLen,
+                    Math.sin(hAngle) * hr
+                ));
+            }
+            const hCurve = new THREE.CatmullRomCurve3(hPts);
+            const hGeo = new THREE.TubeGeometry(hCurve, 80, jetBaseR * 0.12, 6, false);
+            const hPos = hGeo.attributes.position;
+            const hAlphas = new Float32Array(hPos.count);
+            for (let vi = 0; vi < hPos.count; vi++) {
+                const vy = hPos.getY(vi);
+                const t = (vy + jetLen / 2) / jetLen;
+                const fade = pole === 1 ? (1 - t) : t;
+                hAlphas[vi] = fade * fade * fade;
+            }
+            hGeo.setAttribute('alphaFade', new THREE.BufferAttribute(hAlphas, 1));
+            const hMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float alphaFade;
+                    varying float vAlpha;
+                    void main() {
+                        vAlpha = alphaFade;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vAlpha;
+                    void main() {
+                        gl_FragColor = vec4(1.0, 0.6, 0.2, vAlpha * 0.3);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const helix = new THREE.Mesh(hGeo, hMat);
+            helix.position.y = pole * (jetLen / 2 + bodyRadius * 0.3);
+            bhJetGroup.add(helix);
+        }
+
+        // Store for animation — slow rotation
+        pulsarGroup = bhJetGroup;
     }
 
     // ---- Binary companion (also 3D sphere + glow) ----
