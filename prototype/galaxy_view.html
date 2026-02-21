@@ -912,61 +912,67 @@ function buildGalaxyScene() {
             const baseR = 3;
             const tipR = jetLen * 0.06;  // wider spread at the far end, proportional to length
 
-            // Nested shells with per-vertex alpha fade along length
-            const layers = [
-                { rScale: 1.0,  baseOp: 0.08, segs: 24, hSegs: 20, cBase: [1.0,0.7,0.3], cTip: [0.2,0.15,0.7] },
-                { rScale: 0.55, baseOp: 0.18, segs: 16, hSegs: 16, cBase: [1.0,0.85,0.5], cTip: [0.3,0.25,0.8] },
-                { rScale: 0.2,  baseOp: 0.45, segs: 12, hSegs: 12, cBase: [1.0,0.95,0.85], cTip: [0.5,0.35,0.9] },
-            ];
+            // Single cone with smooth radial core brightening via shader (no banded layers)
+            {
+                const topR = pole === 1 ? tipR : baseR;
+                const botR = pole === 1 ? baseR : tipR;
+                const geo = new THREE.CylinderGeometry(topR, botR, jetLen, 32, 24, true);
 
-            for (const layer of layers) {
-                const lBaseR = baseR * layer.rScale;
-                const lTipR = tipR * layer.rScale;
-                const topR = pole === 1 ? lTipR : lBaseR;
-                const botR = pole === 1 ? lBaseR : lTipR;
-                const geo = new THREE.CylinderGeometry(topR, botR, jetLen, layer.segs, layer.hSegs, true);
-
-                // Organic turbulence wobble — more pronounced further out
+                // Organic turbulence wobble
                 const pos = geo.attributes.position;
                 for (let vi = 0; vi < pos.count; vi++) {
                     const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
                     const angle = Math.atan2(pz, px);
                     const ht = (py + jetLen / 2) / jetLen;
-                    const wobble = 1.0 + 0.2 * Math.sin(angle * 3 + ht * 8) * ht * ht;
+                    const wobble = 1.0 + 0.15 * Math.sin(angle * 3 + ht * 8) * ht * ht;
                     pos.setX(vi, px * wobble);
                     pos.setZ(vi, pz * wobble);
                 }
                 pos.needsUpdate = true;
 
-                // Vertex colors: bright at base, fading color AND alpha toward tip
-                const jColors = new Float32Array(pos.count * 4); // RGBA
+                // Per-vertex: axial fade + radial distance (0=center, 1=edge) for shader
+                const axialFade = new Float32Array(pos.count);
+                const radialDist = new Float32Array(pos.count);
                 for (let vi = 0; vi < pos.count; vi++) {
-                    const vy = pos.getY(vi);
-                    const t = (vy + jetLen / 2) / jetLen;
-                    const fade = pole === 1 ? (1 - t) : t; // 1 at base, 0 at tip
-                    // Color gradient
-                    jColors[vi * 4]     = layer.cBase[0] * fade + layer.cTip[0] * (1 - fade);
-                    jColors[vi * 4 + 1] = layer.cBase[1] * fade + layer.cTip[1] * (1 - fade);
-                    jColors[vi * 4 + 2] = layer.cBase[2] * fade + layer.cTip[2] * (1 - fade);
-                    // Alpha: strong at base, fading to near-zero at tip (cubic falloff)
-                    jColors[vi * 4 + 3] = fade * fade * fade;
+                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                    const t = (py + jetLen / 2) / jetLen;
+                    const fade = pole === 1 ? (1 - t) : t;
+                    axialFade[vi] = fade;
+                    // Radial: distance from axis normalized to cone radius at this height
+                    const outward = pole === 1 ? t : (1 - t);
+                    const maxR = baseR + (tipR - baseR) * outward;
+                    const r = Math.sqrt(px * px + pz * pz);
+                    radialDist[vi] = maxR > 0 ? Math.min(1, r / maxR) : 0;
                 }
-                geo.setAttribute('color', new THREE.BufferAttribute(jColors, 4));
+                geo.setAttribute('axialFade', new THREE.BufferAttribute(axialFade, 1));
+                geo.setAttribute('radialDist', new THREE.BufferAttribute(radialDist, 1));
 
-                // Custom shader to use per-vertex alpha from 4-component color
                 const mat = new THREE.ShaderMaterial({
                     vertexShader: `
-                        attribute vec4 color;
-                        varying vec4 vColor;
+                        attribute float axialFade;
+                        attribute float radialDist;
+                        varying float vAxial;
+                        varying float vRadial;
                         void main() {
-                            vColor = color;
+                            vAxial = axialFade;
+                            vRadial = radialDist;
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
                     fragmentShader: `
-                        varying vec4 vColor;
+                        varying float vAxial;
+                        varying float vRadial;
                         void main() {
-                            gl_FragColor = vec4(vColor.rgb, vColor.a * ${layer.baseOp.toFixed(2)});
+                            // Smooth radial falloff — bright core, soft edge
+                            float coreBright = exp(-vRadial * vRadial * 4.0);
+                            // Axial fade — cubic falloff along jet length
+                            float axial = vAxial * vAxial * vAxial;
+                            float alpha = coreBright * axial * 0.22;
+                            // Color: hot white-gold core, cooler blue-purple at edges
+                            vec3 coreCol = vec3(1.0, 0.9, 0.7);
+                            vec3 edgeCol = vec3(0.3, 0.2, 0.7);
+                            vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
+                            gl_FragColor = vec4(col, alpha);
                         }
                     `,
                     transparent: true,
