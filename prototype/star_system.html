@@ -1863,30 +1863,32 @@ function renderStar(star) {
 
         for (let i = 0; i < pCount; i++) {
             const angle = Math.random() * Math.PI * 2;
-            // Continuous exponential distribution — no hard inner edge
-            // Use -log for exponential, centered around innerR
-            const u = Math.random();
-            const rr = bodyRadius * 0.5 + Math.abs(u * 2 - 1) * outerR * 1.1
-                     + (Math.random() - 0.5) * bodyRadius * 0.5; // jitter to break rings
-            const rClamped = Math.max(bodyRadius * 0.4, rr);
-            const yOff = (Math.random() - 0.5) * vertSpread * (1 + Math.random() * 0.5);
+            // Smooth radial distribution using true inverse-CDF exponential
+            // Plus heavy jitter to eliminate any ring patterns
+            const expR = -Math.log(1 - Math.random() * 0.999) * bodyRadius * 1.2; // exponential
+            const rr = innerR * 0.4 + expR + (Math.random() - 0.5) * bodyRadius * 0.9;
+            const rClamped = Math.max(bodyRadius * 0.25, Math.min(rr, outerR * 1.8));
+            const yOff = (Math.random() - 0.5) * vertSpread * (1 + Math.random() * 0.8);
 
             positions[i * 3]     = Math.cos(angle) * rClamped;
             positions[i * 3 + 1] = yOff;
             positions[i * 3 + 2] = Math.sin(angle) * rClamped;
 
-            // Distance from the peak brightness zone (innerR)
+            // Distance from the peak brightness zone — per-particle noise breaks uniformity
             const distFromPeak = Math.abs(rClamped - innerR) / outerR;
-            const hot = Math.exp(-distFromPeak * distFromPeak * 8);
+            const hot = Math.exp(-distFromPeak * distFromPeak * 5) * (0.65 + Math.random() * 0.35);
 
-            pColors[i * 4]     = Math.min(1, 0.25 + hot * 0.75);
-            pColors[i * 4 + 1] = Math.min(1, 0.03 + hot * 0.7);
-            pColors[i * 4 + 2] = Math.min(1, 0.01 + hot * 0.4);
-            // Per-particle alpha — brighter near innerR, dim at edges
-            pColors[i * 4 + 3] = 0.1 + hot * 0.6;
+            // Per-particle color jitter so no two are identical
+            const rJit = (Math.random() - 0.5) * 0.15;
+            const gJit = (Math.random() - 0.5) * 0.10;
+            const bJit = (Math.random() - 0.5) * 0.08;
+            pColors[i * 4]     = Math.min(1, Math.max(0, 0.2 + hot * 0.8 + rJit));
+            pColors[i * 4 + 1] = Math.min(1, Math.max(0, 0.02 + hot * 0.6 + gJit));
+            pColors[i * 4 + 2] = Math.min(1, Math.max(0, 0.01 + hot * 0.35 + bJit));
+            pColors[i * 4 + 3] = 0.06 + hot * 0.45 + Math.random() * 0.12;
 
-            // Varied sizes — smaller particles far out, larger near peak
-            pSizes[i] = bodyRadius * (0.03 + Math.random() * 0.08 + hot * 0.06);
+            // Widely varied sizes — randomized per particle to prevent overlap patterns
+            pSizes[i] = bodyRadius * (0.015 + Math.random() * 0.12 + hot * 0.07) * (0.5 + Math.random() * 1.0);
         }
 
         const pGeom = new THREE.BufferGeometry();

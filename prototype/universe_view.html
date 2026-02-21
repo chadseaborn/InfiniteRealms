@@ -1507,9 +1507,9 @@ function buildUniverseScene() {
             quasarSprites.push(coreSprite);
 
             // 3D jet cones — two opposing volumetric cones extending from quasar
-            const jetLen = coreSize * (4.0 + Math.min(q.luminosity / 100, 6.0));
-            const jetBaseR = coreSize * 0.3;
-            const jetTipR = coreSize * 1.2;
+            const jetLen = coreSize * (5.0 + Math.min(q.luminosity / 80, 8.0));
+            const jetBaseR = coreSize * 0.5;
+            const jetTipR = coreSize * 2.0;
             // Random jet axis per quasar (seeded)
             const jRng = new SeededRandom(q.hostGalaxyIndex * 7 + 31);
             const jTheta = jRng.next() * Math.PI * 2;
@@ -1559,9 +1559,9 @@ function buildUniverseScene() {
                         varying float vRadial;
                         uniform vec3 jetCol;
                         void main() {
-                            float coreBright = exp(-vRadial * vRadial * 3.0);
-                            float axial = vAxial * vAxial;
-                            float alpha = coreBright * axial * 0.55;
+                            float coreBright = exp(-vRadial * vRadial * 2.0);
+                            float axial = pow(vAxial, 1.5);
+                            float alpha = coreBright * axial * 0.7;
                             vec3 coreC = vec3(1.0, 0.95, 0.85);
                             vec3 col = mix(jetCol, coreC, coreBright * vAxial);
                             gl_FragColor = vec4(col, alpha);
