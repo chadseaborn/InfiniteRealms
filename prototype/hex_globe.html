@@ -1044,6 +1044,9 @@ function generateTerrain(tiles, seed) {
             tile.biome = classify(tile.elevation, tile.moisture, tile.temperature);
         }
     }
+
+    // Apply moon subtype color tinting (lunar gray, dark basalt, etc.)
+    applyMoonSubtypeTinting(tiles);
 }
 
 
@@ -1060,6 +1063,7 @@ const GAS_SUBTYPE_TINTS = {
 };
 
 let activeGasSubtype = null; // set from URL param
+let activeMoonSubtype = null; // rocky/barren moon surface subtype (lunar, regolith, ferric, dark)
 
 function applyGasGiantTinting(tiles) {
     if (!activeGasSubtype || !GAS_SUBTYPE_TINTS[activeGasSubtype]) return;
@@ -1078,6 +1082,46 @@ function applyGasGiantTinting(tiles) {
             r = Math.min(255, Math.max(0, Math.round(r * tint.rMul)));
             g = Math.min(255, Math.max(0, Math.round(g * tint.gMul)));
             b = Math.min(255, Math.max(0, Math.round(b * tint.bMul)));
+            tintedCache[tile.biome] = '#' +
+                r.toString(16).padStart(2, '0') +
+                g.toString(16).padStart(2, '0') +
+                b.toString(16).padStart(2, '0');
+        }
+        tile.tintedColor = tintedCache[tile.biome];
+    }
+}
+
+// Moon surface subtype tinting — shifts barren biome colors toward subtype palette
+const MOON_SUBTYPE_TINTS = {
+    lunar:    { r: 0.62, g: 0.62, b: 0.65 },  // cool silver-gray (desaturate + shift blue)
+    regolith: { r: 0.58, g: 0.56, b: 0.54 },  // warm gray
+    ferric:   { r: 0.60, g: 0.50, b: 0.42 },  // rusty iron-brown
+    dark:     { r: 0.38, g: 0.38, b: 0.40 },  // very dark basalt
+};
+
+function applyMoonSubtypeTinting(tiles) {
+    if (!activeMoonSubtype || !MOON_SUBTYPE_TINTS[activeMoonSubtype]) return;
+    const target = MOON_SUBTYPE_TINTS[activeMoonSubtype];
+    const blend = 0.55; // how much to shift toward the subtype tone
+
+    const tintedCache = {};
+    for (const tile of tiles) {
+        const biome = BIOMES[tile.biome];
+        if (!biome) continue;
+        if (!tintedCache[tile.biome]) {
+            const hex = biome.color;
+            let r = parseInt(hex.slice(1, 3), 16) / 255;
+            let g = parseInt(hex.slice(3, 5), 16) / 255;
+            let b = parseInt(hex.slice(5, 7), 16) / 255;
+            // Blend: mix original biome color toward subtype base tone
+            // Preserve relative brightness differences between biomes
+            const lum = r * 0.3 + g * 0.59 + b * 0.11;
+            r = r * (1 - blend) + (target.r * (0.6 + lum * 0.8)) * blend;
+            g = g * (1 - blend) + (target.g * (0.6 + lum * 0.8)) * blend;
+            b = b * (1 - blend) + (target.b * (0.6 + lum * 0.8)) * blend;
+            r = Math.min(255, Math.max(0, Math.round(r * 255)));
+            g = Math.min(255, Math.max(0, Math.round(g * 255)));
+            b = Math.min(255, Math.max(0, Math.round(b * 255)));
             tintedCache[tile.biome] = '#' +
                 r.toString(16).padStart(2, '0') +
                 g.toString(16).padStart(2, '0') +
@@ -1759,6 +1803,16 @@ function buildGlobeMesh(tiles) {
         };
         innerColor = gasInnerColors[activeGasSubtype] || innerColor;
     }
+    // Moon subtype inner color
+    if (activeMoonSubtype) {
+        const moonInnerColors = {
+            lunar:    0x2a2a2e,  // cool dark gray
+            regolith: 0x2e2c2a,  // warm dark gray
+            ferric:   0x302218,  // dark iron brown
+            dark:     0x18181c,  // near-black basalt
+        };
+        innerColor = moonInnerColors[activeMoonSubtype] || innerColor;
+    }
     // Dynamic inner sphere radius: flat triangle fans chord through the sphere,
     // so on coarse globes (few tiles) the chord midpoint dips well below r=1.
     // We size the inner sphere to sit just below the worst-case chord dip.
@@ -2096,6 +2150,7 @@ function getUrlParams() {
         returnSeed: params.get('returnSeed') || null,
         returnStarTypeId: params.get('returnStarTypeId') || null,
         gasSubtype: params.get('gasSubtype') || null,
+        moonSubtype: params.get('moonSubtype') || null,
         returnGalaxySeed: params.get('returnGalaxySeed') || null,
         galaxy: params.get('galaxy') || null,
         galaxyId: params.get('galaxyId') || null,
@@ -2193,6 +2248,12 @@ if (urlParams.type && BODY_PALETTES[urlParams.type]) {
 if (urlParams.gasSubtype && GAS_SUBTYPE_TINTS[urlParams.gasSubtype]) {
     activeGasSubtype = urlParams.gasSubtype;
     console.log(`Gas giant subtype: ${activeGasSubtype}`);
+}
+
+// ---- Rocky/barren moon surface subtype ----
+if (urlParams.moonSubtype) {
+    activeMoonSubtype = urlParams.moonSubtype;
+    console.log(`Moon subtype: ${activeMoonSubtype}`);
 }
 
 // Use URL seed if provided, otherwise default

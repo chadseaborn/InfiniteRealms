@@ -360,13 +360,21 @@ const LIFE_FREQ = {
     anomalous:   [0.50, 0.20, 0.15, 0.10, 0.05],
 };
 
+// Rocky/barren moon surface subtypes — controls base color palette
+const ROCKY_MOON_SUBTYPES = [
+    { id: 'lunar',     name: 'Lunar',     frequency: 0.30, color: '#9a9a9a' },  // classic silver-gray (Earth's Moon)
+    { id: 'regolith',  name: 'Regolith',  frequency: 0.25, color: '#8a8580' },  // warm gray (dusty)
+    { id: 'ferric',    name: 'Ferric',    frequency: 0.25, color: '#8a7a65' },  // rusty brown (iron-rich)
+    { id: 'dark',      name: 'Dark',      frequency: 0.20, color: '#5a5a60' },  // dark basalt gray
+];
+
 const MOON_TYPES = [
     // Colors match orbital appearance to biome palette surface colors
-    { id: 'rocky_moon',  name: 'Rocky Moon',  frequency: 0.35, color: '#8a7a65', sizeN: [2,5],  biomes: ['rock','crater','dust','salt flat'], atmosphere: 'None' },
+    { id: 'rocky_moon',  name: 'Rocky Moon',  frequency: 0.35, color: '#8a7a65', sizeN: [2,5],  biomes: ['rock','crater','dust','salt flat'], atmosphere: 'None', hasSubtypes: true },
     { id: 'ice_moon',    name: 'Ice Moon',    frequency: 0.25, color: '#95b5c8', sizeN: [2,6],  biomes: ['frozen ocean','ice sheet','glacier','geothermal vent'], atmosphere: 'Thin' },
     { id: 'volcanic_moon', name: 'Volcanic Moon', frequency: 0.15, color: '#5a2a1a', sizeN: [2,4], biomes: ['lava field','magma lake','volcanic','obsidian waste'], atmosphere: 'Toxic' },
     { id: 'habitable_moon', name: 'Habitable Moon', frequency: 0.10, color: '#4a8a60', sizeN: [3,8], biomes: ['forest','plains','lake','coast','savanna'], atmosphere: 'Breathable' },
-    { id: 'barren_moon', name: 'Barren Moon', frequency: 0.15, color: '#7a6e58', sizeN: [2,3],  biomes: ['rock','dust'], atmosphere: 'None' },
+    { id: 'barren_moon', name: 'Barren Moon', frequency: 0.15, color: '#7a6e58', sizeN: [2,3],  biomes: ['rock','dust'], atmosphere: 'None', hasSubtypes: true },
 ];
 
 const ROMAN = ['I','II','III','IV','V','VI','VII','VIII'];
@@ -610,11 +618,18 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
                 if (moonLifeRoll < 0.10) moonLife = LIFE_CLASSES[1]; // primitive (subsurface life)
             }
 
+            // Rocky/barren moon surface subtype (lunar, regolith, ferric, dark)
+            let moonSubtype = null;
+            if (moonTypeDef.hasSubtypes) {
+                moonSubtype = rng.weightedPick(ROCKY_MOON_SUBTYPES);
+            }
+
             const moonId = `${planetId}:${ROMAN[mi]}`;
             moonObjects.push({
                 name: planetName + ' ' + ROMAN[mi],
                 id: moonId,
                 type: moonTypeDef,
+                moonSubtype: moonSubtype,
                 sizeN: moonSizeN,
                 tileCount: moonTileCount,
                 life: moonLife,
@@ -1781,9 +1796,11 @@ function createPlanetTexture(planet, size) {
         }
     } else {
         // --- Barren rock / rocky moon / barren moon: craters, dust, mesas ---
-        const br = parseInt(planet.type.color.slice(1, 3), 16);
-        const bg = parseInt(planet.type.color.slice(3, 5), 16);
-        const bb = parseInt(planet.type.color.slice(5, 7), 16);
+        // Use moonSubtype color if available (lunar gray, ferric brown, etc.)
+        const baseCol = (planet.moonSubtype && planet.moonSubtype.color) || planet.type.color;
+        const br = parseInt(baseCol.slice(1, 3), 16);
+        const bg = parseInt(baseCol.slice(3, 5), 16);
+        const bb = parseInt(baseCol.slice(5, 7), 16);
         for (let py = 0; py < h; py++) {
             for (let px = 0; px < w; px++) {
                 const i = (py * w + px) * 4;
@@ -3366,7 +3383,9 @@ function selectMoon(planetIndex, moonIndex) {
     detail.classList.add('active');
     document.getElementById('pd-name').textContent = moon.name;
     document.getElementById('pd-id').textContent = moon.id;
-    document.getElementById('pd-type').innerHTML = `<span style="color:${moon.type.color}">${moon.type.name}</span> <span style="color:#888">(moon of ${planet.name})</span>`;
+    const moonTypeColor = (moon.moonSubtype && moon.moonSubtype.color) || moon.type.color;
+    const moonSubLabel = moon.moonSubtype ? `${moon.moonSubtype.name} ` : '';
+    document.getElementById('pd-type').innerHTML = `<span style="color:${moonTypeColor}">${moonSubLabel}${moon.type.name}</span> <span style="color:#888">(moon of ${planet.name})</span>`;
     document.getElementById('pd-orbit').textContent = `Moon orbit ${moonIndex + 1} around ${planet.name}`;
     document.getElementById('pd-size').textContent = moon.sizeN;
     document.getElementById('pd-tiles').textContent = moon.tileCount.toLocaleString();
@@ -3600,6 +3619,8 @@ function landOnBody(body) {
     });
     // Pass gas giant subtype for atmospheric color tinting
     if (body.gasSubtype) params.set('gasSubtype', body.gasSubtype.id);
+    // Pass rocky/barren moon surface subtype for color palette
+    if (body.moonSubtype) params.set('moonSubtype', body.moonSubtype.id);
     // Pass ring data as compact JSON
     if (body.rings) params.set('rings', JSON.stringify(body.rings));
     // Pass galaxy/system navigation context through to planet view
@@ -3766,7 +3787,7 @@ function buildPlanetList() {
 
                 moonInfo.innerHTML = `
                     <div class="name" style="font-size:12px">${moon.name}</div>
-                    <div class="type">${moon.type.name} · n=${moon.sizeN} (${moon.tileCount.toLocaleString()} tiles)${moonTags}</div>
+                    <div class="type">${moon.moonSubtype ? moon.moonSubtype.name + ' ' : ''}${moon.type.name} · n=${moon.sizeN} (${moon.tileCount.toLocaleString()} tiles)${moonTags}</div>
                 `;
 
                 moonItem.appendChild(moonDot);
