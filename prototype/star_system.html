@@ -2003,21 +2003,13 @@ function renderStar(star) {
             const beamBaseR = bodyRadius * 0.6;
             const beamTipR = bodyRadius * 4.5;   // wider spread at far end
 
-            // Nested shells with per-vertex alpha (cubic fade along length)
-            const layers = [
-                { rScale: 1.0,  baseOp: 0.06, segs: 24, hSegs: 16, cBase: [0.6,0.3,1.0], cTip: [0.15,0.05,0.3] },
-                { rScale: 0.55, baseOp: 0.14, segs: 16, hSegs: 12, cBase: [0.85,0.55,1.0], cTip: [0.15,0.1,0.2] },
-                { rScale: 0.2,  baseOp: 0.40, segs: 12, hSegs: 10, cBase: [1.0,0.8,1.0], cTip: [0.4,0.2,0.5] },
-            ];
+            // Single cone with smooth radial core brightening via shader (no banded layers)
+            {
+                const topR = pole === 1 ? beamTipR : beamBaseR;
+                const botR = pole === 1 ? beamBaseR : beamTipR;
+                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, 32, 24, true);
 
-            for (const layer of layers) {
-                const lBaseR = beamBaseR * layer.rScale;
-                const lTipR = beamTipR * layer.rScale;
-                const topR = pole === 1 ? lTipR : lBaseR;
-                const botR = pole === 1 ? lBaseR : lTipR;
-                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, layer.segs, layer.hSegs, true);
-
-                // Organic turbulence — more pronounced further out
+                // Organic turbulence wobble
                 const pos = geo.attributes.position;
                 for (let vi = 0; vi < pos.count; vi++) {
                     const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
@@ -2029,32 +2021,46 @@ function renderStar(star) {
                 }
                 pos.needsUpdate = true;
 
-                // 4-component vertex color: RGB + per-vertex alpha
-                const colors = new Float32Array(pos.count * 4);
+                // Per-vertex attributes for smooth shader
+                const axialFade = new Float32Array(pos.count);
+                const radialDist = new Float32Array(pos.count);
                 for (let vi = 0; vi < pos.count; vi++) {
-                    const vy = pos.getY(vi);
-                    const t = (vy + beamLength / 2) / beamLength;
-                    const fade = pole === 1 ? (1 - t) : t; // 1=base, 0=tip
-                    colors[vi * 4]     = layer.cBase[0] * fade + layer.cTip[0] * (1 - fade);
-                    colors[vi * 4 + 1] = layer.cBase[1] * fade + layer.cTip[1] * (1 - fade);
-                    colors[vi * 4 + 2] = layer.cBase[2] * fade + layer.cTip[2] * (1 - fade);
-                    colors[vi * 4 + 3] = fade * fade * fade; // cubic falloff
+                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                    const t = (py + beamLength / 2) / beamLength;
+                    const fade = pole === 1 ? (1 - t) : t;
+                    axialFade[vi] = fade;
+                    const outward = pole === 1 ? t : (1 - t);
+                    const maxR = beamBaseR + (beamTipR - beamBaseR) * outward;
+                    const r = Math.sqrt(px * px + pz * pz);
+                    radialDist[vi] = maxR > 0 ? Math.min(1, r / maxR) : 0;
                 }
-                geo.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+                geo.setAttribute('axialFade', new THREE.BufferAttribute(axialFade, 1));
+                geo.setAttribute('radialDist', new THREE.BufferAttribute(radialDist, 1));
 
                 const mat = new THREE.ShaderMaterial({
                     vertexShader: `
-                        attribute vec4 color;
-                        varying vec4 vColor;
+                        attribute float axialFade;
+                        attribute float radialDist;
+                        varying float vAxial;
+                        varying float vRadial;
                         void main() {
-                            vColor = color;
+                            vAxial = axialFade;
+                            vRadial = radialDist;
                             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                         }
                     `,
                     fragmentShader: `
-                        varying vec4 vColor;
+                        varying float vAxial;
+                        varying float vRadial;
                         void main() {
-                            gl_FragColor = vec4(vColor.rgb, vColor.a * ${layer.baseOp.toFixed(2)});
+                            float coreBright = exp(-vRadial * vRadial * 4.0);
+                            float axial = vAxial * vAxial * vAxial;
+                            float alpha = coreBright * axial * 0.28;
+                            // Pulsar colors: violet-white core, deep purple edges
+                            vec3 coreCol = vec3(0.9, 0.75, 1.0);
+                            vec3 edgeCol = vec3(0.2, 0.08, 0.4);
+                            vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
+                            gl_FragColor = vec4(col, alpha);
                         }
                     `,
                     transparent: true,
