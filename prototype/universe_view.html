@@ -782,16 +782,18 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
             }
         }
 
-        // Bright core
-        const coreR = maxR * (0.06 + rng.next() * 0.05);
-        const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
-        coreGlow.addColorStop(0, `rgba(255,255,240,0.9)`);
-        coreGlow.addColorStop(0.3, colStr(0.6));
-        coreGlow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = coreGlow;
-        ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2); ctx.fill();
+        // Diffuse central bulge — warm glow, NOT a point source
+        const bulgeR = maxR * (0.12 + rng.next() * 0.08);
+        const bulgeGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, bulgeR);
+        const warmCol = `rgba(${Math.min(255,Math.floor(col[0]*255)+40)},${Math.min(255,Math.floor(col[1]*255)+20)},${Math.floor(col[2]*200)},`;
+        bulgeGlow.addColorStop(0, warmCol + '0.45)');
+        bulgeGlow.addColorStop(0.3, warmCol + '0.25)');
+        bulgeGlow.addColorStop(0.6, colStr(0.1));
+        bulgeGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = bulgeGlow;
+        ctx.beginPath(); ctx.ellipse(cx, cy, bulgeR, bulgeR * ellip, 0, 0, Math.PI * 2); ctx.fill();
 
-        // A few bright star knots along arms
+        // Soft star-forming region glows along arms (not point-like)
         const knotCount = 3 + Math.floor(rng.next() * 5);
         for (let k = 0; k < knotCount; k++) {
             const arm = Math.floor(rng.next() * armCount);
@@ -800,11 +802,14 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
             const r = t * maxR * 0.85;
             const kx = cx + Math.cos(a) * r + (rng.next() - 0.5) * 6;
             const ky = cy + Math.sin(a) * r * ellip + (rng.next() - 0.5) * 4;
-            const kGlow = ctx.createRadialGradient(kx, ky, 0, kx, ky, 3 + rng.next() * 3);
-            kGlow.addColorStop(0, colStr(0.5));
+            const kR = 4 + rng.next() * 5;
+            const kGlow = ctx.createRadialGradient(kx, ky, 0, kx, ky, kR);
+            // Soft blue-ish tint for HII regions
+            kGlow.addColorStop(0, `rgba(${Math.floor(col[0]*200+55)},${Math.floor(col[1]*200+55)},255,0.2)`);
+            kGlow.addColorStop(0.5, colStr(0.08));
             kGlow.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = kGlow;
-            ctx.beginPath(); ctx.arc(kx, ky, 4 + rng.next() * 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(kx, ky, kR, 0, Math.PI * 2); ctx.fill();
         }
 
     } else if (typeId === 'elliptical') {
@@ -835,13 +840,15 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
             ctx.beginPath(); ctx.arc(px, py, 0.5 + rng.next() * 1.5, 0, Math.PI * 2); ctx.fill();
         }
 
-        // Hot bright core
-        const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.08);
-        coreGlow.addColorStop(0, 'rgba(255,245,220,0.85)');
-        coreGlow.addColorStop(0.5, colStr(0.4));
-        coreGlow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = coreGlow;
-        ctx.beginPath(); ctx.arc(cx, cy, maxR * 0.08, 0, Math.PI * 2); ctx.fill();
+        // Warm diffuse core — broad central concentration, not a point
+        const eCoreR = maxR * (0.15 + rng.next() * 0.08);
+        const eCoreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, eCoreR);
+        const eWarm = `rgba(${Math.min(255,Math.floor(col[0]*255)+30)},${Math.min(255,Math.floor(col[1]*255)+15)},${Math.floor(col[2]*220)},`;
+        eCoreGlow.addColorStop(0, eWarm + '0.5)');
+        eCoreGlow.addColorStop(0.4, eWarm + '0.2)');
+        eCoreGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = eCoreGlow;
+        ctx.beginPath(); ctx.ellipse(cx, cy, eCoreR, eCoreR * (ellipY / ellipX), 0, 0, Math.PI * 2); ctx.fill();
 
     } else {
         // Irregular — clumpy, asymmetric blobs
@@ -867,12 +874,13 @@ function createUniqueGalaxyTexture(galaxySeed, typeId) {
                 ctx.fillStyle = colStr(alpha);
                 ctx.beginPath(); ctx.arc(dx, dy, 1 + rng.next() * 2, 0, Math.PI * 2); ctx.fill();
             }
-            // Blob core glow
-            const bGlow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 0.6);
-            bGlow.addColorStop(0, colStr(0.25));
+            // Blob diffuse glow — no bright center
+            const bGlow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 0.8);
+            bGlow.addColorStop(0, colStr(0.15));
+            bGlow.addColorStop(0.4, colStr(0.08));
             bGlow.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = bGlow;
-            ctx.beginPath(); ctx.arc(bx, by, br * 0.6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(bx, by, br * 0.8, 0, Math.PI * 2); ctx.fill();
         }
 
         // Scattered blue star-forming knots
