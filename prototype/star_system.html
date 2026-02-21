@@ -1308,32 +1308,8 @@ function createStarTexture(starType) {
     ctx.fillRect(0, 0, 512, 512);
 
     if (starType.id === 'black_hole') {
-        // Ultra-subtle glow — 3D particles handle the real accretion disc
-        // Many fine gradient stops for perfectly smooth falloff
-        const diskGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 250);
-        const steps = 16;
-        for (let i = 0; i <= steps; i++) {
-            const t = i / steps;
-            // Smooth cubic falloff
-            const alpha = Math.pow(1 - t, 3) * 0.08;
-            const r = Math.floor(255 - t * 80);
-            const g = Math.floor(80 - t * 50);
-            const b = Math.floor(20 - t * 15);
-            diskGrad.addColorStop(t, `rgba(${Math.max(0,r)},${Math.max(0,g)},${Math.max(0,b)},${alpha})`);
-        }
-        ctx.fillStyle = diskGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 250, 0, Math.PI * 2);
-        ctx.fill();
-        // Dark core
-        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
-        coreGrad.addColorStop(0, 'rgba(0,0,0,1)');
-        coreGrad.addColorStop(0.7, 'rgba(0,0,0,1)');
-        coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 60, 0, Math.PI * 2);
-        ctx.fill();
+        // No 2D glow — 3D particle accretion disc and jets handle all visuals
+        // Just a transparent texture (canvas is already cleared to transparent)
     } else if (starType.id === 'protostar') {
         // Fuzzy glow with disk
         const glowGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 200);
