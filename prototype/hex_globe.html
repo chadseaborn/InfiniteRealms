@@ -1475,7 +1475,8 @@ function buildGlobeMesh(tiles) {
     });
 
     // Blend factor: 0 = no blending (hard edges), 1 = full average at corners
-    const blendFactor = 0.45;
+    // 0.18 gives a subtle softening at tile borders without washing out biome identity
+    const blendFactor = 0.18;
 
     // Batched cliff-wall geometry (one draw call for all walls)
     const wallVerts = [];
