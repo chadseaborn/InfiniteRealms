@@ -705,7 +705,7 @@ let containerWidth, containerHeight;
 let camTheta = 0;
 let camPhi = Math.PI / 3;
 let camDist = 300;
-const camMinDist = 0.5;
+let camMinDist = 10;  // updated dynamically based on central body size
 const camMaxDist = 1500;
 let isDragging = false;
 let isPanning = false;
@@ -1774,6 +1774,8 @@ function renderStar(star) {
     // Glow sprite at 3× body keeps visual presence large; smaller body
     // gives inner planets more breathing room for clickability.
     const bodyRadius = Math.max(2, star.type.radius * 0.3);
+    // Set minimum zoom distance — stay just outside the star/glow
+    camMinDist = bodyRadius * 4;
     const sphereGeom = new THREE.SphereGeometry(bodyRadius, 64, 64);
 
     let sphereMaterial;

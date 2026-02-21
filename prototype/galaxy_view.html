@@ -1725,8 +1725,11 @@ function updateShaderUniforms() {
 
 function onWheel(e) {
     e.preventDefault();
-    camDist *= e.deltaY > 0 ? 1.08 : 0.92;
-    camDist = Math.max(0.01, Math.min(3000, camDist));
+    const factor = e.deltaY > 0 ? 1.08 : 0.92;
+    camDist *= factor;
+    camDist = Math.max(25, Math.min(3000, camDist)); // min keeps SMBH visible
+    camDistTarget = camDist;
+    isCamAnimating = false;
     updateCamera();
     updateShaderUniforms();
 }
@@ -1784,8 +1787,8 @@ function onDblClick(e) {
     }
 }
 
-function zoomIn() { camDist = Math.max(0.01, camDist * 0.7); updateCamera(); updateShaderUniforms(); }
-function zoomOut() { camDist = Math.min(3000, camDist * 1.3); updateCamera(); updateShaderUniforms(); }
+function zoomIn() { camDist = Math.max(25, camDist * 0.7); camDistTarget = camDist; isCamAnimating = false; updateCamera(); updateShaderUniforms(); }
+function zoomOut() { camDist = Math.min(3000, camDist * 1.3); camDistTarget = camDist; isCamAnimating = false; updateCamera(); updateShaderUniforms(); }
 function resetView() { camTheta = 0.3; camPhi = Math.PI / 3.5; camDist = 500; updateCamera(); updateShaderUniforms(); }
 
 // ============================================================
