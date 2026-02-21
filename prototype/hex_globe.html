@@ -792,8 +792,11 @@ function generateTerrain(tiles, seed) {
     const tempNoise = new SimplexNoise(seed + 2000);
     const canyonNoise = new SimplexNoise(seed + 3000);
 
-    const freq1 = 1.5, freq2 = 3.0, freq3 = 6.0;
-    const canyonFreq = 4.0;
+    // Scale noise frequencies based on body size — small bodies get lower frequencies
+    // so biomes form larger, coherent regions instead of random-looking patches
+    const sizeScale = activeSizeN <= 5 ? 0.5 : activeSizeN <= 10 ? 0.7 : 1.0;
+    const freq1 = 1.5 * sizeScale, freq2 = 3.0 * sizeScale, freq3 = 6.0 * sizeScale;
+    const canyonFreq = 4.0 * sizeScale;
 
     // ---- Gas giant: banded terrain + storms ----
     if (isGasGiant) {
@@ -1954,10 +1957,12 @@ function buildLegend(tiles) {
 // Map body sizeN to subdivision iterations
 // Each iteration quadruples face count: 10 * 4^s + 2 tiles
 // s=1: 42, s=2: 162, s=3: 642, s=4: 2,562, s=5: 10,242, s=6: 40,962, s=7: 163,842
+// Small bodies get extra subdivisions so biomes form coherent regions
 function sizeNToIterations(n) {
-    if (n <= 3)  return 2;   // 162 tiles — tiny moons
-    if (n <= 7)  return 3;   // 642 tiles — small moons & barren rocks
-    if (n <= 15) return 4;   // 2,562 tiles — medium bodies
+    if (n <= 3)  return 4;   // 2,562 tiles — tiny moons (was 162, biomes too chunky)
+    if (n <= 5)  return 4;   // 2,562 tiles — small moons & barren rocks (was 642)
+    if (n <= 10) return 4;   // 2,562 tiles — medium-small bodies
+    if (n <= 15) return 5;   // 10,242 tiles — medium bodies
     if (n <= 30) return 5;   // 10,242 tiles — large planets
     if (n <= 60) return 6;   // 40,962 tiles — major worlds
     return 7;                // 163,842 tiles — massive habitable worlds

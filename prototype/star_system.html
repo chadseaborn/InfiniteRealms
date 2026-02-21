@@ -451,6 +451,16 @@ const RING_COMPOSITIONS = [
     { id: 'mixed',  name: 'Mixed composition',    colors: ['#b0a898','#88a0b0','#c0b0a0'] },
 ];
 
+// Mirrors hex_globe's sizeNToIterations — used for accurate tile counts
+function sizeNToIter(n) {
+    if (n <= 5)  return 4;
+    if (n <= 10) return 4;
+    if (n <= 15) return 5;
+    if (n <= 30) return 5;
+    if (n <= 60) return 6;
+    return 7;
+}
+
 function generateRings(rng, bodyTypeId, sizeN) {
     const chance = RING_CHANCE[bodyTypeId] || 0.02;
     if (rng.next() > chance) return null;
@@ -558,7 +568,7 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
         }
 
         const sizeN = rng.nextInt(typeDef.sizeN[0], typeDef.sizeN[1]);
-        const tileCount = 10 * sizeN * sizeN + 2;
+        const tileCount = 10 * Math.pow(4, sizeNToIter(sizeN)) + 2;
 
         // Life classification
         const lifeFreqs = LIFE_FREQ[typeDef.id] || LIFE_FREQ.barren_rock;
@@ -587,7 +597,7 @@ function generateSystem(seed, parentSystemId, forcedStarTypeId) {
         for (let mi = 0; mi < moonCount; mi++) {
             const moonTypeDef = rng.weightedPick(MOON_TYPES);
             const moonSizeN = rng.nextInt(moonTypeDef.sizeN[0], moonTypeDef.sizeN[1]);
-            const moonTileCount = 10 * moonSizeN * moonSizeN + 2;
+            const moonTileCount = 10 * Math.pow(4, sizeNToIter(moonSizeN)) + 2;
 
             // Moon life classification (most moons are lifeless)
             const moonLifeRoll = rng.next();
