@@ -2681,166 +2681,184 @@ function renderStar(star) {
         scene.add(binaryCompanionGlow);
     }
 
-    // ---- Enhanced Pulsar: beams, polar hotspots, magnetosphere ----
+    // ---- Enhanced Pulsar: dipole field lines, tilted beam cones, polar hotspots ----
     if (star.type.id === 'pulsar') {
+        // Magnetic axis is tilted ~30° from rotation axis (Y)
+        // pulsarGroup contains the magnetic components (beams + field lines)
+        // and rotates around Y in the animation loop
+        const magneticTilt = 0.5; // ~30° tilt
         pulsarGroup = new THREE.Group();
         scene.add(pulsarGroup);
 
-        // Polar hotspot glow caps (two bright spots at poles)
+        // Inner group tilted to magnetic axis
+        const magneticAxisGroup = new THREE.Group();
+        magneticAxisGroup.rotation.z = magneticTilt;
+        pulsarGroup.add(magneticAxisGroup);
+
+        // ---- Polar hotspot glow caps ----
         for (let pole = -1; pole <= 1; pole += 2) {
-            const hotspotGeo = new THREE.SphereGeometry(bodyRadius * 0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.4);
+            const hotspotGeo = new THREE.SphereGeometry(bodyRadius * 0.4, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.45);
             const hotspotMat = new THREE.MeshBasicMaterial({
-                color: 0xeeccff,
+                color: 0xeeddff,
                 transparent: true,
-                opacity: 0.7,
+                opacity: 0.85,
                 side: THREE.DoubleSide,
-                depthWrite: false
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
             });
             const hotspot = new THREE.Mesh(hotspotGeo, hotspotMat);
-            hotspot.position.y = bodyRadius * 0.85 * pole;
+            hotspot.position.y = bodyRadius * 0.82 * pole;
             if (pole === -1) hotspot.rotation.x = Math.PI;
-            pulsarGroup.add(hotspot);
+            magneticAxisGroup.add(hotspot);
         }
 
-        // Volumetric beam cones — extended, diffusing outward
+        // ---- Beam cones along magnetic axis ----
         for (let pole = -1; pole <= 1; pole += 2) {
-            const beamLength = bodyRadius * 22;  // much longer reach
-            const beamBaseR = bodyRadius * 0.6;
-            const beamTipR = bodyRadius * 4.5;   // wider spread at far end
+            const beamLength = bodyRadius * 28;
+            const beamBaseR = bodyRadius * 0.4;
+            const beamTipR = bodyRadius * 3.0;
 
-            // Single cone with smooth radial core brightening via shader (no banded layers)
-            {
-                const topR = pole === 1 ? beamTipR : beamBaseR;
-                const botR = pole === 1 ? beamBaseR : beamTipR;
-                const geo = new THREE.CylinderGeometry(topR, botR, beamLength, 32, 24, true);
+            const topR = pole === 1 ? beamTipR : beamBaseR;
+            const botR = pole === 1 ? beamBaseR : beamTipR;
+            const geo = new THREE.CylinderGeometry(topR, botR, beamLength, 32, 24, true);
 
-                // Organic turbulence wobble
-                const pos = geo.attributes.position;
-                for (let vi = 0; vi < pos.count; vi++) {
-                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
-                    const angle = Math.atan2(pz, px);
-                    const ht = (py + beamLength / 2) / beamLength;
-                    const wobble = 1.0 + 0.15 * Math.sin(angle * 5 + ht * 8) * ht * ht;
-                    pos.setX(vi, px * wobble);
-                    pos.setZ(vi, pz * wobble);
-                }
-                pos.needsUpdate = true;
-
-                // Per-vertex attributes for smooth shader
-                const axialFade = new Float32Array(pos.count);
-                const radialDist = new Float32Array(pos.count);
-                for (let vi = 0; vi < pos.count; vi++) {
-                    const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
-                    const t = (py + beamLength / 2) / beamLength;
-                    const fade = pole === 1 ? (1 - t) : t;
-                    axialFade[vi] = fade;
-                    const outward = pole === 1 ? t : (1 - t);
-                    const maxR = beamBaseR + (beamTipR - beamBaseR) * outward;
-                    const r = Math.sqrt(px * px + pz * pz);
-                    radialDist[vi] = maxR > 0 ? Math.min(1, r / maxR) : 0;
-                }
-                geo.setAttribute('axialFade', new THREE.BufferAttribute(axialFade, 1));
-                geo.setAttribute('radialDist', new THREE.BufferAttribute(radialDist, 1));
-
-                const mat = new THREE.ShaderMaterial({
-                    vertexShader: `
-                        attribute float axialFade;
-                        attribute float radialDist;
-                        varying float vAxial;
-                        varying float vRadial;
-                        void main() {
-                            vAxial = axialFade;
-                            vRadial = radialDist;
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        varying float vAxial;
-                        varying float vRadial;
-                        void main() {
-                            float coreBright = exp(-vRadial * vRadial * 4.0);
-                            float axial = vAxial * vAxial * vAxial;
-                            float alpha = coreBright * axial * 0.28;
-                            // Pulsar colors: violet-white core, deep purple edges
-                            vec3 coreCol = vec3(0.9, 0.75, 1.0);
-                            vec3 edgeCol = vec3(0.2, 0.08, 0.4);
-                            vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
-                            gl_FragColor = vec4(col, alpha);
-                        }
-                    `,
-                    transparent: true,
-                    side: THREE.DoubleSide,
-                    depthWrite: false,
-                    blending: THREE.AdditiveBlending
-                });
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
-                pulsarGroup.add(mesh);
-            }
-
-            // Helical filament — fades out along length, widens outward
-            const helixPoints = [];
-            const helixTurns = 6;
-            const helixSteps = 100;
-            for (let si = 0; si <= helixSteps; si++) {
-                const ht = si / helixSteps; // 0=bottom(-Y), 1=top(+Y)
-                const angle = ht * Math.PI * 2 * helixTurns;
-                // pole=+1: tip at top, so radius grows with ht
-                // pole=-1: tip at bottom, so radius grows as ht decreases
-                const outward = pole === 1 ? ht : (1 - ht);
-                const r = (beamBaseR + (beamTipR - beamBaseR) * outward) * 0.4;
-                helixPoints.push(new THREE.Vector3(
-                    Math.cos(angle) * r,
-                    (ht - 0.5) * beamLength,
-                    Math.sin(angle) * r
-                ));
-            }
-            const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
-            const helixGeo = new THREE.TubeGeometry(helixCurve, 80, bodyRadius * 0.06, 6, false);
-            // Per-vertex alpha fade matching cone shells
-            const hPos = helixGeo.attributes.position;
-            const hAlphas = new Float32Array(hPos.count);
-            for (let vi = 0; vi < hPos.count; vi++) {
-                const vy = hPos.getY(vi);
-                const t = (vy + beamLength / 2) / beamLength;
+            const pos = geo.attributes.position;
+            const axialFade = new Float32Array(pos.count);
+            const radialDist = new Float32Array(pos.count);
+            for (let vi = 0; vi < pos.count; vi++) {
+                const px = pos.getX(vi), py = pos.getY(vi), pz = pos.getZ(vi);
+                const t = (py + beamLength / 2) / beamLength;
                 const fade = pole === 1 ? (1 - t) : t;
-                hAlphas[vi] = fade * fade * fade;
+                axialFade[vi] = fade;
+                const outward = pole === 1 ? t : (1 - t);
+                const maxR = beamBaseR + (beamTipR - beamBaseR) * outward;
+                const r = Math.sqrt(px * px + pz * pz);
+                radialDist[vi] = maxR > 0 ? Math.min(1, r / maxR) : 0;
             }
-            helixGeo.setAttribute('alphaFade', new THREE.BufferAttribute(hAlphas, 1));
-            const helixMat = new THREE.ShaderMaterial({
+            geo.setAttribute('axialFade', new THREE.BufferAttribute(axialFade, 1));
+            geo.setAttribute('radialDist', new THREE.BufferAttribute(radialDist, 1));
+
+            const mat = new THREE.ShaderMaterial({
                 vertexShader: `
-                    attribute float alphaFade;
-                    varying float vFade;
+                    attribute float axialFade;
+                    attribute float radialDist;
+                    varying float vAxial;
+                    varying float vRadial;
                     void main() {
-                        vFade = alphaFade;
+                        vAxial = axialFade;
+                        vRadial = radialDist;
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
                 fragmentShader: `
-                    varying float vFade;
+                    varying float vAxial;
+                    varying float vRadial;
                     void main() {
-                        gl_FragColor = vec4(0.8, 0.67, 1.0, vFade * 0.2);
+                        float coreBright = exp(-vRadial * vRadial * 5.0);
+                        float axial = vAxial * vAxial;
+                        float alpha = coreBright * axial * 0.35;
+                        vec3 coreCol = vec3(0.95, 0.85, 1.0);
+                        vec3 edgeCol = vec3(0.3, 0.1, 0.5);
+                        vec3 col = mix(edgeCol, coreCol, coreBright * vAxial);
+                        gl_FragColor = vec4(col, alpha);
                     }
                 `,
-                transparent: true, depthWrite: false,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
-            const helix = new THREE.Mesh(helixGeo, helixMat);
-            helix.position.y = pole * (beamLength / 2 + bodyRadius * 0.5);
-            pulsarGroup.add(helix);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.y = pole * (beamLength / 2 + bodyRadius * 0.4);
+            magneticAxisGroup.add(mesh);
         }
 
-        // Flat beam planes — fade from bright center to transparent tips
+        // ---- Dipole magnetic field lines (pole-to-pole loops) ----
+        // These are the elegant curved lines arching from north to south pole
+        // like the reference image — classic magnetic dipole pattern
+        const fieldLineCount = 10;  // number of field line loops
+        const fieldReach = bodyRadius * 8; // how far the outermost lines extend
+
+        for (let fi = 0; fi < fieldLineCount; fi++) {
+            // Azimuthal angle around the magnetic axis
+            const azimuth = (fi / fieldLineCount) * Math.PI * 2;
+
+            // Multiple distances from the star — closer lines loop tighter
+            const layers = [0.3, 0.55, 0.85, 1.0];
+            for (let li = 0; li < layers.length; li++) {
+                const scale = layers[li];
+                const loopReach = fieldReach * scale;
+                const points = [];
+                const steps = 48;
+
+                for (let si = 0; si <= steps; si++) {
+                    // Parametric dipole field line: r = loopReach * sin²(theta)
+                    // theta goes from 0 (north pole) to PI (south pole)
+                    const theta = (si / steps) * Math.PI;
+                    const r = loopReach * Math.sin(theta) * Math.sin(theta);
+                    // Position in the meridional plane defined by azimuth
+                    const y = r * Math.cos(theta);
+                    const rPerp = r * Math.sin(theta);
+                    const x = rPerp * Math.cos(azimuth);
+                    const z = rPerp * Math.sin(azimuth);
+                    points.push(new THREE.Vector3(x, y, z));
+                }
+
+                const curve = new THREE.CatmullRomCurve3(points);
+                const tubeR = bodyRadius * (0.02 + 0.01 * scale);
+                const tubeGeo = new THREE.TubeGeometry(curve, 40, tubeR, 4, false);
+
+                // Per-vertex alpha: brightest near the star, fading at the extremes
+                const tPos = tubeGeo.attributes.position;
+                const alphas = new Float32Array(tPos.count);
+                for (let vi = 0; vi < tPos.count; vi++) {
+                    const vx = tPos.getX(vi), vy = tPos.getY(vi), vz = tPos.getZ(vi);
+                    const dist = Math.sqrt(vx * vx + vy * vy + vz * vz);
+                    const maxDist = loopReach;
+                    const t = Math.min(1, dist / maxDist);
+                    // Brighter near poles (close to star), fading toward equatorial bulge
+                    alphas[vi] = Math.pow(1 - t * 0.7, 2);
+                }
+                tubeGeo.setAttribute('alphaFade', new THREE.BufferAttribute(alphas, 1));
+
+                const opacity = 0.12 + 0.08 * (1 - scale);  // inner lines brighter
+                const tubeMat = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        attribute float alphaFade;
+                        varying float vFade;
+                        void main() {
+                            vFade = alphaFade;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float uOpacity;
+                        varying float vFade;
+                        void main() {
+                            vec3 col = vec3(0.55, 0.35, 0.9);
+                            gl_FragColor = vec4(col, vFade * uOpacity);
+                        }
+                    `,
+                    uniforms: { uOpacity: { value: opacity } },
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const tube = new THREE.Mesh(tubeGeo, tubeMat);
+                magneticAxisGroup.add(tube);
+            }
+        }
+
+        // ---- Flat beam planes (lighthouse sweep visible from all angles) ----
         for (let i = 0; i < 2; i++) {
             for (let p = 0; p < 2; p++) {
                 const beamGeom = new THREE.PlaneGeometry(1, 1, 1, 16);
-                // Per-vertex alpha: bright at center (y≈0), fading at edges (y≈±0.5)
                 const bPos = beamGeom.attributes.position;
                 const bAlphas = new Float32Array(bPos.count);
                 for (let vi = 0; vi < bPos.count; vi++) {
-                    const vy = bPos.getY(vi); // -0.5 to +0.5
-                    const distFromCenter = Math.abs(vy) * 2; // 0=center, 1=edge
-                    bAlphas[vi] = Math.pow(1 - distFromCenter, 3); // cubic fade
+                    const vy = bPos.getY(vi);
+                    const distFromCenter = Math.abs(vy) * 2;
+                    bAlphas[vi] = Math.pow(1 - distFromCenter, 3);
                 }
                 beamGeom.setAttribute('alphaFade', new THREE.BufferAttribute(bAlphas, 1));
                 const beamMaterial = new THREE.ShaderMaterial({
@@ -2855,7 +2873,7 @@ function renderStar(star) {
                     fragmentShader: `
                         varying float vFade;
                         void main() {
-                            gl_FragColor = vec4(0.87, 0.6, 1.0, vFade * 0.3);
+                            gl_FragColor = vec4(0.9, 0.7, 1.0, vFade * 0.25);
                         }
                     `,
                     transparent: true,
@@ -2864,41 +2882,26 @@ function renderStar(star) {
                     blending: THREE.AdditiveBlending
                 });
                 const beamSprite = new THREE.Mesh(beamGeom, beamMaterial);
-                beamSprite.scale.set(bodyRadius * 0.5, bodyRadius * 24, 1);
+                beamSprite.scale.set(bodyRadius * 0.4, bodyRadius * 30, 1);
                 if (p === 1) beamSprite.rotation.y = Math.PI / 2;
+                // Tilt to match magnetic axis
+                beamSprite.rotation.x = magneticTilt;
                 pulsarBeamSprites.push(beamSprite);
                 scene.add(beamSprite);
             }
         }
 
-        // Magnetosphere ring (toroidal field visualization)
-        const torusGeo = new THREE.TorusGeometry(bodyRadius * 4, bodyRadius * 0.15, 8, 48);
-        const torusMat = new THREE.MeshBasicMaterial({
-            color: 0x8866dd,
-            transparent: true,
-            opacity: 0.15,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            wireframe: true
-        });
-        const magnetosphere = new THREE.Mesh(torusGeo, torusMat);
-        magnetosphere.rotation.x = Math.PI / 2;
-        pulsarGroup.add(magnetosphere);
-
-        // Second tilted magnetosphere ring for depth
-        const torus2Geo = new THREE.TorusGeometry(bodyRadius * 5.5, bodyRadius * 0.1, 6, 48);
-        const torus2Mat = new THREE.MeshBasicMaterial({
-            color: 0x6644bb,
+        // ---- Rotation axis indicator (faint line showing spin axis) ----
+        const axisGeo = new THREE.CylinderGeometry(bodyRadius * 0.02, bodyRadius * 0.02, bodyRadius * 16, 4);
+        const axisMat = new THREE.MeshBasicMaterial({
+            color: 0x4488ff,
             transparent: true,
             opacity: 0.08,
             depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            wireframe: true
+            blending: THREE.AdditiveBlending
         });
-        const magnetosphere2 = new THREE.Mesh(torus2Geo, torus2Mat);
-        magnetosphere2.rotation.x = Math.PI / 2 + 0.3;
-        magnetosphere2.rotation.z = 0.4;
-        pulsarGroup.add(magnetosphere2);
+        const axisLine = new THREE.Mesh(axisGeo, axisMat);
+        pulsarGroup.add(axisLine); // added to pulsarGroup directly (not magnetic), so it stays on rotation axis
     }
 }
 
@@ -3089,28 +3092,23 @@ function animate(time) {
             if (binaryCompanionGlow) binaryCompanionGlow.position.set(cx, 0, cz);
         }
 
-        // Pulsar beam rotation — fast spin + pulsing opacity
-        if (star.type.id === 'pulsar' && pulsarBeamSprites.length > 0) {
-            const beamAngle = time * 0.008;  // faster rotation
-            // beamSprites: [beam0-plane0, beam0-plane1, beam1-plane0, beam1-plane1]
+        // Pulsar rotation — entire magnetic structure spins around rotation axis (Y)
+        if (star.type.id === 'pulsar' && pulsarGroup) {
+            const beamAngle = time * 0.008;  // fast spin
+            pulsarGroup.rotation.y = beamAngle;
+
+            // Flat beam planes also spin, matching the magnetic tilt
             for (let i = 0; i < pulsarBeamSprites.length; i++) {
-                const beamIdx = Math.floor(i / 2); // which pole
+                const beamIdx = Math.floor(i / 2);
                 pulsarBeamSprites[i].rotation.z = beamAngle + (beamIdx * Math.PI);
             }
-            // Pulse opacity with rotation phase
-            const pulse = 0.2 + 0.15 * Math.sin(time * 0.01);
-            for (const bs of pulsarBeamSprites) bs.material.opacity = pulse;
 
-            // Rotate pulsar group (hotspots + cones + magnetosphere)
-            if (pulsarGroup) {
-                pulsarGroup.rotation.y = beamAngle;
-                // Gentle magnetosphere wobble
-                const kids = pulsarGroup.children;
-                for (let k = 0; k < kids.length; k++) {
-                    if (kids[k].geometry && kids[k].geometry.type === 'TorusGeometry') {
-                        kids[k].rotation.z = 0.4 + Math.sin(time * 0.002 + k) * 0.1;
-                    }
-                }
+            // Subtle pulse on beam plane opacity
+            const pulse = 0.18 + 0.12 * Math.sin(time * 0.012);
+            for (const bs of pulsarBeamSprites) {
+                bs.material.uniforms && bs.material.uniforms.uOpacity
+                    ? (bs.material.uniforms.uOpacity.value = pulse)
+                    : (bs.material.opacity = pulse);
             }
         }
 
