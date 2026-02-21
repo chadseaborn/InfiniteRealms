@@ -1450,8 +1450,11 @@ function initThree() {
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(tileMeshes);
         if (intersects.length > 0) {
-            const mesh = intersects[0].object;
-            selectTile(mesh.userData.tileIndex);
+            const hit = intersects[0];
+            const faceToTile = hit.object.userData.faceToTile;
+            if (faceToTile && hit.faceIndex !== undefined) {
+                selectTile(faceToTile[hit.faceIndex]);
+            }
         }
     });
 
@@ -1528,6 +1531,14 @@ function buildGlobeMesh(tiles) {
     // Edge blend: how much the edge midpoint shifts toward neighbor color
     const edgeBlend = 0.35;
 
+    // ---- Batched tile face geometry (single draw call for ALL tile tops) ----
+    // Instead of one mesh per tile (160k+ draw calls), we batch everything
+    // into one big BufferGeometry with vertex colors and a face→tile lookup.
+    const allVerts = [];
+    const allNorms = [];
+    const allColors = [];
+    const faceToTile = []; // faceIndex → tileIndex lookup for raycasting
+
     // Batched cliff-wall geometry (one draw call for all walls)
     const wallVerts = [];
     const wallNormals = [];
@@ -1541,7 +1552,7 @@ function buildGlobeMesh(tiles) {
 
         // For each edge, find the neighbor across it and blend ONLY if biome differs
         const edgeMidColors = [];
-        const edgeBlends = []; // true if this edge actually blends
+        const edgeBlends = [];
         for (let c = 0; c < corners.length; c++) {
             const c1 = corners[c];
             const c2 = corners[(c + 1) % corners.length];
@@ -1554,30 +1565,26 @@ function buildGlobeMesh(tiles) {
                 }
             }
             if (neighborIdx >= 0 && tiles[neighborIdx].biome !== tile.biome) {
-                // Different biome — blend toward neighbor
                 const blended = tileColor.clone();
                 blended.lerp(tileColors[neighborIdx], edgeBlend);
                 edgeMidColors.push(blended);
                 edgeBlends.push(true);
             } else {
-                // Same biome or no neighbor — keep tile's own color (crisp)
                 edgeMidColors.push(tileColor.clone());
                 edgeBlends.push(false);
             }
         }
 
-        // Corner colors: only blend if at least one adjacent edge has a biome transition
         const cornerColors = corners.map((c, i) => {
             const prevEdge = (i - 1 + corners.length) % corners.length;
             if (!edgeBlends[prevEdge] && !edgeBlends[i]) {
-                return tileColor.clone(); // both edges same biome — stay crisp
+                return tileColor.clone();
             }
             const blended = edgeMidColors[prevEdge].clone();
             blended.lerp(edgeMidColors[i], 0.5);
             return blended;
         });
 
-        // Slightly shrink corners toward center for gap effect
         const shrunkCorners = corners.map(c => {
             return [
                 c[0] + (center[0] - c[0]) * gapFactor,
@@ -1586,21 +1593,9 @@ function buildGlobeMesh(tiles) {
             ];
         });
 
-        // Elevation: land rises as columns, ocean sits flat at sea level
         const isLand = tile.elevation > 0;
         const elevOffset = (reliefEnabled && isLand) ? tile.elevation * 0.06 : 0;
         const r = baseR + elevOffset;
-
-        // Build subdivided triangle fan with edge midpoints for smoother gradients
-        // Each original fan triangle (center → corner_i → corner_i+1) becomes 3 triangles:
-        //   center → corner_i → edgeMid_i
-        //   center → edgeMid_i → corner_i+1
-        //   corner_i → edgeMid_i → corner_i+1  (outer strip triangle — not needed, covered above)
-        // Actually we use 2 triangles with the midpoint to get the gradient right:
-        const geometry = new THREE.BufferGeometry();
-        const verts = [];
-        const norms = [];
-        const colors = [];
 
         const cx = center[0] * r, cy = center[1] * r, cz = center[2] * r;
 
@@ -1611,50 +1606,23 @@ function buildGlobeMesh(tiles) {
             const bc2 = cornerColors[(i + 1) % shrunkCorners.length];
             const edgeMidColor = edgeMidColors[i];
 
-            // Edge midpoint position
             const mx = (c1[0] + c2[0]) * 0.5;
             const my = (c1[1] + c2[1]) * 0.5;
             const mz = (c1[2] + c2[2]) * 0.5;
-
-            // Normal at midpoint
             const mn = [(c1[0]+c2[0])*0.5, (c1[1]+c2[1])*0.5, (c1[2]+c2[2])*0.5];
 
             // Triangle 1: center → corner1 → edgeMid
-            verts.push(cx, cy, cz);
-            verts.push(c1[0]*r, c1[1]*r, c1[2]*r);
-            verts.push(mx*r, my*r, mz*r);
-            colors.push(tileColor.r, tileColor.g, tileColor.b);
-            colors.push(bc1.r, bc1.g, bc1.b);
-            colors.push(edgeMidColor.r, edgeMidColor.g, edgeMidColor.b);
-            norms.push(center[0], center[1], center[2]);
-            norms.push(c1[0], c1[1], c1[2]);
-            norms.push(mn[0], mn[1], mn[2]);
+            allVerts.push(cx, cy, cz, c1[0]*r, c1[1]*r, c1[2]*r, mx*r, my*r, mz*r);
+            allColors.push(tileColor.r, tileColor.g, tileColor.b, bc1.r, bc1.g, bc1.b, edgeMidColor.r, edgeMidColor.g, edgeMidColor.b);
+            allNorms.push(center[0], center[1], center[2], c1[0], c1[1], c1[2], mn[0], mn[1], mn[2]);
+            faceToTile.push(ti);
 
             // Triangle 2: center → edgeMid → corner2
-            verts.push(cx, cy, cz);
-            verts.push(mx*r, my*r, mz*r);
-            verts.push(c2[0]*r, c2[1]*r, c2[2]*r);
-            colors.push(tileColor.r, tileColor.g, tileColor.b);
-            colors.push(edgeMidColor.r, edgeMidColor.g, edgeMidColor.b);
-            colors.push(bc2.r, bc2.g, bc2.b);
-            norms.push(center[0], center[1], center[2]);
-            norms.push(mn[0], mn[1], mn[2]);
-            norms.push(c2[0], c2[1], c2[2]);
+            allVerts.push(cx, cy, cz, mx*r, my*r, mz*r, c2[0]*r, c2[1]*r, c2[2]*r);
+            allColors.push(tileColor.r, tileColor.g, tileColor.b, edgeMidColor.r, edgeMidColor.g, edgeMidColor.b, bc2.r, bc2.g, bc2.b);
+            allNorms.push(center[0], center[1], center[2], mn[0], mn[1], mn[2], c2[0], c2[1], c2[2]);
+            faceToTile.push(ti);
         }
-
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-        const material = new THREE.MeshLambertMaterial({
-            vertexColors: true,
-            side: THREE.DoubleSide
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.userData.tileIndex = ti;
-        globeGroup.add(mesh);
-        tileMeshes.push(mesh);
 
         // ---- Side walls for elevated land tiles (cliff faces) ----
         // Only draw walls on edges where this tile is taller than its neighbor.
@@ -1725,6 +1693,24 @@ function buildGlobeMesh(tiles) {
             globeGroup.add(line);
             pentagonOutlines.push(line);
         }
+    }
+
+    // ---- Batched tile faces (single draw call for ALL tiles) ----
+    {
+        const tileGeom = new THREE.BufferGeometry();
+        tileGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(allVerts), 3));
+        tileGeom.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(allNorms), 3));
+        tileGeom.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(allColors), 3));
+
+        const tileMat = new THREE.MeshLambertMaterial({
+            vertexColors: true,
+            side: THREE.DoubleSide
+        });
+
+        const batchedTileMesh = new THREE.Mesh(tileGeom, tileMat);
+        batchedTileMesh.userData.faceToTile = faceToTile;
+        globeGroup.add(batchedTileMesh);
+        tileMeshes.push(batchedTileMesh);
     }
 
     // ---- Batched cliff walls (single draw call) ----
