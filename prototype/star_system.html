@@ -230,6 +230,12 @@ canvas { display: block; cursor: crosshair; }
     </div>
 
     <h2>Planets & Moons</h2>
+    <input type="text" id="body-filter" placeholder="Filter... (e.g. lunar, habitable, life)" style="
+        width: calc(100% - 16px); padding: 6px 8px; margin: 0 0 8px 0;
+        background: #111828; border: 1px solid #333; border-radius: 4px;
+        color: #ccc; font-size: 12px; outline: none;
+    " oninput="filterBodyList(this.value)">
+    <div id="body-filter-count" style="font-size:11px; color:#888; margin: -4px 0 6px 2px; display:none;"></div>
     <div id="planet-list"></div>
 
     <div id="planet-detail">
@@ -3748,6 +3754,15 @@ function buildPlanetList() {
             <div class="type">${subtypeStr}${planet.type.name} · Orbit ${planet.orbit} · n=${planet.sizeN} (${planet.tileCount.toLocaleString()} tiles)${tags}</div>
         `;
 
+        // Searchable text: name, type, subtype, biomes, life, tags
+        const searchTerms = [planet.name, planet.type.name, planet.type.id,
+            planet.gasSubtype ? planet.gasSubtype.name : '',
+            planet.life.name, planet.type.biomes.join(' '),
+            planet.rings ? 'ringed rings' : '',
+            planet.type.landable ? 'landable' : '', planet.type.diveable ? 'diveable' : '',
+            planet.type.atmosphere].join(' ').toLowerCase();
+        item.dataset.search = searchTerms;
+
         item.appendChild(dot);
         item.appendChild(info);
         container.appendChild(item);
@@ -3790,6 +3805,14 @@ function buildPlanetList() {
                     <div class="type">${moon.moonSubtype ? moon.moonSubtype.name + ' ' : ''}${moon.type.name} · n=${moon.sizeN} (${moon.tileCount.toLocaleString()} tiles)${moonTags}</div>
                 `;
 
+                // Searchable text for moon
+                const moonSearchTerms = [moon.name, moon.type.name, moon.type.id,
+                    moon.moonSubtype ? moon.moonSubtype.name : '',
+                    moon.life.name, moon.type.biomes.join(' '),
+                    moon.rings ? 'ringed rings' : '',
+                    'moon landable', moon.type.atmosphere].join(' ').toLowerCase();
+                moonItem.dataset.search = moonSearchTerms;
+
                 moonItem.appendChild(moonDot);
                 moonItem.appendChild(moonInfo);
                 container.appendChild(moonItem);
@@ -3819,10 +3842,40 @@ function buildPlanetList() {
             <div class="type" style="color:#66aa99;">Spatial Wormhole · → ${wh.destName}</div>
         `;
 
+        whItem.dataset.search = 'wormhole anomaly portal ' + (wh.destName || '').toLowerCase();
         whItem.appendChild(whDot);
         whItem.appendChild(whInfo);
         container.appendChild(whItem);
     }
+}
+
+function filterBodyList(query) {
+    const q = query.trim().toLowerCase();
+    const items = document.querySelectorAll('#planet-list .planet-list-item');
+    const countEl = document.getElementById('body-filter-count');
+
+    if (!q) {
+        // Show all items
+        items.forEach(el => el.style.display = '');
+        countEl.style.display = 'none';
+        return;
+    }
+
+    // Support multiple terms separated by spaces (AND logic)
+    const terms = q.split(/\s+/);
+    let shown = 0;
+    let total = 0;
+
+    items.forEach(el => {
+        const searchText = el.dataset.search || '';
+        total++;
+        const matches = terms.every(t => searchText.includes(t));
+        el.style.display = matches ? '' : 'none';
+        if (matches) shown++;
+    });
+
+    countEl.textContent = `${shown} of ${total} bodies`;
+    countEl.style.display = 'block';
 }
 
 function updateStarInfo() {
