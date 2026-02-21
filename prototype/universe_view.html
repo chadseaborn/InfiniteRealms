@@ -1246,7 +1246,7 @@ function buildUniverseScene() {
     const _texQueue = []; // indices into galaxies[]
     for (let gi = 0; gi < galaxies.length; gi++) _texQueue.push(gi);
     _texQueueSorted = false;
-    const BATCH_SIZE = 20;
+    const BATCH_SIZE = 200;
     const _frustum = new THREE.Frustum();
     const _projScreenMatrix = new THREE.Matrix4();
 
