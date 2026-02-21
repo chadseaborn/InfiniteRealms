@@ -725,6 +725,9 @@ const autoResumeDelay = 4000;
 let planetMeshes = [];
 let moonMeshes = [];
 let ringMeshes = [];   // { mesh, parentType: 'planet'|'moon', planetIndex, moonIndex? }
+let atmosphereSprites = []; // { sprite, parentType, planetIndex, moonIndex? }
+let cloudMeshes = [];       // { mesh, parentType, planetIndex, moonIndex?, speed }
+let volcanicGlows = [];     // { sprite, parentType, planetIndex, moonIndex? }
 let orbitLines = [];
 let starSprite = null;
 let binaryCompanionSprite = null;
@@ -1501,6 +1504,436 @@ function createRingMeshes(rings, bodyVisualR, parentType, planetIndex, moonIndex
     ringMeshes.push({ mesh: ringGroup, parentType, planetIndex, moonIndex });
 }
 
+// ============================================================
+// PROCEDURAL PLANET TEXTURE GENERATION
+// Generates a canvas texture that matches the planet's biome/type
+// ============================================================
+function createPlanetTexture(planet, size) {
+    size = size || 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size * 2; // 2:1 for equirectangular
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const rng = new SeededRandom(planet.seed + 7777);
+
+    // Simple seeded 2D noise using value noise
+    const noiseGrid = 32;
+    const noiseValues = [];
+    for (let i = 0; i < noiseGrid * noiseGrid; i++) noiseValues.push(rng.next());
+    function noise2D(x, y) {
+        x = ((x % noiseGrid) + noiseGrid) % noiseGrid;
+        y = ((y % noiseGrid) + noiseGrid) % noiseGrid;
+        const ix = Math.floor(x), iy = Math.floor(y);
+        const fx = x - ix, fy = y - iy;
+        const sf = (t) => t * t * (3 - 2 * t); // smoothstep
+        const a = noiseValues[(iy % noiseGrid) * noiseGrid + (ix % noiseGrid)];
+        const b = noiseValues[(iy % noiseGrid) * noiseGrid + ((ix + 1) % noiseGrid)];
+        const c = noiseValues[((iy + 1) % noiseGrid) * noiseGrid + (ix % noiseGrid)];
+        const d = noiseValues[((iy + 1) % noiseGrid) * noiseGrid + ((ix + 1) % noiseGrid)];
+        return a + (b - a) * sf(fx) + (c - a) * sf(fy) + (a - b - c + d) * sf(fx) * sf(fy);
+    }
+    function fbm(x, y, octaves) {
+        let val = 0, amp = 0.5, freq = 1;
+        for (let o = 0; o < octaves; o++) {
+            val += noise2D(x * freq, y * freq) * amp;
+            amp *= 0.5; freq *= 2;
+        }
+        return val;
+    }
+
+    const typeId = planet.type.id;
+    const baseColor = new THREE.Color(planet.gasSubtype ? planet.gasSubtype.color : planet.type.color);
+
+    const imgData = ctx.createImageData(w, h);
+    const d = imgData.data;
+
+    if (typeId === 'gas_giant') {
+        // --- Gas giant: horizontal bands with storms ---
+        const subtypeId = planet.gasSubtype ? planet.gasSubtype.id : 'jovian';
+        // Band color palettes per subtype
+        const palettes = {
+            jovian:   [[200,140,70],[180,100,50],[220,170,100],[150,80,40],[240,200,140]],
+            saturnian:[[212,176,106],[190,160,90],[230,200,140],[170,140,80],[200,180,120]],
+            neptunian:[[40,80,160],[50,100,180],[30,60,140],[60,120,200],[35,70,150]],
+            uranian:  [[70,160,150],[80,180,170],[60,140,130],[90,200,190],[75,150,140]]
+        };
+        const pal = palettes[subtypeId] || palettes.jovian;
+        // Storm positions
+        const stormCount = 1 + Math.floor(rng.next() * 3);
+        const storms = [];
+        for (let si = 0; si < stormCount; si++) {
+            storms.push({
+                x: rng.next() * w, y: 0.2 * h + rng.next() * 0.6 * h,
+                rx: 8 + rng.next() * 16, ry: 4 + rng.next() * 8,
+                r: Math.floor(200 + rng.next() * 55),
+                g: Math.floor(160 + rng.next() * 60),
+                b: Math.floor(120 + rng.next() * 60)
+            });
+        }
+        for (let py = 0; py < h; py++) {
+            const lat = py / h; // 0=north, 1=south
+            // Band pattern: combine sine waves at different frequencies
+            const band = Math.sin(lat * Math.PI * (8 + rng.next() * 4)) * 0.3
+                       + Math.sin(lat * Math.PI * (16 + rng.next() * 6)) * 0.15
+                       + Math.sin(lat * Math.PI * 3) * 0.2;
+            const bandIdx = Math.floor(((band + 0.65) / 1.3) * pal.length) % pal.length;
+            const c1 = pal[Math.abs(bandIdx) % pal.length];
+            const c2 = pal[(Math.abs(bandIdx) + 1) % pal.length];
+            const blend = ((band + 0.65) / 1.3 * pal.length) % 1;
+            for (let px = 0; px < w; px++) {
+                const nx = fbm(px * 0.08, py * 0.06, 4);
+                const turb = (nx - 0.3) * 0.4;
+                const i = (py * w + px) * 4;
+                let r = c1[0] * (1 - blend) + c2[0] * blend + turb * 40;
+                let g = c1[1] * (1 - blend) + c2[1] * blend + turb * 30;
+                let b = c1[2] * (1 - blend) + c2[2] * blend + turb * 20;
+                // Storm overlay
+                for (const st of storms) {
+                    const dx = Math.min(Math.abs(px - st.x), w - Math.abs(px - st.x));
+                    const dy = py - st.y;
+                    const dist = (dx * dx) / (st.rx * st.rx) + (dy * dy) / (st.ry * st.ry);
+                    if (dist < 1) {
+                        const f = 1 - dist;
+                        r = r * (1 - f * 0.7) + st.r * f * 0.7;
+                        g = g * (1 - f * 0.7) + st.g * f * 0.7;
+                        b = b * (1 - f * 0.7) + st.b * f * 0.7;
+                    }
+                }
+                d[i] = Math.max(0, Math.min(255, r));
+                d[i + 1] = Math.max(0, Math.min(255, g));
+                d[i + 2] = Math.max(0, Math.min(255, b));
+                d[i + 3] = 255;
+            }
+        }
+    } else if (typeId === 'habitable' || typeId === 'habitable_moon') {
+        // --- Habitable: oceans, continents with varied biome colors ---
+        const oceanColor = [30, 60, 120];
+        const shallowColor = [40, 90, 140];
+        const landColors = [
+            [50, 100, 40],  // forest
+            [80, 120, 50],  // shrubland
+            [180, 160, 100],// desert
+            [200, 200, 210],// tundra/ice cap
+            [30, 80, 35],   // rainforest
+        ];
+        const oceanFrac = 0.45 + rng.next() * 0.3; // 45-75% ocean
+        for (let py = 0; py < h; py++) {
+            const lat = Math.abs(py / h - 0.5) * 2; // 0=equator, 1=pole
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const continental = fbm(px * 0.04 + 3, py * 0.04 + 7, 5);
+                const detail = fbm(px * 0.15, py * 0.15, 3) * 0.15;
+                const elevation = continental + detail;
+                if (elevation < oceanFrac) {
+                    // Ocean — deeper = darker
+                    const depth = (oceanFrac - elevation) / oceanFrac;
+                    d[i]     = oceanColor[0] * (1 - depth * 0.3) + shallowColor[0] * (1 - depth) * 0.3;
+                    d[i + 1] = oceanColor[1] * (1 - depth * 0.2) + shallowColor[1] * (1 - depth) * 0.3;
+                    d[i + 2] = oceanColor[2] + depth * 30;
+                } else {
+                    // Land — varies with latitude + noise
+                    const biomeN = fbm(px * 0.06 + 20, py * 0.06 + 20, 3);
+                    let biomeIdx;
+                    if (lat > 0.8) biomeIdx = 3; // polar
+                    else if (biomeN > 0.6) biomeIdx = 2; // desert
+                    else if (biomeN > 0.35) biomeIdx = 1; // shrub
+                    else if (lat < 0.3) biomeIdx = 4; // tropical
+                    else biomeIdx = 0; // temperate forest
+                    const c = landColors[biomeIdx];
+                    const heightVar = (elevation - oceanFrac) * 80;
+                    d[i]     = Math.min(255, c[0] + heightVar * 0.3);
+                    d[i + 1] = Math.min(255, c[1] + heightVar * 0.2);
+                    d[i + 2] = Math.min(255, c[2] + heightVar * 0.1);
+                }
+                d[i + 3] = 255;
+            }
+        }
+    } else if (typeId === 'ocean_world') {
+        // --- Ocean world: mostly water with scattered islands/reefs ---
+        for (let py = 0; py < h; py++) {
+            const lat = Math.abs(py / h - 0.5) * 2;
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const n = fbm(px * 0.05, py * 0.05, 5);
+                const depth = n * 0.6 + 0.2;
+                // Deep blue with depth variation
+                let r = 15 + depth * 30;
+                let g = 40 + depth * 60 + (lat > 0.85 ? 40 : 0);
+                let b = 100 + depth * 80;
+                // Polar ice caps
+                if (lat > 0.82) {
+                    const iceFrac = (lat - 0.82) / 0.18;
+                    r = r * (1 - iceFrac) + 210 * iceFrac;
+                    g = g * (1 - iceFrac) + 220 * iceFrac;
+                    b = b * (1 - iceFrac) + 230 * iceFrac;
+                }
+                // Shallow reefs/islands (rare bright spots)
+                if (n > 0.72) {
+                    const reef = (n - 0.72) / 0.28;
+                    r += reef * 60; g += reef * 80; b -= reef * 20;
+                }
+                d[i] = Math.min(255, r); d[i + 1] = Math.min(255, g);
+                d[i + 2] = Math.min(255, b); d[i + 3] = 255;
+            }
+        }
+    } else if (typeId === 'ice_world' || typeId === 'ice_moon') {
+        // --- Ice world: white/blue with cracks and geothermal spots ---
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const n = fbm(px * 0.06, py * 0.06, 4);
+                const crack = fbm(px * 0.2, py * 0.2, 3);
+                let r = 160 + n * 60;
+                let g = 180 + n * 50;
+                let b = 210 + n * 40;
+                // Dark cracks in the ice
+                if (crack > 0.62 && crack < 0.66) {
+                    r *= 0.4; g *= 0.45; b *= 0.6;
+                }
+                // Occasional geothermal warm spots
+                const warm = fbm(px * 0.03 + 50, py * 0.03 + 50, 3);
+                if (warm > 0.7) {
+                    const wf = (warm - 0.7) / 0.3;
+                    r = r * (1 - wf * 0.3) + 140 * wf * 0.3;
+                    g *= (1 - wf * 0.3);
+                    b *= (1 - wf * 0.4);
+                }
+                d[i] = Math.min(255, r); d[i + 1] = Math.min(255, g);
+                d[i + 2] = Math.min(255, b); d[i + 3] = 255;
+            }
+        }
+    } else if (typeId === 'volcanic' || typeId === 'volcanic_moon') {
+        // --- Volcanic: dark rock with lava rivers and magma pools ---
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const rock = fbm(px * 0.07, py * 0.07, 4);
+                const lava = fbm(px * 0.12 + 30, py * 0.12 + 30, 4);
+                // Dark basalt base
+                let r = 40 + rock * 40;
+                let g = 25 + rock * 25;
+                let b = 20 + rock * 15;
+                // Lava rivers (narrow bright channels)
+                if (lava > 0.55 && lava < 0.62) {
+                    const heat = 1 - Math.abs(lava - 0.585) / 0.035;
+                    r = r * (1 - heat) + 255 * heat;
+                    g = g * (1 - heat) + 140 * heat * heat;
+                    b = b * (1 - heat) + 20 * heat;
+                }
+                // Magma pools (broader bright areas)
+                const pool = fbm(px * 0.04 + 60, py * 0.04 + 60, 3);
+                if (pool > 0.68) {
+                    const pf = (pool - 0.68) / 0.32;
+                    r = r * (1 - pf * 0.8) + 240 * pf * 0.8;
+                    g = g * (1 - pf * 0.5) + 100 * pf * 0.5;
+                    b *= (1 - pf * 0.6);
+                }
+                d[i] = Math.min(255, r); d[i + 1] = Math.min(255, g);
+                d[i + 2] = Math.min(255, b); d[i + 3] = 255;
+            }
+        }
+    } else if (typeId === 'anomalous') {
+        // --- Anomalous: alien, weird colors, crystal/mushroom/void ---
+        const hueShift = rng.next() * 360;
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const n1 = fbm(px * 0.05, py * 0.05, 5);
+                const n2 = fbm(px * 0.15 + 40, py * 0.15 + 40, 3);
+                // Psychedelic shifting hues
+                const hue = (hueShift + n1 * 180 + n2 * 90) % 360;
+                const sat = 0.5 + n2 * 0.4;
+                const lum = 0.2 + n1 * 0.4;
+                // HSL to RGB
+                const c = (1 - Math.abs(2 * lum - 1)) * sat;
+                const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+                const m = lum - c / 2;
+                let r1, g1, b1;
+                if (hue < 60) { r1 = c; g1 = x; b1 = 0; }
+                else if (hue < 120) { r1 = x; g1 = c; b1 = 0; }
+                else if (hue < 180) { r1 = 0; g1 = c; b1 = x; }
+                else if (hue < 240) { r1 = 0; g1 = x; b1 = c; }
+                else if (hue < 300) { r1 = x; g1 = 0; b1 = c; }
+                else { r1 = c; g1 = 0; b1 = x; }
+                d[i]     = Math.min(255, (r1 + m) * 255);
+                d[i + 1] = Math.min(255, (g1 + m) * 255);
+                d[i + 2] = Math.min(255, (b1 + m) * 255);
+                d[i + 3] = 255;
+                // Crystal highlights
+                if (n2 > 0.72) {
+                    const sparkle = (n2 - 0.72) / 0.28;
+                    d[i] = Math.min(255, d[i] + sparkle * 100);
+                    d[i + 1] = Math.min(255, d[i + 1] + sparkle * 80);
+                    d[i + 2] = Math.min(255, d[i + 2] + sparkle * 120);
+                }
+            }
+        }
+    } else {
+        // --- Barren rock / rocky moon / barren moon: craters, dust, mesas ---
+        const br = parseInt(planet.type.color.slice(1, 3), 16);
+        const bg = parseInt(planet.type.color.slice(3, 5), 16);
+        const bb = parseInt(planet.type.color.slice(5, 7), 16);
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
+                const i = (py * w + px) * 4;
+                const terrain = fbm(px * 0.06, py * 0.06, 5);
+                const fine = fbm(px * 0.25, py * 0.25, 3) * 0.2;
+                const elev = terrain + fine;
+                // Color varies with elevation
+                const bright = 0.6 + elev * 0.6;
+                d[i]     = Math.min(255, br * bright);
+                d[i + 1] = Math.min(255, bg * bright);
+                d[i + 2] = Math.min(255, bb * bright);
+                d[i + 3] = 255;
+            }
+        }
+        // Stamp some craters
+        const craterCount = 5 + Math.floor(rng.next() * 12);
+        for (let ci = 0; ci < craterCount; ci++) {
+            const cx = Math.floor(rng.next() * w);
+            const cy = Math.floor(rng.next() * h);
+            const cr = 3 + Math.floor(rng.next() * 10);
+            for (let dy = -cr; dy <= cr; dy++) {
+                for (let dx = -cr; dx <= cr; dx++) {
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > cr) continue;
+                    const px2 = ((cx + dx) % w + w) % w;
+                    const py2 = Math.max(0, Math.min(h - 1, cy + dy));
+                    const i = (py2 * w + px2) * 4;
+                    const rimDist = Math.abs(dist - cr * 0.85) / (cr * 0.15);
+                    if (rimDist < 1) {
+                        // Bright rim
+                        d[i] = Math.min(255, d[i] + 30);
+                        d[i + 1] = Math.min(255, d[i + 1] + 25);
+                        d[i + 2] = Math.min(255, d[i + 2] + 20);
+                    } else if (dist < cr * 0.8) {
+                        // Dark interior
+                        const shadow = 0.6 + 0.4 * (dist / (cr * 0.8));
+                        d[i] *= shadow;
+                        d[i + 1] *= shadow;
+                        d[i + 2] *= shadow;
+                    }
+                }
+            }
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    return new THREE.CanvasTexture(canvas);
+}
+
+// ============================================================
+// ATMOSPHERIC GLOW + CLOUD LAYERS
+// ============================================================
+function createAtmosphereGlow(radius, planet) {
+    const typeId = planet.type.id;
+    const atmo = planet.type.atmosphere;
+    if (atmo === 'None' || !atmo) return null;
+
+    let color, opacity;
+    if (typeId === 'habitable' || typeId === 'habitable_moon' || typeId === 'ocean_world') {
+        color = new THREE.Color(0.3, 0.5, 1.0); opacity = 0.15;
+    } else if (typeId === 'volcanic' || typeId === 'volcanic_moon') {
+        color = new THREE.Color(0.8, 0.3, 0.1); opacity = 0.12;
+    } else if (typeId === 'ice_world' || typeId === 'ice_moon') {
+        color = new THREE.Color(0.5, 0.7, 1.0); opacity = 0.1;
+    } else if (typeId === 'gas_giant') {
+        const sc = new THREE.Color(planet.gasSubtype ? planet.gasSubtype.color : planet.type.color);
+        color = sc; opacity = 0.08;
+    } else if (typeId === 'anomalous') {
+        color = new THREE.Color(0.6, 0.2, 0.8); opacity = 0.14;
+    } else {
+        color = new THREE.Color(0.5, 0.5, 0.6); opacity = 0.08;
+    }
+
+    // Soft glow sprite
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 64; glowCanvas.height = 64;
+    const gCtx = glowCanvas.getContext('2d');
+    const grad = gCtx.createRadialGradient(32, 32, 12, 32, 32, 32);
+    grad.addColorStop(0, `rgba(${Math.floor(color.r*255)},${Math.floor(color.g*255)},${Math.floor(color.b*255)},${opacity})`);
+    grad.addColorStop(0.5, `rgba(${Math.floor(color.r*255)},${Math.floor(color.g*255)},${Math.floor(color.b*255)},${opacity * 0.4})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    gCtx.fillStyle = grad;
+    gCtx.fillRect(0, 0, 64, 64);
+
+    const glowTex = new THREE.CanvasTexture(glowCanvas);
+    const mat = new THREE.SpriteMaterial({
+        map: glowTex, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, color: 0xffffff
+    });
+    const sprite = new THREE.Sprite(mat);
+    const glowScale = radius * 3.2;
+    sprite.scale.set(glowScale, glowScale, 1);
+    sprite.renderOrder = -1;
+    return sprite;
+}
+
+function createCloudLayer(radius, planet) {
+    const typeId = planet.type.id;
+    // Clouds only on worlds with thick atmospheres
+    if (typeId !== 'habitable' && typeId !== 'habitable_moon' && typeId !== 'ocean_world'
+        && typeId !== 'gas_giant') return null;
+
+    const cloudSize = typeId === 'gas_giant' ? 64 : 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = cloudSize * 2; canvas.height = cloudSize;
+    const ctx = canvas.getContext('2d');
+    const rng = new SeededRandom(planet.seed + 3333);
+
+    // Noise-based cloud coverage
+    const noiseGrid = 24;
+    const nv = [];
+    for (let i = 0; i < noiseGrid * noiseGrid; i++) nv.push(rng.next());
+    function cn2d(x, y) {
+        x = ((x % noiseGrid) + noiseGrid) % noiseGrid;
+        y = ((y % noiseGrid) + noiseGrid) % noiseGrid;
+        const ix = Math.floor(x), iy = Math.floor(y);
+        const fx = x - ix, fy = y - iy;
+        const sf = (t) => t * t * (3 - 2 * t);
+        const a = nv[(iy % noiseGrid) * noiseGrid + (ix % noiseGrid)];
+        const b = nv[(iy % noiseGrid) * noiseGrid + ((ix + 1) % noiseGrid)];
+        const c = nv[((iy + 1) % noiseGrid) * noiseGrid + (ix % noiseGrid)];
+        const d = nv[((iy + 1) % noiseGrid) * noiseGrid + ((ix + 1) % noiseGrid)];
+        return a + (b - a) * sf(fx) + (c - a) * sf(fy) + (a - b - c + d) * sf(fx) * sf(fy);
+    }
+    function cfbm(x, y, oct) {
+        let val = 0, amp = 0.5, freq = 1;
+        for (let o = 0; o < oct; o++) { val += cn2d(x * freq, y * freq) * amp; amp *= 0.5; freq *= 2; }
+        return val;
+    }
+
+    const imgData = ctx.createImageData(canvas.width, canvas.height);
+    const dd = imgData.data;
+    const coverage = typeId === 'ocean_world' ? 0.38 : 0.45; // threshold
+    for (let py = 0; py < canvas.height; py++) {
+        for (let px = 0; px < canvas.width; px++) {
+            const idx = (py * canvas.width + px) * 4;
+            const n = cfbm(px * 0.06, py * 0.06, 4);
+            if (n > coverage) {
+                const a = Math.min(1, (n - coverage) / (1 - coverage) * 2);
+                dd[idx] = 255; dd[idx + 1] = 255; dd[idx + 2] = 255;
+                dd[idx + 3] = Math.floor(a * 180);
+            } else {
+                dd[idx] = 0; dd[idx + 1] = 0; dd[idx + 2] = 0; dd[idx + 3] = 0;
+            }
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    const cloudR = radius * 1.02;
+    const geo = new THREE.SphereGeometry(cloudR, 32, 32);
+    const mat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthWrite: false,
+        blending: THREE.NormalBlending, side: THREE.FrontSide,
+        opacity: 0.7
+    });
+    return new THREE.Mesh(geo, mat);
+}
+
 function renderSystem() {
     if (!systemData) return;
 
@@ -1526,6 +1959,9 @@ function renderSystem() {
     planetMeshes.forEach(m => scene.remove(m));
     moonMeshes.forEach(m => scene.remove(m));
     ringMeshes.forEach(r => scene.remove(r.mesh));
+    atmosphereSprites.forEach(a => scene.remove(a.sprite));
+    cloudMeshes.forEach(c => scene.remove(c.mesh));
+    volcanicGlows.forEach(v => scene.remove(v.sprite));
     orbitLines.forEach(l => scene.remove(l));
     if (starSprite) scene.remove(starSprite);
     if (starGlowSprite) scene.remove(starGlowSprite);
@@ -1549,6 +1985,9 @@ function renderSystem() {
     planetMeshes = [];
     moonMeshes = [];
     ringMeshes = [];
+    atmosphereSprites = [];
+    cloudMeshes = [];
+    volcanicGlows = [];
     orbitLines = [];
     pulsarBeamSprites = [];
     if (labelContainer) labelContainer.innerHTML = '';
@@ -1581,15 +2020,61 @@ function renderSystem() {
         scene.add(orbitLine);
         orbitLines.push(orbitLine);
 
-        // Planet mesh — use gas giant subtype color if applicable
+        // Planet mesh — procedural texture matching biome/type
         const r = getPlanetVisualRadius(planet);
         const geom = new THREE.SphereGeometry(r, 32, 32);
-        const planetColor = (planet.gasSubtype && planet.gasSubtype.color) || planet.type.color;
-        const material = new THREE.MeshPhongMaterial({ color: planetColor, emissive: 0x000000 });
+        const texSize = r > 3 ? 128 : 80;
+        const planetTex = createPlanetTexture(planet, texSize);
+        planetTex.wrapS = THREE.RepeatWrapping;
+        const material = new THREE.MeshPhongMaterial({
+            map: planetTex,
+            emissive: planet.type.id === 'volcanic' ? 0x1a0800 : 0x000000,
+            emissiveIntensity: planet.type.id === 'volcanic' ? 0.3 : 0,
+            shininess: planet.type.id === 'ocean_world' ? 30 : 10
+        });
         const mesh = new THREE.Mesh(geom, material);
         mesh.userData = { type: 'planet', index: pi };
         planetMeshes.push(mesh);
         scene.add(mesh);
+
+        // Atmospheric glow halo
+        const atmoSprite = createAtmosphereGlow(r, planet);
+        if (atmoSprite) {
+            scene.add(atmoSprite);
+            atmosphereSprites.push({ sprite: atmoSprite, parentType: 'planet', planetIndex: pi, moonIndex: -1 });
+        }
+
+        // Cloud layer
+        const cloudMesh = createCloudLayer(r, planet);
+        if (cloudMesh) {
+            scene.add(cloudMesh);
+            const speed = 0.00004 + Math.random() * 0.00003;
+            cloudMeshes.push({ mesh: cloudMesh, parentType: 'planet', planetIndex: pi, moonIndex: -1, speed });
+        }
+
+        // Volcanic surface glow (faint orange underglow)
+        if (planet.type.id === 'volcanic') {
+            const vCanvas = document.createElement('canvas');
+            vCanvas.width = 32; vCanvas.height = 32;
+            const vCtx = vCanvas.getContext('2d');
+            const vGrad = vCtx.createRadialGradient(16, 16, 4, 16, 16, 16);
+            vGrad.addColorStop(0, 'rgba(255,100,20,0.25)');
+            vGrad.addColorStop(0.5, 'rgba(200,50,10,0.1)');
+            vGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            vCtx.fillStyle = vGrad;
+            vCtx.fillRect(0, 0, 32, 32);
+            const vTex = new THREE.CanvasTexture(vCanvas);
+            const vMat = new THREE.SpriteMaterial({
+                map: vTex, transparent: true, depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const vSprite = new THREE.Sprite(vMat);
+            const vScale = r * 2.5;
+            vSprite.scale.set(vScale, vScale, 1);
+            vSprite.renderOrder = -1;
+            scene.add(vSprite);
+            volcanicGlows.push({ sprite: vSprite, parentType: 'planet', planetIndex: pi, moonIndex: -1 });
+        }
 
         // Planet rings
         if (planet.rings) {
@@ -1602,11 +2087,49 @@ function renderSystem() {
                 const moon = planet.moonData[mi];
                 const moonR = getPlanetVisualRadius(moon);
                 const moonGeom = new THREE.SphereGeometry(moonR, 16, 16);
-                const moonMaterial = new THREE.MeshPhongMaterial({ color: moon.type.color });
+                const moonTexSize = 64;
+                const moonTex = createPlanetTexture(moon, moonTexSize);
+                moonTex.wrapS = THREE.RepeatWrapping;
+                const moonMaterial = new THREE.MeshPhongMaterial({
+                    map: moonTex,
+                    emissive: moon.type.id === 'volcanic_moon' ? 0x1a0800 : 0x000000,
+                    emissiveIntensity: moon.type.id === 'volcanic_moon' ? 0.3 : 0
+                });
                 const moonMesh = new THREE.Mesh(moonGeom, moonMaterial);
                 moonMesh.userData = { type: 'moon', planetIndex: pi, moonIndex: mi };
                 moonMeshes.push(moonMesh);
                 scene.add(moonMesh);
+
+                // Moon atmosphere (habitable moons, ice moons with thin atmo)
+                const moonAtmo = createAtmosphereGlow(moonR, moon);
+                if (moonAtmo) {
+                    scene.add(moonAtmo);
+                    atmosphereSprites.push({ sprite: moonAtmo, parentType: 'moon', planetIndex: pi, moonIndex: mi });
+                }
+
+                // Volcanic moon glow
+                if (moon.type.id === 'volcanic_moon') {
+                    const vmC = document.createElement('canvas');
+                    vmC.width = 32; vmC.height = 32;
+                    const vmCtx = vmC.getContext('2d');
+                    const vmG = vmCtx.createRadialGradient(16, 16, 4, 16, 16, 16);
+                    vmG.addColorStop(0, 'rgba(255,100,20,0.2)');
+                    vmG.addColorStop(0.5, 'rgba(200,50,10,0.08)');
+                    vmG.addColorStop(1, 'rgba(0,0,0,0)');
+                    vmCtx.fillStyle = vmG;
+                    vmCtx.fillRect(0, 0, 32, 32);
+                    const vmTex = new THREE.CanvasTexture(vmC);
+                    const vmMat = new THREE.SpriteMaterial({
+                        map: vmTex, transparent: true, depthWrite: false,
+                        blending: THREE.AdditiveBlending
+                    });
+                    const vmSpr = new THREE.Sprite(vmMat);
+                    const vmScale = moonR * 2.5;
+                    vmSpr.scale.set(vmScale, vmScale, 1);
+                    vmSpr.renderOrder = -1;
+                    scene.add(vmSpr);
+                    volcanicGlows.push({ sprite: vmSpr, parentType: 'moon', planetIndex: pi, moonIndex: mi });
+                }
 
                 // Moon rings
                 if (moon.rings) {
@@ -2407,6 +2930,49 @@ function animate(time) {
                     rm.mesh.position.set(x, 0, z);
                 }
             }
+
+            // Position atmosphere sprites with planet
+            for (const a of atmosphereSprites) {
+                if (a.parentType === 'planet' && a.planetIndex === pi) {
+                    a.sprite.position.set(x, 0, z);
+                } else if (a.parentType === 'moon' && a.planetIndex === pi) {
+                    // Find moon position
+                    for (const mm of moonMeshes) {
+                        if (mm.userData.planetIndex === pi && mm.userData.moonIndex === a.moonIndex) {
+                            a.sprite.position.copy(mm.position);
+                        }
+                    }
+                }
+            }
+
+            // Position & rotate cloud meshes
+            for (const c of cloudMeshes) {
+                if (c.parentType === 'planet' && c.planetIndex === pi) {
+                    c.mesh.position.set(x, 0, z);
+                    c.mesh.rotation.y = time * c.speed;
+                }
+            }
+
+            // Position volcanic glows
+            for (const v of volcanicGlows) {
+                if (v.parentType === 'planet' && v.planetIndex === pi) {
+                    v.sprite.position.set(x, 0, z);
+                } else if (v.parentType === 'moon' && v.planetIndex === pi) {
+                    for (const mm of moonMeshes) {
+                        if (mm.userData.planetIndex === pi && mm.userData.moonIndex === v.moonIndex) {
+                            v.sprite.position.copy(mm.position);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Slow planet rotation so textures visibly turn
+        for (let pi = 0; pi < planetMeshes.length; pi++) {
+            planetMeshes[pi].rotation.y = time * 0.00006;
+        }
+        for (const mm of moonMeshes) {
+            mm.rotation.y = time * 0.00008;
         }
 
         // ---- Wormhole animation: orbit, self-rotation, glow pulse ----
