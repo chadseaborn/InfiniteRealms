@@ -1506,9 +1506,80 @@ function buildUniverseScene() {
             universeGroup.add(coreSprite);
             quasarSprites.push(coreSprite);
 
-            // Jets are represented visually by the starburst diffraction spikes
-            // in the quasar texture rather than separate line geometry, which
-            // looked cluttered at universe scale.
+            // 3D jet cones — two opposing volumetric cones extending from quasar
+            const jetLen = coreSize * (2.5 + Math.min(q.luminosity / 200, 2.5));
+            const jetBaseR = coreSize * 0.12;
+            const jetTipR = coreSize * 0.6;
+            // Random jet axis per quasar (seeded)
+            const jRng = new SeededRandom(q.hostGalaxyIndex * 7 + 31);
+            const jTheta = jRng.next() * Math.PI * 2;
+            const jPhi = jRng.next() * Math.PI * 0.6 + Math.PI * 0.2; // avoid flat
+            const jetDir = new THREE.Vector3(
+                Math.sin(jPhi) * Math.cos(jTheta),
+                Math.cos(jPhi),
+                Math.sin(jPhi) * Math.sin(jTheta)
+            ).normalize();
+
+            for (let pole = -1; pole <= 1; pole += 2) {
+                const coneGeo = new THREE.CylinderGeometry(jetTipR, jetBaseR, jetLen, 12, 8, true);
+                // Per-vertex attributes for smooth shader
+                const vCount = coneGeo.attributes.position.count;
+                const axialFade = new Float32Array(vCount);
+                const radialDist = new Float32Array(vCount);
+                const posArr = coneGeo.attributes.position.array;
+                for (let vi = 0; vi < vCount; vi++) {
+                    const ly = posArr[vi * 3 + 1];
+                    const lx = posArr[vi * 3];
+                    const lz = posArr[vi * 3 + 2];
+                    const t = (ly / jetLen) + 0.5; // 0 at base, 1 at tip
+                    axialFade[vi] = t;
+                    const maxRAtT = jetBaseR + (jetTipR - jetBaseR) * t;
+                    const rd = Math.sqrt(lx * lx + lz * lz) / (maxRAtT || 1);
+                    radialDist[vi] = Math.min(rd, 1.0);
+                }
+                coneGeo.setAttribute('axialFade', new THREE.Float32BufferAttribute(axialFade, 1));
+                coneGeo.setAttribute('radialDist', new THREE.Float32BufferAttribute(radialDist, 1));
+
+                const jetColor = q.type ? q.type.jetColor || '#ff8800' : '#ff8800';
+                const jc = new THREE.Color(jetColor);
+                const coneMat = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        attribute float axialFade;
+                        attribute float radialDist;
+                        varying float vAxial;
+                        varying float vRadial;
+                        void main() {
+                            vAxial = axialFade;
+                            vRadial = radialDist;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying float vAxial;
+                        varying float vRadial;
+                        uniform vec3 jetCol;
+                        void main() {
+                            float coreBright = exp(-vRadial * vRadial * 4.0);
+                            float axial = vAxial * vAxial;
+                            float alpha = coreBright * axial * 0.3;
+                            vec3 coreC = vec3(1.0, 0.95, 0.85);
+                            vec3 col = mix(jetCol, coreC, coreBright * vAxial);
+                            gl_FragColor = vec4(col, alpha);
+                        }
+                    `,
+                    uniforms: { jetCol: { value: new THREE.Vector3(jc.r, jc.g, jc.b) } },
+                    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending
+                });
+
+                const cone = new THREE.Mesh(coneGeo, coneMat);
+                // Orient cone along jet direction
+                const dir = jetDir.clone().multiplyScalar(pole);
+                cone.position.set(q.x + dir.x * jetLen * 0.5, q.y + dir.y * jetLen * 0.5, q.z + dir.z * jetLen * 0.5);
+                cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+                universeGroup.add(cone);
+                quasarJetMeshes.push(cone);
+            }
         }
     }
 }
